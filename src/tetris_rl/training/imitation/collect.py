@@ -141,7 +141,7 @@ def iter_bc_batches_from_dataset(
       Useful for driving a shard-loading progress bar in the caller.
     """
     bs = max(1, int(batch_size))
-    remaining = int(max_samples) if int(max_samples) > 0 else 0
+    remaining: Optional[int] = int(max_samples) if int(max_samples) > 0 else None
     crop_top_rows = max(0, int(crop_top_rows))
 
     sids = [int(x) for x in shard_ids]
@@ -219,7 +219,8 @@ def iter_bc_batches_from_dataset(
         shard_seed = seed32_from(base_seed=int(base_seed), stream_id=int(sid))
         rng = np.random.default_rng(int(shard_seed))
 
-        max_take_local = int(remaining) if remaining else 0
+        max_take_local = int(remaining) if remaining is not None else 0
+
         idx = _iter_indices(n=n, rng=rng, shuffle=bool(shuffle_within_shard), max_take=max_take_local)
 
         # optional mask
@@ -234,7 +235,7 @@ def iter_bc_batches_from_dataset(
 
         # stream into pending buffer
         for j in idx:
-            if remaining and remaining <= 0:
+            if remaining is not None and remaining <= 0:
                 break
 
             jj = int(j)
@@ -249,7 +250,7 @@ def iter_bc_batches_from_dataset(
                 pending[NPZ_LEGAL_MASK].append(lm[jj: jj + 1])
 
             pending_n += 1
-            if remaining:
+            if remaining is not None:
                 remaining -= 1
 
             if pending_n >= bs:
@@ -257,7 +258,7 @@ def iter_bc_batches_from_dataset(
                 if out is not None:
                     yield out
 
-        if remaining and remaining <= 0:
+        if remaining is not None and remaining <= 0:
             break
 
     if not drop_last:
