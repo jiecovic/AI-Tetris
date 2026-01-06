@@ -67,7 +67,6 @@ Requires **Python ≥ 3.10**.
 
 After installation, the following commands are available:
 
-* `tetris-smoke-env` – quick environment sanity check
 * `tetris-train` – train an RL or imitation model
 * `tetris-watch` – watch a trained agent play (pygame)
 * `tetris-gen-expert-data` – generate heuristic expert datasets
