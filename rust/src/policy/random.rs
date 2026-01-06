@@ -1,12 +1,11 @@
-// src/policy.rs
+// src/policy/random.rs
+#![forbid(unsafe_code)]
+
 use rand::prelude::*;
 
-use crate::game;
-use crate::game::Game;
+use crate::engine::{decode_action_id, Game};
 
-pub trait Policy {
-    fn choose_action(&mut self, g: &Game) -> Option<(usize, i32)>;
-}
+use super::base::Policy;
 
 pub struct RandomPolicy {
     rng: StdRng,
@@ -24,7 +23,7 @@ impl Policy for RandomPolicy {
     fn choose_action(&mut self, g: &Game) -> Option<(usize, i32)> {
         let ids = g.legal_action_ids();
         let &aid = ids.choose(&mut self.rng)?;
-        let (rot, col_u) = game::decode_action_id(aid);
-        Some((rot, col_u as i32)) // col is bbox-left col
+        let (rot, col_u) = decode_action_id(aid);
+        Some((rot, col_u as i32))
     }
 }

@@ -1,7 +1,7 @@
 // src/piece_rule.rs
 use rand::prelude::*;
 
-use crate::pieces::Kind;
+use crate::engine::pieces::Kind;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PieceRuleKind {

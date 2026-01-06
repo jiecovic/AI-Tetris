@@ -1,6 +1,9 @@
-// src/policy_codemy.rs
-use crate::game::{decode_action_id, Game, ACTION_DIM, H, W};
-use crate::policy::Policy;
+// src/policy/heuristic.rs
+#![forbid(unsafe_code)]
+
+use crate::engine::{decode_action_id, Game, ACTION_DIM, H, W};
+
+use super::base::Policy;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Lookahead {
@@ -66,7 +69,8 @@ impl Policy for CodemyPolicy {
                         if !mask2[aid2] {
                             continue;
                         }
-                        let sim2 = Game::apply_action_id_to_grid(&sim1.grid_after_clear, g.next, aid2);
+                        let sim2 =
+                            Game::apply_action_id_to_grid(&sim1.grid_after_clear, g.next, aid2);
                         if sim2.terminated {
                             continue;
                         }

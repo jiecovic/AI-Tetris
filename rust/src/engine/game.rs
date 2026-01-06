@@ -1,54 +1,12 @@
-// src/game.rs
-use crate::piece_rule::{PieceRule, PieceRuleKind};
-use crate::pieces::{rotations, Kind};
+// src/engine/game.rs
+#![forbid(unsafe_code)]
 
-pub const H: usize = 20;
-pub const W: usize = 10;
+use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
+use crate::engine::pieces::Kind;
 
-pub const MAX_ROTS: usize = 4;
-pub const ACTION_DIM: usize = MAX_ROTS * W;
-
-#[inline]
-pub fn encode_action_id(rot: usize, col: usize) -> usize {
-    debug_assert!(rot < MAX_ROTS);
-    debug_assert!(col < W);
-    rot * W + col
-}
-
-#[inline]
-pub fn decode_action_id(aid: usize) -> (usize, usize) {
-    (aid / W, aid % W)
-}
-
-// -----------------------------------------------------------------------------
-// bbox-left semantics helpers
-// -----------------------------------------------------------------------------
-
-#[inline]
-fn dx_range(kind: Kind, rot: usize) -> (i32, i32) {
-    let cells = rotations(kind)[rot];
-    let mut mn = i32::MAX;
-    let mut mx = i32::MIN;
-    for &(dx, _dy) in cells {
-        mn = mn.min(dx);
-        mx = mx.max(dx);
-    }
-    (mn, mx)
-}
-
-#[inline]
-fn bbox_params(kind: Kind, rot: usize) -> (i32, i32, i32) {
-    let (min_dx, max_dx) = dx_range(kind, rot);
-    let bbox_w = max_dx - min_dx + 1;
-    let bbox_left_max = (W as i32) - bbox_w;
-    (min_dx, bbox_w, bbox_left_max)
-}
-
-#[inline]
-fn bbox_left_to_anchor_x(kind: Kind, rot: usize, bbox_left_col: i32) -> i32 {
-    let (min_dx, _bbox_w, _bbox_left_max) = bbox_params(kind, rot);
-    bbox_left_col - min_dx
-}
+use crate::engine::constants::{decode_action_id, encode_action_id, ACTION_DIM, H, MAX_ROTS, W};
+use crate::engine::geometry::{bbox_left_to_anchor_x, bbox_params};
+use crate::engine::grid::{clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics, lock_on_grid};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SimPlacement {
@@ -117,30 +75,9 @@ impl Game {
     // Height metrics (locked grid only)
     // -------------------------------------------------------------------------
 
-    /// Column height: number of filled cells from bottom (0..H).
-    #[inline]
-    fn col_height(grid: &[[u8; W]; H], c: usize) -> u32 {
-        for r in 0..H {
-            if grid[r][c] != 0 {
-                return (H - r) as u32;
-            }
-        }
-        0
-    }
-
     /// Returns (max_height, avg_height).
     pub fn height_metrics(&self) -> (u32, f32) {
-        let mut max_h: u32 = 0;
-        let mut sum: u32 = 0;
-        for c in 0..W {
-            let h = Self::col_height(&self.grid, c);
-            if h > max_h {
-                max_h = h;
-            }
-            sum += h;
-        }
-        let avg = sum as f32 / (W as f32);
-        (max_h, avg)
+        grid_height_metrics(&self.grid)
     }
 
     // -------------------------------------------------------------------------
@@ -331,50 +268,4 @@ impl Game {
         ));
         s
     }
-}
-
-// -----------------------------------------------------------------------------
-// Pure helpers
-// -----------------------------------------------------------------------------
-
-fn fits_on_grid(grid: &[[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32) -> bool {
-    let cells = rotations(kind)[rot];
-    for &(dx, dy) in cells {
-        let gx = x + dx;
-        let gy = y + dy;
-        if gx < 0 || gx >= W as i32 || gy < 0 || gy >= H as i32 {
-            return false;
-        }
-        if grid[gy as usize][gx as usize] != 0 {
-            return false;
-        }
-    }
-    true
-}
-
-fn lock_on_grid(grid: &mut [[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32) {
-    let v = kind.idx();
-    for &(dx, dy) in rotations(kind)[rot] {
-        let gx = (x + dx) as usize;
-        let gy = (y + dy) as usize;
-        grid[gy][gx] = v;
-    }
-}
-
-fn clear_lines_grid(grid: &[[u8; W]; H]) -> ([[u8; W]; H], u32) {
-    let mut cleared = 0u32;
-    let mut new_grid = [[0u8; W]; H];
-    let mut write_row: i32 = (H as i32) - 1;
-
-    for r in (0..H).rev() {
-        let full = grid[r].iter().all(|&c| c != 0);
-        if full {
-            cleared += 1;
-            continue;
-        }
-        new_grid[write_row as usize] = grid[r];
-        write_row -= 1;
-    }
-
-    (new_grid, cleared)
 }
