@@ -1,6 +1,6 @@
 # RL-Tetris 🧩🤖
 
-![Demo](assets/demo.gif)
+<img src="assets/demo.gif" width="500" />
 
 
 **Experimental playground for teaching AI to play Tetris.**
