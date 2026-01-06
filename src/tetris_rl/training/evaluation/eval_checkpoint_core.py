@@ -259,7 +259,7 @@ class EvalCheckpointCore:
         ph = str(phase).strip().lower()[: self._COL_W_PH].ljust(self._COL_W_PH)
 
         row = (
-            f"{self._fmt_int(t, self._COL_W_T)} "
+            f"{self._fmt_count(t, self._COL_W_T)} "
             f"{ph:<{self._COL_W_PH}} "
             f"{upd_fixed:<{self._COL_W_UPD}} "
             f"{self._fmt_count(steps, self._COL_W_ST)} "
@@ -273,7 +273,7 @@ class EvalCheckpointCore:
             f"{self._fmt_float(bc_val_loss, self._COL_W_BCL, prec=4)} "
             f"{self._fmt_float(bc_val_acc_top1, self._COL_W_BCA, prec=3)} "
             f"{self._fmt_float(bc_val_entropy, self._COL_W_BCH, prec=3)} "
-            f"{self._fmt_int(bc_val_samples, self._COL_W_BCS)}"
+            # f"{self._fmt_int(bc_val_samples, self._COL_W_BCS)}"
         )
         self.emit(row)
 
