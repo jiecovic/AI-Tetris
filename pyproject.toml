@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rl-tetris"
+version = "0.1.0"
+description = "Tetris game with RL experiments"
+requires-python = ">=3.10"
+readme = "README.md"
+
+dependencies = [
+    "numpy>=1.23,<2.0",
+    "gymnasium>=0.29",
+    "stable-baselines3>=2.3",
+    "sb3-contrib>=2.3",
+    "torch>=2.0",
+    "pygame>=2.5",
+    "PyYAML>=6.0",
+    "tqdm>=4.66",
+    "rich>=13",
+]
+
+
+[project.optional-dependencies]
+viz = [
+    "opencv-python>=4.8,<5.0",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+tetris-smoke-env = "tetris_rl.tools.smoke_env:main"
+tetris-train = "tetris_rl.cli.train:main"
+#tetris-eval = "tetris_rl.cli.eval:main"
+tetris-watch = "tetris_rl.cli.watch:main"
+tetris-fit-reward = "tetris_rl.cli.fit_reward_from_dataset:main"
+tetris-gen-expert-data = "tetris_rl.cli.gen_expert_data:main"

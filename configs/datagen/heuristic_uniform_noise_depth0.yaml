@@ -1,0 +1,71 @@
+# configs/datagen/heuristic_uniform_noise_depth0.yaml
+# Offline expert dataset generation (state-based, representation-agnostic)
+
+dataset:
+  name: heuristic_uniform_noise_depth0    # dataset identifier (folder name)
+  out_root: datasets/bc              # root directory for all BC datasets
+
+  shards:
+    shard_steps: 50_000                # number of samples per shard file
+    num_shards: 1_000                   # total shards to generate
+
+  compression: true                 # use npz compression (slower I/O if true)
+
+
+run:
+  seed: 123                          # base RNG seed for dataset generation
+  num_workers: 20                    # parallel generator workers
+  progress_update_every_k: 1000       # optional; only matters when num_workers>1
+
+
+game:
+  pieces: classic7                   # piece set definition
+  piece_rule: uniform                  # piece generation rule
+
+
+generation:
+  episode_max_steps: 1_000            # max steps per episode (null disables)
+
+  warmup:
+    type: init_rows_uniform
+    params:
+      enabled: true
+
+      # Apply warmup with this probability after reset
+      prob: 0.9
+
+      # Mean number of initialized bottom rows (Poisson)
+#      rows_mean: 16
+
+      # Optional hard cap on rows (0 = no explicit cap,
+      # playability cap still enforced by init_rows)
+      rows_max: 16
+
+      # Row structure:
+      # Poisson mean of holes per row.
+      # ~2 holes on a 10-wide board gives a realistic, non-zebra stack.
+      holes_mean: 2.5
+
+      # Filled cell id:
+      # 0 => random categorical ids in [1..K]
+      fill_value: 3
+
+  noise:
+    enabled: true
+    interleave_prob: 0.01
+    interleave_max_steps: 1
+
+  labels:
+    record_rewardfit: true
+
+
+expert:
+  type: heuristic_agent              # expert policy implementation
+  heuristic:
+    lookahead: 0                     # expert lookahead depth (0 or 1)
+#    beam_width: 5                    # beam width for lookahead search
+#    weights:
+#      a_agg_height: -0.510066
+#      b_lines: 0.760666
+#      c_holes: -0.35663
+#      d_bumpiness: -0.184483

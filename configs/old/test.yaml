@@ -1,0 +1,85 @@
+# configs/mlp.yaml
+# Minimal end-to-end training sanity check
+
+run:
+  name: test_run
+  seed: 0
+  out_root: experiments
+  tensorboard: true
+
+  total_timesteps: 100_000_000
+  checkpoint_every: 10_000
+  device: cpu
+
+  n_envs: 8
+  vec: subproc
+
+eval:
+  enabled: true
+  episodes: 500
+  deterministic: true
+  seed_offset: 10000
+
+game:
+  pieces: test            # resolved to assets/pieces/classic7.yaml by code
+  piece_rule: uniform         # uniform | gameboy_or | ...
+
+env:
+  type: macro_tokens          # macro step env that outputs token dict obs
+  params:
+    action_mode: discrete     # discrete | multidiscrete
+    max_steps: 10_000         # null disables truncation
+
+  obs:
+    type: col_tokens          # row_tokens | col_tokens | patch_tokens
+    params:
+      cell_mode: binary       # binary | piece_id
+      next_tetromino_token: true
+
+      # only for patch_tokens:
+      # patch_h: 2
+      # patch_w: 2
+      # stride_h: 2
+      # stride_w: 2
+
+  reward:
+    type: shaped
+    params: {}
+
+model:
+  net_arch: [512]
+  extractor:
+    type: token_mlp
+    params:
+      # NOTE: must match board + tetromino d_model because we add encodings and (optionally) run a token-FFN
+      d_model: 64
+
+      board_emb_kind: linear_projected         # symbolic | linear_projected
+      tetromino_emb_kind: symbolic     # symbolic | linear_projected
+
+      features_dim: 512
+      pooling: flatten_mlp             # flatten_mlp | mean | max | meanmax
+
+      pos_kind: coord_proj             # none | learned_1d | learned_2d | coord_proj
+      pos_dropout: 0.0
+
+      type_kind: learned               # none | learned
+      type_dropout: 0.0
+
+      token_ffn_hidden: null           # e.g. 128 to enable shared per-token FFN
+      token_ffn_dropout: 0.0
+
+      pre_ln: true
+
+      mlp_hidden: []                   # extractor head; usually keep [] and let SB3 net_arch do the work
+      mlp_dropout: 0.0
+
+algo:
+  type: ppo
+  params:
+    learning_rate: 2.5e-4
+    n_steps: 2048
+    batch_size: 128
+    n_epochs: 2
+    gamma: 0.99
+    ent_coef: 0.02

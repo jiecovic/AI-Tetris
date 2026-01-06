@@ -1,0 +1,150 @@
+# configs/vit_ppo.yaml
+# Minimal end-to-end training sanity check with ViT and row tokens
+
+run:
+  name: vit_run
+  seed: 0
+  out_root: experiments
+  tensorboard: true
+
+  device: cuda
+
+  n_envs: 1
+  vec: subproc
+
+game:
+  pieces: classic7            # resolved to assets/pieces/classic7.yaml by code
+  piece_rule: uniform         # uniform | gameboy_or | k-bag
+
+env:
+  type: macro                 # MacroTetrisEnv (raw Dict obs only)
+  params:
+    action_mode: discrete     # discrete | multidiscrete
+    max_steps: 500          # null disables truncation
+    illegal_action_policy: noop   # noop | terminate | closest_legal | random_legal
+
+  warmup:
+    type: init_rows_poisson
+    params:
+      enabled: true
+
+      # Apply warmup with this probability after reset
+      prob: 0.9
+
+      # Mean number of initialized bottom rows (Poisson)
+      rows_mean: 16
+
+      # Optional hard cap on rows (0 = no explicit cap,
+      # playability cap still enforced by init_rows)
+      rows_max: 0
+
+      # Row structure:
+      # Poisson mean of holes per row.
+      # ~2 holes on a 10-wide board gives a realistic, non-zebra stack.
+      holes_mean: 2.5
+
+      # Filled cell id:
+      # 0 => random categorical ids in [1..K]
+      fill_value: 3
+
+  reward:
+    type: learned_ridge
+    params: { }
+
+model:
+  net_arch: []
+
+  encoder:
+    type: token
+    d_model: 512
+    features_dim: 512
+
+    include_next: true
+
+    # how to represent ACTIVE/NEXT
+    special_mode: token          # token | one-hot
+
+    # must match env.params.cell_mode (encoder will validate)
+    cell_mode: binary            # binary | categorical   (same semantic as env)
+
+    # tokenization (MODEL-OWNED now)
+    tokens:
+      type: col                  # row | col | patch
+    #      params: { patch_h: 2, patch_w: 2, stride_h: 2, stride_w: 2 }
+
+    # board token embedding
+    board_embedding:
+      type: conv1d             # symbolic | linear_projected | conv1d
+      params:
+        profile: deep
+        pooling: max
+        padding: 1
+    #      params:
+    #        profile: deep            # tiny | base | deep (registry key)
+    #        pooling: max             # max | mean | meanmax
+    #        padding: 1
+
+    # token backbone (mixing + pooling)
+    backbone:
+      type: vit                  # vit | mlp
+      params:
+        pooling: max             # mean | max | meanmax | flatten | cls | cls_*
+
+        # encodings (additive before mixing)
+        pos_kind: learned_1d      # none | learned_1d | learned_2d | coord_proj
+        pos_dropout: 0.0
+        type_kind: learned        # none | learned
+        type_dropout: 0.0
+
+        # transformer stack
+        n_layers: 4
+        n_heads: 8
+        attn_dropout: 0.0
+        resid_dropout: 0.0
+        ffn_mult: 4.0
+        ffn_dropout: 0.0
+        pre_ln_input: true
+
+        # CLS / pooling control
+        num_cls_tokens: 0         # 0 disables
+
+train:
+  checkpoints:
+    latest_every: 100_000            # save latest checkpoint every N env steps
+
+  eval:
+    mode: both                       # off | rl | imitation | both
+    steps: 10_000                  # evaluation step budget (env steps)
+    eval_every: 1_000_000              # run eval every N training env steps
+    deterministic: true             # use deterministic policy during eval
+    seed_offset: 10_000             # seed offset added to training base seed
+    num_envs: 20                     # number of parallel envs for eval
+
+  imitation:
+    enabled: true                  # enable imitation (behavior cloning) phase
+    dataset_dir: datasets/bc/heuristic_uniform_noise_depth1  # path to offline dataset
+    epochs: 10                       # number of epochs over dataset
+    batch_size: 512                 # batch size for BC updates
+    learning_rate: 1e-4             # optimizer learning rate
+    max_grad_norm: 1.0              # gradient clipping norm
+    shuffle: true                   # shuffle dataset each epoch
+    max_samples: 0                  # max samples to use (0 = all)
+    save_archive: true              # archive final imitation checkpoint
+    archive_dir: checkpoints/imitation  # directory for BC archives
+
+  rl:
+    enabled: false                   # enable reinforcement learning phase
+    total_timesteps: 100_000_000    # total env steps for RL training
+    algo:
+      type: maskable_ppo            # ppo | maskable_ppo
+      params:
+        learning_rate: 5e-7         # optimizer learning rate
+        n_steps: 4096               # rollout length per environment
+        batch_size: 256             # minibatch size for updates
+        n_epochs: 1                 # number of optimization epochs per rollout
+        gamma: 0.999                # discount factor
+        ent_coef: 0.0              # entropy regularization coefficient
+        target_kl: 0.02             # KL divergence target (optional)
+        clip_range: 0.1             # PPO clip range (optional)
+
+

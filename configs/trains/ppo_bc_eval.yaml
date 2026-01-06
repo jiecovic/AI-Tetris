@@ -1,0 +1,43 @@
+train:
+  checkpoints:
+    latest_every: 500_000            # save latest checkpoint every N env steps
+
+  eval:
+    mode: both                       # off | rl | imitation | both
+    steps: 50_000                  # evaluation step budget (env steps)
+    eval_every: 5_000_000              # run eval every N training env steps
+    deterministic: true             # use deterministic policy during eval
+    seed_offset: 10_000             # seed offset added to training base seed
+
+    env_override:
+      params:
+        max_steps: null            # no truncation
+      warmup:
+        type: null                 # or params.enabled: false
+
+  imitation:
+    enabled: true                  # enable imitation (behavior cloning) phase
+    dataset_dir: datasets/bc/heuristic_uniform_noise_depth1  # path to offline dataset
+    epochs: 10                       # number of epochs over dataset
+    batch_size: 512                 # batch size for BC updates
+    learning_rate: 1e-4             # optimizer learning rate
+    max_grad_norm: 1.0              # gradient clipping norm
+    shuffle: false                   # shuffle dataset each epoch
+    max_samples: 0                  # max samples to use (0 = all)
+    save_archive: true              # archive final imitation checkpoint
+    archive_dir: checkpoints/imitation  # directory for BC archives
+
+  rl:
+    enabled: false                   # enable reinforcement learning phase
+    total_timesteps: 100_000_000    # total env steps for RL training
+    algo:
+      type: maskable_ppo            # ppo | maskable_ppo
+      params:
+        learning_rate: 1.0e-4         # optimizer learning rate
+        n_steps: 2048               # rollout length per environment
+        batch_size: 256             # minibatch size for updates
+        n_epochs: 8                 # number of optimization epochs per rollout
+        gamma: 0.99                # discount factor
+        ent_coef: 0.02              # entropy regularization coefficient
+#        target_kl: 0.02             # KL divergence target (optional)
+#        clip_range: 0.1             # PPO clip range (optional)

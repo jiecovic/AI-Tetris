@@ -1,0 +1,90 @@
+# configs/mlp.yaml
+# Minimal end-to-end training sanity check
+
+run:
+  name: mlp_run
+  seed: 0
+  out_root: experiments
+  tensorboard: true
+
+  total_timesteps: 100_000_000
+  checkpoint_every: 500_000
+  device: cpu
+
+  n_envs: 32
+  vec: subproc
+
+eval:
+  enabled: true
+  episodes: 500
+  deterministic: true
+  seed_offset: 10000
+
+game:
+  pieces: classic7            # resolved to assets/pieces/classic7.yaml by code
+  piece_rule: k-bag         # uniform | gameboy_or | ...
+
+env:
+  type: macro_tokens          # macro step env that outputs token dict obs
+  params:
+    action_mode: discrete     # discrete | multidiscrete
+    max_steps: 1_000         # null disables truncation
+
+  obs:
+    type: col_tokens          # row_tokens | col_tokens | patch_tokens
+    params:
+      cell_mode: binary       # binary | piece_id
+      next_tetromino_token: true
+
+      # only for patch_tokens:
+      # patch_h: 2
+      # patch_w: 2
+      # stride_h: 2
+      # stride_w: 2
+
+  reward:
+    type: shaped
+    params: { }
+
+model:
+  net_arch: [ 512 ]                # SB3 policy/value MLP after the extractor
+  extractor:
+    board_embedding:
+      type: conv1d  # board tokens via linear projection (good for binary/ID tokens): symbolic | linear_projected | conv1d
+      params:
+        profile: base
+        pooling: max
+    type: token_mlp
+    params:
+      # --- token embeddings ---
+      d_model: 64                # token embedding dimension (shared across all tokens)
+      special_mode: token        # specials: token = in token stream | one-hot = bypass as extra features
+
+      # --- extractor output ---
+      features_dim: 512          # output feature size seen by SB3 policy/value nets
+      pooling: flatten_mlp       # token pooling: flatten_mlp | mean | max | meanmax
+
+      # --- encodings ---
+      pos_kind: coord_proj       # positional encoding: none | learned_1d | learned_2d | coord_proj
+      pos_dropout: 0.0           # positional encoding dropout
+      type_kind: learned         # token-type encoding (board / active / next)
+      type_dropout: 0.0          # token-type encoding dropout
+
+      # --- per-token FFN ---
+      token_ffn_hidden: null     # per-token FFN hidden dim (null = 4*d_model, -1 = disable)
+      token_ffn_dropout: 0.0     # per-token FFN dropout
+      pre_ln: true               # apply LayerNorm before per-token FFN
+
+      # --- extractor head ---
+      mlp_hidden: [ ]             # extractor head MLP (usually empty; SB3 net_arch used)
+      mlp_dropout: 0.0           # extractor head dropout
+
+algo:
+  type: ppo
+  params:
+    learning_rate: 2.5e-4
+    n_steps: 2048
+    batch_size: 128
+    n_epochs: 2
+    gamma: 0.994
+    ent_coef: 0.01

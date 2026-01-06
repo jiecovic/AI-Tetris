@@ -1,0 +1,11 @@
+# assets/pieces/test.yaml
+version: 1
+expected_cells: 4
+description: Test set
+
+pieces:
+  I:
+    color: [ 0, 240, 240 ]
+    rotations:
+      - [ "....", "####", "....", "...." ]
+      - [ "..#.", "..#.", "..#.", "..#." ]

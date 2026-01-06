@@ -1,0 +1,34 @@
+env:
+  type: macro                 # MacroTetrisEnv (raw Dict obs only)
+  params:
+    action_mode: discrete     # discrete | multidiscrete
+    max_steps: 500          # null disables truncation
+    illegal_action_policy: noop   # noop | terminate | closest_legal | random_legal
+
+  warmup:
+    type: init_rows_poisson
+    params:
+      enabled: true
+
+      # Apply warmup with this probability after reset
+      prob: 0.9
+
+      # Mean number of initialized bottom rows (Poisson)
+      rows_mean: 16
+
+      # Optional hard cap on rows (0 = no explicit cap,
+      # playability cap still enforced by init_rows)
+      rows_max: 0
+
+      # Row structure:
+      # Poisson mean of holes per row.
+      # ~2 holes on a 10-wide board gives a realistic, non-zebra stack.
+      holes_mean: 2.5
+
+      # Filled cell id:
+      # 0 => random categorical ids in [1..K]
+      fill_value: 3
+
+  reward:
+    type: learned_ridge
+    params: { }
