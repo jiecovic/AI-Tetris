@@ -28,7 +28,7 @@ The codebase is intentionally flexible and YAML-driven, allowing rapid experimen
 Configurable entirely via **YAML**:
 
 * CNN
-* ViT
+* ViT (Different kind of tokenization methods + transformer layers)
 * MLP-Mixer
 * Multiple embedding/tokenization strategies:
 
