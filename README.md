@@ -1,5 +1,8 @@
 # RL-Tetris 🧩🤖
 
+![Demo](assets/demo.gif)
+
+
 **Experimental playground for teaching AI to play Tetris.**
 
 This project is a research / learning sandbox focused on **model-free reinforcement learning**, neural network architectures, and representation learning for classic games.
