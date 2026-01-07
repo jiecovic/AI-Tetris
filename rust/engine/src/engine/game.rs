@@ -1,4 +1,4 @@
-// src/engine/game.rs
+// rust/engine/src/engine/game.rs
 #![forbid(unsafe_code)]
 
 use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
@@ -18,14 +18,18 @@ pub struct SimPlacement {
     pub grid_after_lock: [[u8; W]; H],
     pub grid_after_clear: [[u8; W]; H],
     pub cleared_lines: u32,
+    /// NOTE: In v1 this means "invalid placement / illegal action for this grid+kind",
+    /// not "true game over".
     pub terminated: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct StepResult {
+    /// True game over (spawn rows occupied) OR engine already in game_over.
     pub terminated: bool,
     pub cleared_lines: u32,
-    pub grid_after_lock: Option<[[u8; W]; H]>,
+    /// True iff the provided action was illegal; in that case the transition is a no-op.
+    pub illegal_action: bool,
 }
 
 #[derive(Clone)]
@@ -101,6 +105,18 @@ impl Game {
     pub fn spawn_next(&mut self) {
         self.active = self.next;
         self.next = self.piece_rule.draw();
+    }
+
+    #[inline]
+    fn spawn_rows_occupied(grid: &[[u8; W]; H]) -> bool {
+        for r in 0..HIDDEN_ROWS {
+            for c in 0..W {
+                if grid[r][c] != 0 {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     // -------------------------------------------------------------------------
@@ -212,67 +228,77 @@ impl Game {
     }
 
     // -------------------------------------------------------------------------
-    // Mutating step
+    // Mutating step (FAST PATH)
     // -------------------------------------------------------------------------
 
-    pub fn step_action_id(&mut self, action_id: usize, return_grid_after_lock: bool) -> StepResult {
+    /// Applies a placement action for the current active piece.
+    ///
+    /// Engine semantics:
+    /// - Illegal actions are a no-op and return `illegal_action=true` without terminating.
+    /// - True game over is detected iff the *post-clear* locked grid occupies any spawn row
+    ///   (`r < HIDDEN_ROWS`).
+    pub fn step_action_id(&mut self, action_id: usize) -> StepResult {
         if self.game_over {
             return StepResult {
                 terminated: true,
                 cleared_lines: 0,
-                grid_after_lock: None,
+                illegal_action: false,
             };
         }
+
+        // Out-of-range action id => illegal no-op (engine does not terminate).
         if action_id >= ACTION_DIM {
-            self.game_over = true;
             return StepResult {
-                terminated: true,
+                terminated: false,
                 cleared_lines: 0,
-                grid_after_lock: None,
+                illegal_action: true,
             };
         }
 
         let sim = Self::apply_action_id_to_grid(&self.grid, self.active, action_id);
 
+        // Illegal placement => no-op.
         if sim.terminated {
-            self.game_over = true;
             return StepResult {
-                terminated: true,
+                terminated: false,
                 cleared_lines: 0,
-                grid_after_lock: if return_grid_after_lock {
-                    Some(sim.grid_after_lock)
-                } else {
-                    None
-                },
+                illegal_action: true,
             };
         }
 
+        // Valid placement: commit post-clear grid.
         self.grid = sim.grid_after_clear;
 
         self.lines_cleared += sim.cleared_lines as u64;
         self.score += 100 * sim.cleared_lines as u64;
         self.steps += 1;
 
+        // True game over check: locked blocks in spawn rows.
+        if Self::spawn_rows_occupied(&self.grid) {
+            self.game_over = true;
+            return StepResult {
+                terminated: true,
+                cleared_lines: sim.cleared_lines,
+                illegal_action: false,
+            };
+        }
+
         self.spawn_next();
 
         StepResult {
-            terminated: self.game_over,
+            terminated: false,
             cleared_lines: sim.cleared_lines,
-            grid_after_lock: if return_grid_after_lock {
-                Some(sim.grid_after_lock)
-            } else {
-                None
-            },
+            illegal_action: false,
         }
     }
 
     pub fn step_macro(&mut self, rot: usize, col: i32) -> (bool, u32) {
         if col < 0 || col >= W as i32 {
-            self.game_over = true;
-            return (true, 0);
+            // Macro convenience: treat as illegal no-op.
+            return (false, 0);
         }
         let aid = encode_action_id(rot % MAX_ROTS, col as usize);
-        let r = self.step_action_id(aid, false);
+        let r = self.step_action_id(aid);
         (r.terminated, r.cleared_lines)
     }
 

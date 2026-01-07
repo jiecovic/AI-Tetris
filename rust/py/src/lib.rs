@@ -1,4 +1,4 @@
-// rust_py/src/lib.rs
+// rust/py/src/lib.rs
 #![forbid(unsafe_code)]
 #![allow(unsafe_op_in_unsafe_fn)] // pyo3 macro-generated glue triggers this on Rust 2024
 
@@ -37,9 +37,10 @@ impl TetrisEngine {
         self.g = Game::new_with_rule_and_warmup(seed, rule, wr, wh);
     }
 
-    fn step_action_id(&mut self, action_id: usize) -> (bool, u32) {
-        let r = self.g.step_action_id(action_id, false);
-        (r.terminated, r.cleared_lines)
+    /// Returns (terminated, cleared_lines, illegal_action).
+    fn step_action_id(&mut self, action_id: usize) -> (bool, u32, bool) {
+        let r = self.g.step_action_id(action_id);
+        (r.terminated, r.cleared_lines, r.illegal_action)
     }
 
     /// Returns mask as uint8 array of shape (ACTION_DIM,): 1 = legal, 0 = illegal.

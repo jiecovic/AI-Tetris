@@ -36,15 +36,20 @@ def main() -> None:
             break
 
         action = int(legal[0])  # deterministic
-        terminated, cleared = g.step_action_id(action)
+        terminated, cleared, illegal = g.step_action_id(action)
 
         print(
             f"step={step:03d} "
             f"action={action:03d} "
+            f"illegal={int(illegal)} "
             f"cleared={cleared} "
             f"score={g.score()} "
             f"game_over={g.game_over()}"
         )
+
+        # This should never happen in this smoke test because we select from the mask.
+        if illegal:
+            print("Illegal action reported (unexpected with mask-based selection).")
 
         if terminated:
             print("Terminated.")
