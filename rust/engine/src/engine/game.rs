@@ -9,9 +9,9 @@ use crate::engine::constants::{
 };
 use crate::engine::geometry::{bbox_left_to_anchor_x, bbox_params};
 use crate::engine::grid::{
-    apply_warmup_garbage, clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics,
-    lock_on_grid,
+    clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics, lock_on_grid,
 };
+use crate::engine::warmup::{apply_warmup, HoleCount, RowCountDist, WarmupSpec};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SimPlacement {
@@ -57,11 +57,32 @@ impl Game {
         Self::new_with_rule_and_warmup(seed, rule_kind, 0, 1)
     }
 
+    /// Backwards-compatible convenience constructor.
+    /// Uses fixed warmup rows/holes if warmup_rows > 0, otherwise no warmup.
     pub fn new_with_rule_and_warmup(
         seed: u64,
         rule_kind: PieceRuleKind,
         warmup_rows: u8,
         warmup_holes: u8,
+    ) -> Self {
+        let spec = if warmup_rows == 0 {
+            WarmupSpec::none()
+        } else {
+            WarmupSpec {
+                rows: RowCountDist::Fixed(warmup_rows),
+                holes: HoleCount::Fixed(warmup_holes),
+                spawn_buffer: (HIDDEN_ROWS as u8) + 2,
+                seed_salt: WarmupSpec::DEFAULT_SEED_SALT,
+            }
+        };
+        Self::new_with_rule_and_warmup_spec(seed, rule_kind, spec)
+    }
+
+    /// New constructor: warmup is configured via a documented spec.
+    pub fn new_with_rule_and_warmup_spec(
+        seed: u64,
+        rule_kind: PieceRuleKind,
+        warmup: WarmupSpec,
     ) -> Self {
         let mut piece_rule = PieceRule::new(seed, rule_kind);
 
@@ -70,21 +91,7 @@ impl Game {
         let next = piece_rule.draw();
 
         let mut grid = [[0u8; W]; H];
-
-        if warmup_rows > 0 {
-            // Keep top rows empty to avoid blocking spawn.
-            // With hidden rows: reserve them + a little extra headroom.
-            let spawn_buffer: usize = HIDDEN_ROWS + 2;
-            let max_rows = H.saturating_sub(spawn_buffer).min(u8::MAX as usize) as u8;
-
-            let rows = warmup_rows.min(max_rows);
-
-            // Ensure at least 1 hole and at most W-1 holes.
-            let max_holes = (W.saturating_sub(1)).min(u8::MAX as usize) as u8;
-            let holes = warmup_holes.clamp(1, max_holes);
-
-            apply_warmup_garbage(&mut grid, seed, rows, holes);
-        }
+        apply_warmup(&mut grid, seed, &warmup);
 
         Self {
             grid,

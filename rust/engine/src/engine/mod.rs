@@ -1,4 +1,4 @@
-// src/engine/mod.rs
+// rust/engine/src/engine/mod.rs
 #![forbid(unsafe_code)]
 
 pub mod constants;
@@ -8,6 +8,7 @@ pub mod geometry;
 pub mod grid;
 pub mod piece_rule;
 pub mod pieces;
+pub mod warmup;
 
 // Re-exports (engine public API)
 pub use constants::*;
@@ -17,3 +18,4 @@ pub use features::{
 pub use game::*;
 pub use piece_rule::*;
 pub use pieces::*;
+pub use warmup::{HoleCount, RowCountDist, WarmupSpec};
