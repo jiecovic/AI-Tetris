@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.6"]
+build-backend = "maturin"
 
 [project]
 name = "rl-tetris"
@@ -21,22 +21,18 @@ dependencies = [
     "rich>=13",
 ]
 
-
 [project.optional-dependencies]
-viz = [
-    "opencv-python>=4.8,<5.0",
-]
-
-[tool.setuptools]
-package-dir = { "" = "src" }
-
-[tool.setuptools.packages.find]
-where = ["src"]
+viz = ["opencv-python>=4.8,<5.0"]
 
 [project.scripts]
 tetris-smoke-env = "tetris_rl.tools.smoke_env:main"
 tetris-train = "tetris_rl.cli.train:main"
-#tetris-eval = "tetris_rl.cli.eval:main"
 tetris-watch = "tetris_rl.cli.watch:main"
 tetris-fit-reward = "tetris_rl.cli.fit_reward_from_dataset:main"
 tetris-gen-expert-data = "tetris_rl.cli.gen_expert_data:main"
+
+[tool.maturin]
+manifest-path = "rust_py/Cargo.toml"
+python-source = "src"
+features = ["pyo3/extension-module"]
+module-name = "tetris_rl_engine"

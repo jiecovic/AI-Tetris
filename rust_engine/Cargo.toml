@@ -1,10 +1,10 @@
 [package]
-name = "tetris_cli"
+name = "tetris_engine"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "tetris_cli"
+name = "tetris_engine"
 path = "src/lib.rs"
 
 [[bin]]
