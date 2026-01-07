@@ -44,18 +44,18 @@ model:
         d_model: 256                                 # options: int > 0
         add_active_token: true
         add_next_token: true
-        share_kind_embedding: false
+        share_kind_embedding: true
         layout:
           type: column                # options: row | column | patch | row_column
           params: {}               # patch: patch_h, patch_w, stride_h, stride_w
 
         board_embedding:
-          type: linear                                   # options: conv1d | linear | discrete_pattern
-#          params:
-#            preset: deep                                 # options: tiny | base | deep | generic
-#            dropout: 0.01                                 # options: float >= 0
-#            padding: same                               # options: valid | same | tetris
-#            coordconv: false
+          type: conv1d                                   # options: conv1d | linear | discrete_pattern
+          params:
+            preset: tiny                                 # options: tiny | base | deep | generic
+            dropout: 0.0                                 # options: float >= 0
+            padding: same                               # options: valid | same | tetris
+            coordconv: true
 
   #      board_embedding:
   #        type: conv1d                                   # options: conv1d
@@ -81,8 +81,8 @@ model:
           attn_dropout: 0.0        # options: float >= 0
           resid_dropout: 0.0       # options: float >= 0
           use_cls: false            # options: true | false
-          num_cls_tokens: 1        # options: int > 0 (if use_cls)
-          pool: cls_max                # options: cls | cls_mean | cls_max | cls_meanmax | mean | max | meanmax | flatten
+          num_cls_tokens: 0        # options: int > 0 (if use_cls)
+          pool: max                # options: cls | cls_mean | cls_max | cls_meanmax | mean | max | meanmax | flatten
           pre_ln_input: true      # options: true | false
 
   #  encoder:
