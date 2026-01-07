@@ -3,6 +3,7 @@
 
 use core::marker::PhantomData;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use crate::engine::{decode_action_id, features::compute_grid_features, Game, Kind, ACTION_DIM, H, W};
 
@@ -40,10 +41,65 @@ impl Default for BeamConfig {
     }
 }
 
+// -----------------------------------------------------------------------------
+// "Empty-grid legal action ids" cache
+// -----------------------------------------------------------------------------
+
+fn kind_idx0(k: Kind) -> usize {
+    match k {
+        Kind::I => 0,
+        Kind::O => 1,
+        Kind::T => 2,
+        Kind::S => 3,
+        Kind::Z => 4,
+        Kind::J => 5,
+        Kind::L => 6,
+    }
+}
+
+static EMPTY_LEGAL_AIDS: OnceLock<[Vec<usize>; 7]> = OnceLock::new();
+
+fn empty_legal_action_ids(kind: Kind) -> &'static [usize] {
+    let arr = EMPTY_LEGAL_AIDS.get_or_init(|| {
+        let empty = [[0u8; W]; H];
+
+        let mut out: [Vec<usize>; 7] = [
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        ];
+
+        for &k in Kind::all() {
+            let mask = Game::action_mask_for_grid(&empty, k);
+            let mut v = Vec::new();
+            v.reserve(ACTION_DIM);
+
+            for aid in 0..ACTION_DIM {
+                if mask[aid] {
+                    v.push(aid);
+                }
+            }
+
+            out[kind_idx0(k)] = v;
+        }
+
+        out
+    });
+
+    &arr[kind_idx0(kind)]
+}
+
 /// Core implementation shared by dynamic + static policy wrappers.
 /// Holds all knobs (currently only beam pruning).
+///
+/// NOTE: This is `pub` to avoid Rust privacy warnings because it appears
+/// in public trait bounds/signatures (via `UnknownModel` / `CodemyPolicyStatic`).
 #[derive(Clone, Copy, Debug)]
-struct CodemyCore {
+pub struct CodemyCore {
     beam: Option<BeamConfig>,
 }
 
@@ -103,15 +159,11 @@ impl CodemyCore {
     }
 
     /// Fast path: maximize score_grid(grid_after_lock) for a known piece on a grid.
-    /// Single simulation per legal aid. No allocations.
+    /// Single simulation per candidate aid. No allocations.
     fn best_leaf_score_for_known_piece(&self, grid: &[[u8; W]; H], kind: Kind) -> f64 {
-        let mask = Game::action_mask_for_grid(grid, kind);
         let mut best = f64::NEG_INFINITY;
 
-        for aid in 0..ACTION_DIM {
-            if !mask[aid] {
-                continue;
-            }
+        for &aid in empty_legal_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.terminated {
                 continue;
@@ -126,20 +178,11 @@ impl CodemyCore {
     }
 
     /// Leaf with beam pruning:
-    /// compute scores for all legal actions, select top-N, then return the max score among them.
-    fn best_leaf_score_for_known_piece_beam(
-        &self,
-        grid: &[[u8; W]; H],
-        kind: Kind,
-        n: usize,
-    ) -> f64 {
-        let mask = Game::action_mask_for_grid(grid, kind);
+    /// compute scores for all candidate actions, select top-N, then return the max score among them.
+    fn best_leaf_score_for_known_piece_beam(&self, grid: &[[u8; W]; H], kind: Kind, n: usize) -> f64 {
         let mut scores: Vec<(usize, f64)> = Vec::new();
 
-        for aid in 0..ACTION_DIM {
-            if !mask[aid] {
-                continue;
-            }
+        for &aid in empty_legal_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.terminated {
                 continue;
@@ -164,16 +207,6 @@ impl CodemyCore {
     }
 
     /// Value when the next piece is known: maximize over placements of `kind` on `grid`.
-    ///
-    /// Semantics:
-    /// - plies_left == 1: leaf => score on locked (pre-clear) grid
-    /// - plies_left  > 1: after placing known piece, remaining future plies are handled by `M`
-    ///
-    /// PERFORMANCE RULES:
-    /// - If no pruning at this depth: do a single-pass simulate+recurse, no allocations.
-    /// - If pruning: two-phase
-    ///     1) score-only pass to pick top-N (cheap proxy)
-    ///     2) re-simulate only top-N to recurse
     fn value_known_piece<M: UnknownModel>(
         &self,
         grid: &[[u8; W]; H],
@@ -183,7 +216,7 @@ impl CodemyCore {
     ) -> f64 {
         debug_assert!(plies_left >= 1);
 
-        // Leaf: avoid all allocations/copies.
+        // Leaf
         if plies_left == 1 {
             if let Some(n) = self.should_prune(depth) {
                 return self.best_leaf_score_for_known_piece_beam(grid, kind, n);
@@ -191,16 +224,11 @@ impl CodemyCore {
             return self.best_leaf_score_for_known_piece(grid, kind);
         }
 
-        // Non-leaf:
-        // If no pruning, do a single pass: simulate once per aid, recurse immediately.
+        // No pruning => single pass
         let Some(_n) = self.should_prune(depth) else {
-            let mask = Game::action_mask_for_grid(grid, kind);
             let mut best = f64::NEG_INFINITY;
 
-            for aid in 0..ACTION_DIM {
-                if !mask[aid] {
-                    continue;
-                }
+            for &aid in empty_legal_action_ids(kind) {
                 let sim = Game::apply_action_id_to_grid(grid, kind, aid);
                 if sim.terminated {
                     continue;
@@ -214,20 +242,11 @@ impl CodemyCore {
             return best;
         };
 
-        // NOTE: For simplicity and to keep behavior identical to your currently-good code,
-        // we keep the two-phase pruning path as-is (beam mode).
-        // (Your "2fast" variant below does not rely on beam.)
+        // Pruned non-leaf => two phase
         let n = self.should_prune(depth).unwrap_or(ACTION_DIM);
 
-        // Pruned non-leaf: two-phase.
-        // Phase 1: compute proxy scores to select top-N.
-        let mask = Game::action_mask_for_grid(grid, kind);
         let mut scores: Vec<(usize, f64)> = Vec::new();
-
-        for aid in 0..ACTION_DIM {
-            if !mask[aid] {
-                continue;
-            }
+        for &aid in empty_legal_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.terminated {
                 continue;
@@ -242,7 +261,6 @@ impl CodemyCore {
 
         let kept = Self::prune_top_n_scores(scores, n);
 
-        // Phase 2: re-simulate only kept aids to recurse.
         let mut best = f64::NEG_INFINITY;
         for (aid, _s) in kept {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
@@ -259,17 +277,13 @@ impl CodemyCore {
     }
 
     #[inline]
-    fn value_after_clear<M: UnknownModel>(
-        &self,
-        grid: &[[u8; W]; H],
-        plies_left: u8,
-        depth: u8,
-    ) -> f64 {
+    fn value_after_clear<M: UnknownModel>(&self, grid: &[[u8; W]; H], plies_left: u8, depth: u8) -> f64 {
         debug_assert!(plies_left >= 1);
         M::expected_value(self, grid, plies_left, depth)
     }
 
     /// Build aid0 candidates for the active piece with a cheap proxy to rank for pruning.
+    /// (We keep using Game::action_mask() here.)
     fn aid0_candidates_with_proxy(&self, g: &Game) -> Vec<(usize, f64)> {
         let mask = g.action_mask();
         let mut out: Vec<(usize, f64)> = Vec::new();
@@ -294,20 +308,27 @@ impl CodemyCore {
     }
 
     // -------------------------------------------------------------------------
-    // Codemy1 helpers (used by "codemy2fast")
+    // Codemy2FastPolicy helpers
     // -------------------------------------------------------------------------
 
-    /// For a *known* next piece: find the best response action id and its leaf score.
-    /// Returns (best_aid, best_leaf_score). If no legal move, returns None.
-    fn best_response_for_known_piece(&self, grid: &[[u8; W]; H], kind: Kind) -> Option<(usize, f64)> {
-        let mask = Game::action_mask_for_grid(grid, kind);
+    /// Same as "best response for known piece", but cached:
+    /// (grid_hash, kind) -> (best_aid, best_score_lock, best_grid_after_clear)
+    fn best_response_for_known_piece_cached(
+        &self,
+        grid: &[[u8; W]; H],
+        kind: Kind,
+        cache: &mut HashMap<(u64, u8), (usize, f64, [[u8; W]; H])>,
+    ) -> Option<(usize, f64, [[u8; W]; H])> {
+        let key = (Self::hash_grid(grid), kind_idx0(kind) as u8);
+        if let Some(v) = cache.get(&key) {
+            return Some(*v);
+        }
+
         let mut best_aid: Option<usize> = None;
         let mut best_score = f64::NEG_INFINITY;
+        let mut best_clear = *grid;
 
-        for aid in 0..ACTION_DIM {
-            if !mask[aid] {
-                continue;
-            }
+        for &aid in empty_legal_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.terminated {
                 continue;
@@ -316,10 +337,14 @@ impl CodemyCore {
             if s > best_score {
                 best_score = s;
                 best_aid = Some(aid);
+                best_clear = sim.grid_after_clear;
             }
         }
 
-        best_aid.map(|aid| (aid, best_score))
+        let aid = best_aid?;
+        let val = (aid, best_score, best_clear);
+        cache.insert(key, val);
+        Some(val)
     }
 
     /// Cheap 64-bit hash of the grid for per-decision caching (FNV-1a).
@@ -337,11 +362,7 @@ impl CodemyCore {
 
     /// Compute best leaf scores for all 7 kinds on a given grid, with per-decision cache.
     #[inline]
-    fn best_leaf_scores_all_kinds_cached(
-        &self,
-        grid: &[[u8; W]; H],
-        cache: &mut HashMap<u64, [f64; 7]>,
-    ) -> [f64; 7] {
+    fn best_leaf_scores_all_kinds_cached(&self, grid: &[[u8; W]; H], cache: &mut HashMap<u64, [f64; 7]>) -> [f64; 7] {
         let key = Self::hash_grid(grid);
         if let Some(v) = cache.get(&key) {
             return *v;
@@ -369,8 +390,9 @@ impl CodemyCore {
 }
 
 /// Unknown future model (type-level), used for inlining in static policy variants.
-/// Kept crate-visible to avoid public API warnings while not leaking as public API.
-pub(crate) trait UnknownModel {
+///
+/// NOTE: This is `pub` to avoid privacy warnings because `CodemyPolicyStatic` is public.
+pub trait UnknownModel {
     fn expected_value(core: &CodemyCore, grid: &[[u8; W]; H], plies_left: u8, depth: u8) -> f64;
 }
 
@@ -389,7 +411,11 @@ impl UnknownModel for UniformIID {
             n += 1.0;
         }
 
-        if n > 0.0 { sum / n } else { f64::NEG_INFINITY }
+        if n > 0.0 {
+            sum / n
+        } else {
+            f64::NEG_INFINITY
+        }
     }
 }
 
@@ -426,7 +452,6 @@ impl Policy for CodemyPolicyDynamic {
             let v0 = if self.plies == 1 {
                 CodemyCore::score_grid(&sim1.grid_after_lock)
             } else {
-                // Next ply is the known next piece.
                 self.core
                     .value_known_piece::<UniformIID>(&sim1.grid_after_clear, g.next, self.plies - 1, 1)
             };
@@ -479,7 +504,6 @@ impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
                 continue;
             }
 
-            // PLIES is const => compiler folds these branches per instantiation.
             let v0 = if PLIES == 1 {
                 CodemyCore::score_grid(&sim1.grid_after_lock)
             } else {
@@ -504,15 +528,6 @@ impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
 /// "codemy2fast": codemy1 exact best-response to known next piece,
 /// plus a cheap one-step tail estimate for the unknown next-next piece.
 /// No beam needed; uses per-decision caching.
-///
-/// How it scores a candidate aid0:
-/// 1) simulate aid0 -> grid1 (post-clear)
-/// 2) choose best aid1* for g.next on grid1 (codemy1 rule)
-/// 3) simulate aid1* -> grid2 (post-clear)
-/// 4) tail(grid2) = E_k[ best_leaf_score(grid2, k) ] (cached)
-///
-/// Final value = codemy1_best_score + tail_weight * tail
-/// (you can tune tail_weight; start small to avoid destabilizing codemy1).
 pub struct Codemy2FastPolicy {
     tail_weight: f64,
 }
@@ -527,8 +542,11 @@ impl Policy for Codemy2FastPolicy {
     fn choose_action(&mut self, g: &Game) -> Option<(usize, i32)> {
         let core = CodemyCore::new(None);
 
-        // Per-decision cache: grid_hash -> best leaf scores for each kind (7).
-        let mut cache: HashMap<u64, [f64; 7]> = HashMap::new();
+        // Per-decision caches:
+        //  - tail_cache: grid_hash -> best leaf scores for each kind (7)
+        //  - br_cache: (grid_hash, kind) -> (best_aid, best_score_lock, best_grid_after_clear)
+        let mut tail_cache: HashMap<u64, [f64; 7]> = HashMap::new();
+        let mut br_cache: HashMap<(u64, u8), (usize, f64, [[u8; W]; H])> = HashMap::new();
 
         let mask1 = g.action_mask();
         let mut best: Option<(usize, f64)> = None;
@@ -544,21 +562,13 @@ impl Policy for Codemy2FastPolicy {
 
             let grid1 = &sim1.grid_after_clear;
 
-            // codemy1: best response to known next piece.
-            let Some((aid1_star, best1_score_lock)) = core.best_response_for_known_piece(grid1, g.next) else {
+            let Some((_aid1_star, best1_score_lock, grid2)) =
+                core.best_response_for_known_piece_cached(grid1, g.next, &mut br_cache)
+            else {
                 continue;
             };
 
-            // Apply the chosen best response to get grid2 (post-clear).
-            let sim2 = Game::apply_action_id_to_grid(grid1, g.next, aid1_star);
-            if sim2.terminated {
-                continue;
-            }
-            let grid2 = &sim2.grid_after_clear;
-
-            // Cheap tail: expectation over unknown next-next piece.
-            let tail = core.tail_uniform_cached(grid2, &mut cache);
-
+            let tail = core.tail_uniform_cached(&grid2, &mut tail_cache);
             let v0 = best1_score_lock + self.tail_weight * tail;
 
             match best {
