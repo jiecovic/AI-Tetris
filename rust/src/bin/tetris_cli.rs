@@ -46,7 +46,7 @@ struct Args {
 
     /// Tail weight for --policy codemy2fast.
     /// 0.0 => behaves like codemy1 (ignoring the tail); higher values weigh the tail more.
-    #[arg(long, default_value_t = 0.1)]
+    #[arg(long, default_value_t = 0.5)]
     tail_weight: f64,
 
     /// Piece rule: uniform | bag7
