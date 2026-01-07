@@ -18,10 +18,10 @@ pub struct SimPlacement {
     pub grid_after_lock: [[u8; W]; H],
     pub grid_after_clear: [[u8; W]; H],
     pub cleared_lines: u32,
-    /// NOTE: In v1 this means "invalid placement / illegal action for this grid+kind",
-    /// not "true game over".
-    pub terminated: bool,
+    /// True iff the placement is invalid for (grid, kind, action_id).
+    pub invalid: bool,
 }
+
 
 #[derive(Clone, Copy, Debug)]
 pub struct StepResult {
@@ -193,7 +193,7 @@ impl Game {
                 grid_after_lock: *grid_in,
                 grid_after_clear: *grid_in,
                 cleared_lines: 0,
-                terminated: true,
+                invalid: true,
             };
         }
 
@@ -205,7 +205,7 @@ impl Game {
                 grid_after_lock: *grid_in,
                 grid_after_clear: *grid_in,
                 cleared_lines: 0,
-                terminated: true,
+                invalid: true,
             };
         }
 
@@ -222,7 +222,7 @@ impl Game {
             grid_after_lock: grid_lock,
             grid_after_clear: grid_clear,
             cleared_lines: cleared,
-            terminated: false,
+            invalid: false,
         }
     }
 
@@ -265,13 +265,14 @@ impl Game {
         let sim = Self::apply_action_id_to_grid(&self.grid, self.active, action_id);
 
         // Illegal placement => no-op.
-        if sim.terminated {
+        if sim.invalid {
             return StepResult {
                 terminated: false,
                 cleared_lines: 0,
                 illegal_action: true,
             };
         }
+
 
         // Valid placement: commit post-clear grid.
         self.grid = sim.grid_after_clear;

@@ -39,7 +39,7 @@ impl Policy for Codemy2FastPolicy {
                 continue;
             }
             let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.terminated {
+            if sim1.invalid {
                 continue;
             }
 

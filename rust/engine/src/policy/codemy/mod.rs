@@ -47,7 +47,7 @@ impl Policy for CodemyPolicyDynamic {
 
         for (aid0, _proxy0) in aid0_cands {
             let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.terminated {
+            if sim1.invalid {
                 continue;
             }
 
@@ -103,7 +103,7 @@ impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
 
         for (aid0, _proxy0) in aid0_cands {
             let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.terminated {
+            if sim1.invalid {
                 continue;
             }
 

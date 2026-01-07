@@ -40,7 +40,7 @@ impl CodemyCore {
 
         for &aid in empty_legal_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.terminated {
+            if sim.invalid {
                 continue;
             }
             let s = score_grid(&sim.grid_after_lock);
@@ -64,7 +64,7 @@ impl CodemyCore {
 
         for &aid in empty_legal_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.terminated {
+            if sim.invalid {
                 continue;
             }
             scores.push((aid, score_grid(&sim.grid_after_lock)));
@@ -109,7 +109,7 @@ impl CodemyCore {
 
             for &aid in empty_legal_action_ids(kind) {
                 let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-                if sim.terminated {
+                if sim.invalid {
                     continue;
                 }
                 let v = self.value_after_clear::<M>(&sim.grid_after_clear, plies_left - 1, depth + 1);
@@ -127,7 +127,7 @@ impl CodemyCore {
         let mut proxies: Vec<(usize, f64)> = Vec::new();
         for &aid in empty_legal_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.terminated {
+            if sim.invalid {
                 continue;
             }
             proxies.push((aid, score_grid(&sim.grid_after_lock)));
@@ -142,7 +142,7 @@ impl CodemyCore {
         let mut best = f64::NEG_INFINITY;
         for (aid, _proxy) in kept {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.terminated {
+            if sim.invalid {
                 continue;
             }
             let v = self.value_after_clear::<M>(&sim.grid_after_clear, plies_left - 1, depth + 1);
@@ -176,7 +176,7 @@ impl CodemyCore {
                 continue;
             }
             let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.terminated {
+            if sim1.invalid {
                 continue;
             }
             out.push((aid0, score_grid(&sim1.grid_after_lock)));
@@ -225,7 +225,7 @@ impl CodemyCore {
 
         for &aid in empty_legal_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.terminated {
+            if sim.invalid {
                 continue;
             }
             let s = score_grid(&sim.grid_after_lock);
