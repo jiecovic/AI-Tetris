@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::engine::{Game, PieceRuleKind};
-use crate::policy::Policy;
+use tetris_engine::engine::{Game, PieceRuleKind};
+use tetris_engine::policy::Policy;
 
 use super::sinks::{ReportRow, RolloutSink};
 use super::stats::{FinalReport, RolloutStats};

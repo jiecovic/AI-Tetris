@@ -3,7 +3,7 @@
 
 use std::time::Instant;
 
-use crate::engine::{compute_grid_features, GridDelta, GridFeatures, PieceRuleKind};
+use tetris_engine::engine::{compute_grid_features, GridDelta, GridFeatures, PieceRuleKind};
 
 #[derive(Clone, Debug)]
 pub struct RolloutStats {
@@ -64,7 +64,7 @@ impl RolloutStats {
     /// We ALSO compute grid features here (agg/holes/bump) to maintain running averages.
     pub fn on_step(
         &mut self,
-        grid: &[[u8; crate::engine::W]; crate::engine::H],
+        grid: &[[u8;tetris_engine::engine::W]; tetris_engine::engine::H],
         max_h: u32,
         avg_h: f32,
     ) {
@@ -277,6 +277,7 @@ impl RolloutStats {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct FinalReport {
     pub policy: String,

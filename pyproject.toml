@@ -32,7 +32,7 @@ tetris-fit-reward = "tetris_rl.cli.fit_reward_from_dataset:main"
 tetris-gen-expert-data = "tetris_rl.cli.gen_expert_data:main"
 
 [tool.maturin]
-manifest-path = "rust_py/Cargo.toml"
+manifest-path = "rust/py/Cargo.toml"
 python-source = "src"
 features = ["pyo3/extension-module"]
 module-name = "tetris_rl_engine"

@@ -7,11 +7,5 @@ edition = "2024"
 name = "tetris_engine"
 path = "src/lib.rs"
 
-[[bin]]
-name = "tetris_cli"
-path = "src/bin/tetris_cli.rs"
-
 [dependencies]
-clap = { version = "4", features = ["derive"] }
 rand = "0.8"
-indicatif = "0.17"

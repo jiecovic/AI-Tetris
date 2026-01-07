@@ -7,4 +7,4 @@ pub mod sinks;
 
 pub use runner::{Runner, RunnerConfig};
 pub use sinks::{NoopSink, RolloutSink, TableSink};
-pub use stats::{FinalReport, RolloutStats};
+// pub use stats::{FinalReport, RolloutStats};

@@ -1,14 +1,16 @@
-// src/bin/tetris_cli.rs
+// src/bin/main.rs
 #![forbid(unsafe_code)]
+
+mod rollout;
 
 use clap::Parser;
 
-use tetris_cli::engine::PieceRuleKind;
-use tetris_cli::policy::{
+use tetris_engine::PieceRuleKind;
+use tetris_engine::policy::{
     BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, CodemyPolicyDynamic, Policy,
     RandomPolicy,
 };
-use tetris_cli::rollout::{NoopSink, RolloutSink, Runner, RunnerConfig, TableSink};
+use crate::rollout::{NoopSink, RolloutSink, Runner, RunnerConfig, TableSink};
 
 #[derive(Parser, Debug)]
 #[command(name = "tetris_cli")]
