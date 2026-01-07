@@ -4,7 +4,10 @@
 use clap::Parser;
 
 use tetris_cli::engine::PieceRuleKind;
-use tetris_cli::policy::{CodemyPolicy, Lookahead, Policy, RandomPolicy};
+use tetris_cli::policy::{
+    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, CodemyPolicyDynamic, Policy,
+    RandomPolicy,
+};
 use tetris_cli::rollout::{NoopSink, RolloutSink, Runner, RunnerConfig, TableSink};
 
 #[derive(Parser, Debug)]
@@ -19,9 +22,32 @@ struct Args {
     #[arg(long)]
     seed: Option<u64>,
 
-    /// Policy: random | codemy0 | codemy1 | codemy2
+    /// Policy: random | codemy | codemy0 | codemy1 | codemy2 | codemy2fast
     #[arg(long, default_value = "random")]
     policy: String,
+
+    /// For --policy codemy: number of plies (1..N). Defaults to 3.
+    /// Examples:
+    ///   --policy codemy --lookahead 1   (equiv to codemy0)
+    ///   --policy codemy --lookahead 2   (equiv to codemy1)
+    ///   --policy codemy --lookahead 3   (equiv to codemy2)
+    ///   --policy codemy --lookahead 6   (dynamic fallback)
+    #[arg(long)]
+    lookahead: Option<u8>,
+
+    /// Beam width (top-N). If omitted, no pruning is applied.
+    #[arg(long)]
+    beam_width: Option<usize>,
+
+    /// Start pruning from this decision depth onward (0=current, 1=next, 2=deeper...).
+    /// Only used if --beam-width is provided.
+    #[arg(long, default_value_t = 0)]
+    beam_from_depth: u8,
+
+    /// Tail weight for --policy codemy2fast.
+    /// 0.0 => behaves like codemy1 (ignoring the tail); higher values weigh the tail more.
+    #[arg(long, default_value_t = 0.1)]
+    tail_weight: f64,
 
     /// Piece rule: uniform | bag7
     #[arg(long, default_value = "uniform")]
@@ -52,11 +78,32 @@ fn main() {
     let base_seed = args.seed.unwrap_or(12345);
     let rule_kind = PieceRuleKind::from_cli(&args.piece_rule);
 
+    let beam: Option<BeamConfig> = args
+        .beam_width
+        .map(|w| BeamConfig::new(args.beam_from_depth, w));
+
     // Policy instance (boxed so the CLI can switch implementations at runtime).
     let mut policy: Box<dyn Policy> = match args.policy.as_str() {
-        "codemy0" => Box::new(CodemyPolicy::new(Lookahead::D0)),
-        "codemy1" => Box::new(CodemyPolicy::new(Lookahead::D1)),
-        "codemy2" => Box::new(CodemyPolicy::new(Lookahead::D2Uniform)),
+        // Static fast-paths (monomorphized).
+        "codemy0" => Box::new(Codemy0::new(beam)),
+        "codemy1" => Box::new(Codemy1::new(beam)),
+        "codemy2" => Box::new(Codemy2::new(beam)),
+
+        // codemy1 + cheap one-step tail.
+        // Note: beam is intentionally ignored here.
+        "codemy2fast" => Box::new(Codemy2FastPolicy::new(args.tail_weight)),
+
+        // General codemy entrypoint: use --lookahead N (defaults to 3).
+        "codemy" => {
+            let n = args.lookahead.unwrap_or(3).max(1);
+            match n {
+                1 => Box::new(Codemy0::new(beam)),
+                2 => Box::new(Codemy1::new(beam)),
+                3 => Box::new(Codemy2::new(beam)),
+                _ => Box::new(CodemyPolicyDynamic::new(n, beam)),
+            }
+        }
+
         _ => Box::new(RandomPolicy::new(base_seed.wrapping_add(999))),
     };
 
