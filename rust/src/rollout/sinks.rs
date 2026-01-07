@@ -73,8 +73,10 @@ impl TableSink {
     }
 
     fn header_line(&self) -> String {
+        // Note: keep widths aligned with row_line() below.
+        // The Δ-columns are printed in scientific notation, so we give them extra width.
         format!(
-            "{:>21} {:>9} {:>5} {:>9} {:>9} {:>8} {:>10} {:>6} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
+            "{:>21} {:>9} {:>5} {:>9} {:>9} {:>8} {:>10} {:>6} {:>8} {:>8} {:>8} {:>8} {:>8} {:>12} {:>12} {:>12} {:>12}",
             "step/total",
             "sps",
             "eps",
@@ -88,10 +90,10 @@ impl TableSink {
             "avgAgg",
             "avgHol",
             "avgBum",
-            "dMax",
-            "dAgg",
-            "dHol",
-            "dBum",
+            "ΔMaxH̄",
+            "ΔAggH̄",
+            "ΔHol̄",
+            "ΔBum̄",
         )
     }
 
@@ -101,7 +103,7 @@ impl TableSink {
 
     fn row_line(&self, r: &ReportRow) -> String {
         format!(
-            "{:>10}/{:<10} {:>9.1} {:>5} {:>9.1} {:>9} {:>8.3} {:>10.2} {:>6} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>8.2}",
+            "{:>10}/{:<10} {:>9.1} {:>5} {:>9.1} {:>9} {:>8.3} {:>10.2} {:>6} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>12.2e} {:>12.2e} {:>12.2e} {:>12.2e}",
             r.step,
             r.steps_total,
             r.sps,
