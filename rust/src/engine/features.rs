@@ -1,10 +1,8 @@
-// src/rollout/features.rs
+// src/engine/features.rs
 #![forbid(unsafe_code)]
 
-use crate::engine::{H, W};
+use super::constants::{H, W};
 
-/// Cheap, classic Tetris grid features computed on a *locked* grid.
-/// (We don't care about the active falling piece in this engine.)
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GridFeatures {
     pub max_h: u32,
@@ -27,14 +25,13 @@ pub struct StepFeatures {
     pub delta: GridDelta,
 }
 
-/// Compute (heights, max_h, agg_h, holes, bumpiness) for a locked grid.
+/// Compute classic Tetris grid features on a *locked* grid.
 /// Complexity: O(H*W), no allocations.
 pub fn compute_grid_features(grid: &[[u8; W]; H]) -> GridFeatures {
     let heights = column_heights(grid);
 
     let mut max_h = 0u32;
     let mut agg_h = 0u32;
-
     for &h in &heights {
         max_h = max_h.max(h);
         agg_h += h;
@@ -52,10 +49,8 @@ pub fn compute_grid_features(grid: &[[u8; W]; H]) -> GridFeatures {
 }
 
 /// Convenience: compute current features and delta vs previous features.
-pub fn compute_step_features(
-    grid: &[[u8; W]; H],
-    prev: Option<GridFeatures>,
-) -> StepFeatures {
+/// If `prev` is None, deltas are reported as 0.
+pub fn compute_step_features(grid: &[[u8; W]; H], prev: Option<GridFeatures>) -> StepFeatures {
     let cur = compute_grid_features(grid);
 
     let delta = match prev {

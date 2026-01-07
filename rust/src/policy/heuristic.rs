@@ -1,9 +1,41 @@
 // src/policy/heuristic.rs
 #![forbid(unsafe_code)]
 
-use crate::engine::{decode_action_id, Game, Kind, ACTION_DIM, H, W};
+use crate::engine::{decode_action_id, features::compute_grid_features, Game, Kind, ACTION_DIM, H, W};
 
 use super::base::Policy;
+
+#[derive(Clone, Copy, Debug)]
+pub struct BeamConfig {
+    /// Start pruning from this depth onward:
+    /// 0 => prune aid0 candidates
+    /// 1 => prune aid1 candidates
+    /// 2 => prune aid2 candidates (inner "best placement" searches)
+    pub beam_from_depth: u8,
+    /// Keep top-N candidates at pruned depths.
+    pub beam_width: usize,
+}
+
+impl BeamConfig {
+    pub fn new(beam_from_depth: u8, beam_width: usize) -> Self {
+        Self {
+            beam_from_depth,
+            beam_width: beam_width.max(1),
+        }
+    }
+}
+
+impl Default for BeamConfig {
+    fn default() -> Self {
+        // Default behavior: don't effectively prune aid0/aid1.
+        // (beam_from_depth=2 means pruning only affects inner aid2 searches,
+        // and with width=ACTION_DIM this is effectively exhaustive.)
+        Self {
+            beam_from_depth: 2,
+            beam_width: ACTION_DIM,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Lookahead {
@@ -12,9 +44,9 @@ pub enum Lookahead {
     /// Two-ply with known next piece (choose best next placement).
     D1,
     /// Three-ply where the 3rd piece is unknown; assume IID-uniform over 7 kinds.
-    /// This is intended for the `uniform` piece rule; it will still run under bag7,
-    /// but the assumption is then mismatched.
     D2Uniform,
+    /// Same as D2Uniform, but with configurable beam pruning.
+    D2UniformBeam(BeamConfig),
 }
 
 pub struct CodemyPolicy {
@@ -26,29 +58,53 @@ impl CodemyPolicy {
         Self { lookahead }
     }
 
-    fn score_grid(grid: &[[u8; W]; H]) -> f64 {
-        let heights = column_heights(grid);
-        let agg_height: i32 = heights.iter().sum();
-        let complete_lines: i32 = grid
-            .iter()
+    #[inline]
+    fn complete_lines(grid: &[[u8; W]; H]) -> u32 {
+        grid.iter()
             .filter(|row| row.iter().all(|&c| c != 0))
-            .count() as i32;
-        let holes: i32 = count_holes(grid, &heights);
-        let bumpiness: i32 = heights.windows(2).map(|w| (w[0] - w[1]).abs()).sum();
-
-        // CodemyRoad GA weights
-        -0.510066 * agg_height as f64
-            + 0.760666 * complete_lines as f64
-            - 0.35663 * holes as f64
-            - 0.184483 * bumpiness as f64
+            .count() as u32
     }
 
-    /// Best heuristic score achievable by placing `kind` onto `grid` (post-clear grid),
-    /// scoring the *pre-clear* grid after lock.
     #[inline]
-    fn best_score_for_piece_on_grid(grid: &[[u8; W]; H], kind: Kind) -> f64 {
+    fn score_grid(grid_after_lock: &[[u8; W]; H]) -> f64 {
+        let f = compute_grid_features(grid_after_lock);
+        let complete_lines = Self::complete_lines(grid_after_lock);
+
+        // CodemyRoad GA weights
+        -0.510066 * (f.agg_h as f64)
+            + 0.760666 * (complete_lines as f64)
+            - 0.35663 * (f.holes as f64)
+            - 0.184483 * (f.bump as f64)
+    }
+
+    #[inline]
+    fn should_prune(beam: Option<BeamConfig>, depth: u8) -> Option<usize> {
+        let b = beam?;
+        if depth >= b.beam_from_depth {
+            Some(b.beam_width.max(1))
+        } else {
+            None
+        }
+    }
+
+    /// Keep top-N by score descending. Deterministic ordering.
+    fn top_n_by_score(mut cands: Vec<(usize, f64)>, n: usize) -> Vec<(usize, f64)> {
+        if cands.is_empty() {
+            return cands;
+        }
+        cands.sort_by(|a, b| b.1.total_cmp(&a.1));
+        if n >= cands.len() {
+            cands
+        } else {
+            cands.truncate(n);
+            cands
+        }
+    }
+
+    /// Candidate list for (grid, kind) scored by "local" heuristic on locked grid.
+    fn candidates_local(grid: &[[u8; W]; H], kind: Kind) -> Vec<(usize, f64)> {
         let mask = Game::action_mask_for_grid(grid, kind);
-        let mut best = f64::NEG_INFINITY;
+        let mut out: Vec<(usize, f64)> = Vec::new();
 
         for aid in 0..ACTION_DIM {
             if !mask[aid] {
@@ -59,46 +115,91 @@ impl CodemyPolicy {
                 continue;
             }
             let s = Self::score_grid(&sim.grid_after_lock);
+            out.push((aid, s));
+        }
+        out
+    }
+
+    /// Best heuristic score achievable by placing `kind` onto `grid` (post-clear grid),
+    /// scoring the *pre-clear* grid after lock.
+    fn best_score_for_piece_on_grid(
+        grid: &[[u8; W]; H],
+        kind: Kind,
+        beam: Option<BeamConfig>,
+        depth: u8,
+    ) -> f64 {
+        let mut cands = Self::candidates_local(grid, kind);
+
+        if let Some(n) = Self::should_prune(beam, depth) {
+            cands = Self::top_n_by_score(cands, n);
+        }
+
+        let mut best = f64::NEG_INFINITY;
+        for (_aid, s) in cands {
             if s > best {
                 best = s;
             }
         }
-
         best
     }
 
     /// Expected best score for an unknown piece drawn IID-uniform from the 7 kinds.
-    #[inline]
-    fn expected_best_score_uniform_next_piece(grid: &[[u8; W]; H]) -> f64 {
-        // Kind::all() is a static slice of the 7 tetromino kinds.
+    fn expected_best_score_uniform_next_piece(
+        grid: &[[u8; W]; H],
+        beam: Option<BeamConfig>,
+        depth: u8,
+    ) -> f64 {
         let mut sum = 0.0;
         let mut n = 0.0;
 
         for &k in Kind::all() {
-            let best_k = Self::best_score_for_piece_on_grid(grid, k);
-            // If a piece has no legal move, treat it as very bad.
-            // (This can happen if the grid is already dead / near-dead.)
+            let best_k = Self::best_score_for_piece_on_grid(grid, k, beam, depth);
             let v = if best_k.is_finite() { best_k } else { f64::NEG_INFINITY };
             sum += v;
             n += 1.0;
         }
 
-        // n is always 7.0 here, but keep it robust.
         if n > 0.0 { sum / n } else { f64::NEG_INFINITY }
     }
 }
 
 impl Policy for CodemyPolicy {
     fn choose_action(&mut self, g: &Game) -> Option<(usize, i32)> {
-        // Iterate fixed action space but filter by legality.
-        let mask1 = g.action_mask();
-        let mut best: Option<(usize, f64)> = None; // (aid, value)
+        let beam = match self.lookahead {
+            Lookahead::D2UniformBeam(b) => Some(b),
+            _ => None,
+        };
 
+        // Legal actions for current piece.
+        let mask1 = g.action_mask();
+        let mut aid0_cands: Vec<(usize, f64)> = Vec::new();
+
+        // For D2 beam pruning at depth0, we need a cheap proxy to rank aid0.
+        // Use local heuristic on grid_after_lock for the active piece placement.
         for aid0 in 0..ACTION_DIM {
             if !mask1[aid0] {
                 continue;
             }
+            let sim1 = g.simulate_action_id_active(aid0);
+            if sim1.terminated {
+                continue;
+            }
+            let proxy0 = Self::score_grid(&sim1.grid_after_lock);
+            aid0_cands.push((aid0, proxy0));
+        }
 
+        if aid0_cands.is_empty() {
+            return None;
+        }
+
+        // Optionally prune aid0 candidates (depth 0) before computing deeper values.
+        if let Some(n0) = Self::should_prune(beam, 0) {
+            aid0_cands = Self::top_n_by_score(aid0_cands, n0);
+        }
+
+        let mut best: Option<(usize, f64)> = None;
+
+        for (aid0, _proxy0) in aid0_cands {
             let sim1 = g.simulate_action_id_active(aid0);
             if sim1.terminated {
                 continue;
@@ -112,28 +213,32 @@ impl Policy for CodemyPolicy {
 
                 Lookahead::D1 => {
                     // Choose best next placement for the known next piece.
-                    Self::best_score_for_piece_on_grid(&sim1.grid_after_clear, g.next)
+                    Self::best_score_for_piece_on_grid(&sim1.grid_after_clear, g.next, None, 2)
                 }
 
-                Lookahead::D2Uniform => {
-                    // Choose best next placement for known next piece,
+                Lookahead::D2Uniform | Lookahead::D2UniformBeam(_) => {
+                    // D2: choose best next placement for known next piece,
                     // then evaluate expected best score under IID-uniform next-next piece.
                     let grid1 = &sim1.grid_after_clear;
-                    let mask2 = Game::action_mask_for_grid(grid1, g.next);
+                    let mut aid1_cands = Self::candidates_local(grid1, g.next);
+
+                    // Optionally prune aid1 candidates (depth 1) before doing expensive expectation.
+                    if let Some(n1) = Self::should_prune(beam, 1) {
+                        aid1_cands = Self::top_n_by_score(aid1_cands, n1);
+                    }
 
                     let mut best2 = f64::NEG_INFINITY;
 
-                    for aid1 in 0..ACTION_DIM {
-                        if !mask2[aid1] {
-                            continue;
-                        }
+                    for (aid1, _proxy1) in aid1_cands {
                         let sim2 = Game::apply_action_id_to_grid(grid1, g.next, aid1);
                         if sim2.terminated {
                             continue;
                         }
 
                         let grid2 = &sim2.grid_after_clear;
-                        let exp3 = Self::expected_best_score_uniform_next_piece(grid2);
+
+                        // Depth 2 is inside the unknown-piece "best placement" searches.
+                        let exp3 = Self::expected_best_score_uniform_next_piece(grid2, beam, 2);
 
                         if exp3 > best2 {
                             best2 = exp3;
@@ -156,36 +261,4 @@ impl Policy for CodemyPolicy {
             (rot, col as i32)
         })
     }
-}
-
-// ---------------- feature helpers ----------------
-
-fn column_heights(grid: &[[u8; W]; H]) -> [i32; W] {
-    let mut h = [0; W];
-    for c in 0..W {
-        for r in 0..H {
-            if grid[r][c] != 0 {
-                h[c] = (H - r) as i32;
-                break;
-            }
-        }
-    }
-    h
-}
-
-fn count_holes(grid: &[[u8; W]; H], heights: &[i32; W]) -> i32 {
-    let mut holes = 0;
-    for c in 0..W {
-        let col_h = heights[c];
-        if col_h <= 0 {
-            continue;
-        }
-        let top_r = (H as i32) - col_h;
-        for r in top_r..(H as i32) {
-            if grid[r as usize][c] == 0 {
-                holes += 1;
-            }
-        }
-    }
-    holes
 }

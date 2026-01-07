@@ -1,4 +1,6 @@
 // src/bin/tetris_cli.rs
+#![forbid(unsafe_code)]
+
 use clap::Parser;
 
 use tetris_cli::engine::PieceRuleKind;
@@ -8,23 +10,12 @@ use tetris_cli::rollout::{NoopSink, RolloutSink, Runner, RunnerConfig, TableSink
 #[derive(Parser, Debug)]
 #[command(name = "tetris_cli")]
 struct Args {
-    // ---------------- interactive / debug ----------------
-
-    /// Render board as ASCII each step
-    #[arg(long)]
-    render: bool,
-
-    /// Sleep ms between renders (only used with --render)
-    #[arg(long, default_value_t = 50)]
-    sleep_ms: u64,
-
     // ---------------- rollout sizing ----------------
-
-    /// How many placements to run TOTAL (across episodes)
+    /// Total placements to execute across episodes.
     #[arg(long, default_value_t = 200)]
     steps: u64,
 
-    /// RNG seed (optional)
+    /// Base RNG seed (episodes use base_seed + episode_id). If omitted, a fixed default is used.
     #[arg(long)]
     seed: Option<u64>,
 
@@ -36,33 +27,22 @@ struct Args {
     #[arg(long, default_value = "uniform")]
     piece_rule: String,
 
-    // ---------------- live status ----------------
+    // ---------------- visualization ----------------
+    /// Render board as ASCII every step; value is sleep in ms (e.g. 30). Omit to disable rendering.
+    /// Examples:
+    ///   --render 0    (render as fast as possible)
+    ///   --render 30   (sleep 30ms between frames)
+    #[arg(long, value_name = "ms")]
+    render: Option<u64>,
 
-    /// Print periodic performance stats (steps/sec)
-    #[arg(long)]
-    perf: bool,
+    // ---------------- output / reporting ----------------
+    /// Verbosity: 0=silent (final summary only), 1=progress bar, 2=progress bar + periodic table.
+    #[arg(long, default_value_t = 1)]
+    verbosity: u8,
 
-    /// Progress bar
-    #[arg(long)]
-    progress: bool,
-
-    /// Update live stats message every N steps
-    #[arg(long, default_value_t = 10_000)]
-    stats_every: u64,
-
-    // ---------------- periodic table reporting ----------------
-
-    /// Print a table row every N steps (0 disables)
-    #[arg(long, default_value_t = 0)]
+    /// Print a table row every N steps (only used with --verbosity 2).
+    #[arg(long, default_value_t = 2000)]
     report_every: u64,
-
-    /// Include heavier grid features (holes/bump/agg height + deltas) in the report table
-    #[arg(long)]
-    report_features: bool,
-
-    /// Reprint table header every N printed rows
-    #[arg(long, default_value_t = 20)]
-    report_header_every: u64,
 }
 
 fn main() {
@@ -80,29 +60,26 @@ fn main() {
         _ => Box::new(RandomPolicy::new(base_seed.wrapping_add(999))),
     };
 
-    // Rollout configuration (pure data; no logic).
+    // Rollout configuration (data only; no logic).
     let cfg = RunnerConfig {
         steps: args.steps,
         base_seed,
         rule_kind,
 
-        render: args.render,
-        sleep_ms: args.sleep_ms,
+        render_ms: args.render,
 
-        perf: args.perf,
-        progress: args.progress,
-        stats_every: args.stats_every,
-
+        verbosity: args.verbosity,
         report_every: args.report_every,
-        report_features: args.report_features,
-        report_header_every: args.report_header_every,
 
         policy_name: args.policy.clone(),
     };
 
-    // Reporting sink: either a periodic table printer or a no-op.
-    let sink: Box<dyn RolloutSink> = if args.report_every > 0 {
-        Box::new(TableSink::new(args.report_every, args.report_header_every))
+    // Reporting sink:
+    // - verbosity 2 => periodic table (unless report_every == 0)
+    // - otherwise   => no-op
+    let sink: Box<dyn RolloutSink> = if cfg.verbosity >= 2 && cfg.report_every > 0 {
+        // Header cadence is a formatting detail; cadence in *steps* is handled by Runner.
+        Box::new(TableSink::new(20))
     } else {
         Box::new(NoopSink::default())
     };

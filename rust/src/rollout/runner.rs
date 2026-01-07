@@ -8,10 +8,12 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::engine::{Game, PieceRuleKind};
 use crate::policy::Policy;
 
-use super::features::{compute_step_features, GridFeatures};
-use super::sink::RolloutSink;
+use super::sinks::{ReportRow, RolloutSink};
 use super::stats::{FinalReport, RolloutStats};
-use super::table::ReportRow;
+
+/// Fixed internal cadence for progress-bar live message updates.
+/// (No CLI knob on purpose.)
+const LIVE_EVERY: u64 = 200;
 
 #[derive(Clone, Debug)]
 pub struct RunnerConfig {
@@ -22,27 +24,22 @@ pub struct RunnerConfig {
     pub base_seed: u64,
     pub rule_kind: PieceRuleKind,
 
-    // ---------------- optional rendering ----------------
-    pub render: bool,
-    pub sleep_ms: u64,
-
-    // ---------------- live status ----------------
-    pub perf: bool,
-    pub progress: bool,
-    /// Update progress message/perf line every N steps.
-    pub stats_every: u64,
-
-    // ---------------- periodic table reporting ----------------
-    /// Print a stats row every N steps. 0 disables reporting completely.
-    pub report_every: u64,
-    /// If true, compute and include heavier grid features (holes/bumpiness/agg height + deltas).
-    /// These are computed ONLY on report cadence, not every step.
-    pub report_features: bool,
-    /// Reprint the table header every N printed rows.
-    pub report_header_every: u64,
-
     /// Used only for the final report string.
     pub policy_name: String,
+
+    // ---------------- output ----------------
+    /// 0 = final summary only
+    /// 1 = progress bar
+    /// 2 = progress bar + periodic table (via sink)
+    pub verbosity: u8,
+
+    /// Print a table row every N steps (only used when verbosity == 2).
+    /// 0 disables table reporting.
+    pub report_every: u64,
+
+    // ---------------- rendering ----------------
+    /// If Some(ms): render every step; sleep ms between frames (0 = no sleep).
+    pub render_ms: Option<u64>,
 }
 
 pub struct Runner {
@@ -58,8 +55,8 @@ impl Runner {
     pub fn run(&mut self, policy: &mut dyn Policy) -> FinalReport {
         let cfg = self.cfg.clone();
 
-        // Progress bar is purely UI; runner logic works without it.
-        let pb = if cfg.progress {
+        // Progress bar is UI only; runner logic does not depend on it.
+        let pb = if cfg.verbosity >= 1 {
             let pb = ProgressBar::new(cfg.steps);
             pb.set_style(
                 ProgressStyle::with_template(
@@ -79,33 +76,32 @@ impl Runner {
         let mut episode_id: u64 = 0;
         let mut game = Game::new_with_rule(cfg.base_seed.wrapping_add(episode_id), cfg.rule_kind);
 
-        // Totals across *completed* episodes (live totals include current episode too).
+        // Totals across completed episodes (live totals include current episode too).
         let mut total_lines_finished: u64 = 0;
         let mut total_score_finished: u64 = 0;
 
-        // For delta features: last reported (not last step) features.
-        let mut prev_features: Option<GridFeatures> = None;
-
-        if cfg.render {
+        // Rendering is a separate axis from verbosity.
+        if cfg.render_ms.is_some() {
             print!("{}", game.render_ascii());
         }
 
-        let stats_every = cfg.stats_every.max(1);
-
         while stats.steps_done < cfg.steps {
             // ------------------------------------------------------------
-            // Episode boundary: finalize counters, then reset environment.
+            // Episode boundary: finalize counters, then reset.
             // ------------------------------------------------------------
             if game.game_over {
-                stats.on_episode_end(game.lines_cleared, game.score);
+                // Stats: finalize episode length counters + reset per-episode delta baseline.
+                stats.on_episode_end();
+
+                // Runner: accumulate totals from finished episode.
                 total_lines_finished += game.lines_cleared;
                 total_score_finished += game.score;
 
+                // Reset env
                 episode_id += 1;
                 game = Game::new_with_rule(cfg.base_seed.wrapping_add(episode_id), cfg.rule_kind);
-                prev_features = None; // don't carry deltas across episodes
 
-                if cfg.render {
+                if cfg.render_ms.is_some() {
                     println!(
                         "=== reset: episodes_finished={} avg_ep_len={:.2} max_ep_len={} ===",
                         stats.episodes_finished,
@@ -129,84 +125,82 @@ impl Runner {
             };
 
             let (_term, cleared) = game.step_macro(rot, col);
+            let _ = cleared; // cleared is already tracked via game.lines_cleared; keep if you want.
 
-            // Light-weight per-step stats (always on; cheap).
+            // Stats update (includes heavy features + deltas internally).
             let (mh, ah) = game.height_metrics();
-            stats.on_step(cleared, mh, ah);
+            stats.on_step(&game.grid, mh, ah);
 
             if let Some(ref pb) = pb {
                 pb.inc(1);
             }
 
-            if cfg.render {
+            // Rendering (ASCII) every step when enabled.
+            if let Some(ms) = cfg.render_ms {
                 println!(
                     "step={} action=(rot={}, col={}) cleared={}",
-                    stats.steps_done, rot, col, cleared
+                    stats.steps_done, rot, col, game.lines_cleared
                 );
                 print!("{}", game.render_ascii());
-                std::thread::sleep(Duration::from_millis(cfg.sleep_ms));
+                if ms > 0 {
+                    std::thread::sleep(Duration::from_millis(ms));
+                }
             }
 
             // ------------------------------------------------------------
-            // Periodic table report: build a ReportRow and hand it to sink.
-            // This is off by default; when enabled, heavier features are
-            // computed ONLY on this cadence.
+            // Periodic table report (verbosity == 2 only).
+            // IMPORTANT: the table prints only AGGREGATE stats.
             // ------------------------------------------------------------
-            if cfg.report_every > 0 && (stats.steps_done % cfg.report_every == 0) {
+            if cfg.verbosity == 2 && cfg.report_every > 0 && (stats.steps_done % cfg.report_every == 0)
+            {
                 let live_total_lines = total_lines_finished + game.lines_cleared;
                 let live_total_score = total_score_finished + game.score;
-
-                let features_opt = if cfg.report_features {
-                    let sf = compute_step_features(&game.grid, prev_features);
-                    prev_features = Some(sf.cur);
-                    Some(sf)
-                } else {
-                    None
-                };
 
                 let row = ReportRow {
                     step: stats.steps_done,
                     steps_total: cfg.steps,
                     sps: stats.steps_per_sec(),
+
                     episodes_finished: stats.episodes_finished,
                     avg_ep_len: stats.avg_ep_len(),
                     max_ep_len: stats.episode_len_max,
-                    lines_per_step: if stats.steps_done > 0 {
-                        live_total_lines as f64 / stats.steps_done as f64
-                    } else {
-                        0.0
-                    },
-                    score_per_step: if stats.steps_done > 0 {
-                        live_total_score as f64 / stats.steps_done as f64
-                    } else {
-                        0.0
-                    },
+
+                    lines_per_step: stats.lines_per_step(live_total_lines),
+                    score_per_step: stats.score_per_step(live_total_score),
+
+                    // NOTE: these fields must exist in ReportRow + be filled from stats getters,
+                    // otherwise you'll get a "missing fields" error.
+                    max_h_worst: stats.max_h_worst,
                     avg_max_h: stats.avg_max_h(),
-                    avg_h: stats.avg_avg_h(),
-                    total_lines: live_total_lines,
-                    total_score: live_total_score,
-                    features: features_opt,
+                    avg_avg_h: stats.avg_avg_h(),
+
+                    avg_agg_h: stats.avg_agg_h(),
+                    avg_holes: stats.avg_holes(),
+                    avg_bump: stats.avg_bump(),
+
+                    avg_d_max_h: stats.avg_d_max_h(),
+                    avg_d_agg_h: stats.avg_d_agg_h(),
+                    avg_d_holes: stats.avg_d_holes(),
+                    avg_d_bump: stats.avg_d_bump(),
                 };
 
-                self.sink.on_report(&row);
+                self.sink.on_report_row(&row, pb.as_ref());
             }
 
             // ------------------------------------------------------------
-            // Live progress message/perf line cadence.
+            // Live progress message cadence (fixed internal cadence).
             // ------------------------------------------------------------
-            if (cfg.perf || cfg.progress) && (stats.steps_done % stats_every == 0) {
+            if cfg.verbosity >= 1 && (stats.steps_done % LIVE_EVERY == 0) {
                 let live_total_lines = total_lines_finished + game.lines_cleared;
                 let live_total_score = total_score_finished + game.score;
 
-                let live = stats.live_msg(cfg.rule_kind, live_total_lines, live_total_score);
+                let lps = stats.lines_per_step(live_total_lines);
+                let sps = stats.score_per_step(live_total_score);
+
+                let msg = stats.live_msg(cfg.rule_kind, lps, sps);
 
                 if let Some(ref pb) = pb {
-                    pb.set_message(live.msg);
-                } else if cfg.perf {
-                    println!(
-                        "stats: steps_done={}/{} {}",
-                        stats.steps_done, cfg.steps, live.msg
-                    );
+                    pb.set_message(msg);
                 }
             }
         }
@@ -219,6 +213,7 @@ impl Runner {
             pb.finish_with_message("done");
         }
 
+        // Final report is still created by stats (stable end-of-run struct).
         stats.final_report(
             &cfg.policy_name,
             cfg.rule_kind,
