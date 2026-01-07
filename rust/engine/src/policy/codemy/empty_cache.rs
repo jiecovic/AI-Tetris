@@ -1,10 +1,11 @@
-// src/policy/codemy/empty_cache.rs
+// rust/engine/src/policy/codemy/empty_cache.rs
 #![forbid(unsafe_code)]
 
 use std::sync::OnceLock;
 
 use crate::engine::{Game, Kind, ACTION_DIM, H, W};
 
+#[inline]
 fn kind_idx0(k: Kind) -> usize {
     match k {
         Kind::I => 0,
@@ -17,10 +18,16 @@ fn kind_idx0(k: Kind) -> usize {
     }
 }
 
-static EMPTY_LEGAL_AIDS: OnceLock<[Vec<usize>; 7]> = OnceLock::new();
+static EMPTY_VALID_AIDS: OnceLock<[Vec<usize>; 7]> = OnceLock::new();
 
-pub(crate) fn empty_legal_action_ids(kind: Kind) -> &'static [usize] {
-    let arr = EMPTY_LEGAL_AIDS.get_or_init(|| {
+/// Action ids that are valid for `kind` on an empty grid.
+///
+/// Notes:
+/// - This is a *superset* of valid moves on non-empty grids (collisions can still invalidate).
+/// - Redundant rotation slots are already excluded by `Game::action_mask_for_grid`
+///   because the engine enforces `rot_u < kind.num_rots()`.
+pub(crate) fn empty_valid_action_ids(kind: Kind) -> &'static [usize] {
+    let arr = EMPTY_VALID_AIDS.get_or_init(|| {
         let empty = [[0u8; W]; H];
 
         let mut out: [Vec<usize>; 7] = [
@@ -35,8 +42,10 @@ pub(crate) fn empty_legal_action_ids(kind: Kind) -> &'static [usize] {
 
         for &k in Kind::all() {
             let mask = Game::action_mask_for_grid(&empty, k);
+
             let mut v = Vec::new();
-            v.reserve(ACTION_DIM);
+            // Tighter upper bound than ACTION_DIM; still safe.
+            v.reserve(k.num_rots() * W);
 
             for aid in 0..ACTION_DIM {
                 if mask[aid] {

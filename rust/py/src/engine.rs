@@ -11,6 +11,9 @@ use tetris_engine::engine::{
     StepFeatures, WarmupSpec, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
 };
 
+// SSOT: bind the engine's canonical action-id helpers (do NOT reimplement).
+use tetris_engine::engine::constants::{decode_action_id, encode_action_id};
+
 use crate::expert_policy::ExpertPolicy;
 use crate::util::{grid_rows_to_pyarray2, kind_glyph_to_idx};
 use crate::warmup_spec::PyWarmupSpec;
@@ -69,9 +72,43 @@ impl TetrisEngine {
         ACTION_DIM
     }
 
-    /// Max rotations per piece used by fixed action encoding.
+    /// Fixed rotation slots used by action-id encoding.
+    ///
+    /// NOTE:
+    /// This is NOT "number of distinct rotations of the current piece".
+    /// Distinct rotations are enforced by the engine's validity/mask logic.
     fn max_rots(&self) -> usize {
         MAX_ROTS
+    }
+
+    // ---------------------------------------------------------------------
+    // Action-id helpers (SSOT: bind constants::{encode_action_id, decode_action_id})
+    // ---------------------------------------------------------------------
+
+    /// encode_action_id(rot, col) -> action_id
+    ///
+    /// Fixed action encoding, authoritative in Rust engine.
+    /// - rot is wrapped by MAX_ROTS
+    /// - col must be in [0, W)
+    fn encode_action_id(&self, rot: usize, col: usize) -> PyResult<usize> {
+        if col >= W {
+            return Err(PyValueError::new_err(format!(
+                "encode_action_id: col out of range: {col} (expected 0..{W})"
+            )));
+        }
+        Ok(encode_action_id(rot % MAX_ROTS, col))
+    }
+
+    /// decode_action_id(action_id) -> (rot, col)
+    ///
+    /// Inverse of encode_action_id, authoritative in Rust engine.
+    fn decode_action_id(&self, action_id: usize) -> PyResult<(usize, usize)> {
+        if action_id >= ACTION_DIM {
+            return Err(PyValueError::new_err(format!(
+                "decode_action_id: action_id out of range: {action_id} (expected 0..{ACTION_DIM})"
+            )));
+        }
+        Ok(decode_action_id(action_id))
     }
 
     // ---------------------------------------------------------------------
@@ -110,37 +147,44 @@ impl TetrisEngine {
         Ok(())
     }
 
-    /// Returns (terminated, cleared_lines, illegal_action).
+    /// Returns (terminated, cleared_lines, invalid_action).
     fn step_action_id(&mut self, action_id: usize) -> (bool, u32, bool) {
         let r = self.g.step_action_id(action_id);
-        (r.terminated, r.cleared_lines, r.illegal_action)
+        (r.terminated, r.cleared_lines, r.invalid_action)
     }
 
     /// Convenience helper: compute expert action + step once.
-    /// Returns (terminated, cleared_lines, illegal_action, action_id).
+    /// Returns (terminated, cleared_lines, invalid_action, action_id).
     ///
-    /// If the expert has no legal action, returns (true, 0, false, None).
+    /// If the expert has no valid action, returns (true, 0, false, None).
     fn step_expert(&mut self, policy: &mut ExpertPolicy) -> (bool, u32, bool, Option<usize>) {
         let Some(aid) = policy.inner.action_id(&self.g) else {
             return (true, 0, false, None);
         };
-        let (terminated, cleared, illegal) = self.step_action_id(aid);
-        (terminated, cleared, illegal, Some(aid))
+        let (terminated, cleared, invalid) = self.step_action_id(aid);
+        (terminated, cleared, invalid, Some(aid))
     }
 
     // ---------------------------------------------------------------------
-    // Mask / legal actions
+    // Mask / valid actions
     // ---------------------------------------------------------------------
 
-    /// Returns mask as uint8 array of shape (ACTION_DIM,): 1 = legal, 0 = illegal.
+    /// Returns mask as uint8 array of shape (ACTION_DIM,): 1 = valid, 0 = invalid.
+    ///
+    /// Validity includes:
+    /// - in-range action id
+    /// - rotation slot exists for the current piece (no redundant rotations)
+    /// - within bbox horizontal bounds
+    /// - fits on current grid at spawn (y=0)
     fn action_mask<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u8>> {
         let m = self.g.action_mask();
         let v: Vec<u8> = m.into_iter().map(|b| if b { 1 } else { 0 }).collect();
         PyArray1::from_vec_bound(py, v)
     }
 
-    fn legal_action_ids(&self) -> Vec<usize> {
-        self.g.legal_action_ids()
+    /// valid_action_ids() -> list[int]
+    fn valid_action_ids(&self) -> Vec<usize> {
+        self.g.valid_action_ids()
     }
 
     // ---------------------------------------------------------------------

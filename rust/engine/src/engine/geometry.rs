@@ -1,13 +1,25 @@
-// src/engine/geometry.rs
+// rust/engine/src/engine/geometry.rs
 #![forbid(unsafe_code)]
 
 use crate::engine::constants::W;
 use crate::engine::pieces::{rotations, Kind};
 
-
 /// Return (min_dx, max_dx) across the 4 blocks of the rotated piece.
+///
+/// NOTE:
+/// - `rot` must be a *distinct* rotation index for this `kind`:
+///   0 <= rot < kind.num_rots()
+/// - Rotation-slot validity is enforced at call sites (mask/kernel/step).
 #[inline]
 pub fn dx_range(kind: Kind, rot: usize) -> (i32, i32) {
+    debug_assert!(
+        rot < rotations(kind).len(),
+        "rot out of range for kind {:?}: rot={} num_rots={}",
+        kind,
+        rot,
+        rotations(kind).len()
+    );
+
     let cells = rotations(kind)[rot];
     let mut mn = i32::MAX;
     let mut mx = i32::MIN;

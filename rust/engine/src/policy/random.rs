@@ -21,7 +21,7 @@ impl RandomPolicy {
 
 impl Policy for RandomPolicy {
     fn choose_action(&mut self, g: &Game) -> Option<usize> {
-        let ids = g.legal_action_ids();
+        let ids = g.valid_action_ids();
         let &aid = ids.choose(&mut self.rng)?;
         Some(aid)
     }

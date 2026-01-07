@@ -4,9 +4,7 @@
 use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
 use crate::engine::pieces::Kind;
 
-use crate::engine::constants::{
-    decode_action_id, encode_action_id, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
-};
+use crate::engine::constants::{decode_action_id, encode_action_id, ACTION_DIM, H, HIDDEN_ROWS, W};
 use crate::engine::geometry::{bbox_left_to_anchor_x, bbox_params};
 use crate::engine::grid::{
     clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics, lock_on_grid,
@@ -22,14 +20,13 @@ pub struct SimPlacement {
     pub invalid: bool,
 }
 
-
 #[derive(Clone, Copy, Debug)]
 pub struct StepResult {
     /// True game over (spawn rows occupied) OR engine already in game_over.
     pub terminated: bool,
     pub cleared_lines: u32,
-    /// True iff the provided action was illegal; in that case the transition is a no-op.
-    pub illegal_action: bool,
+    /// True iff the provided action id is invalid for the current state; in that case the transition is a no-op.
+    pub invalid_action: bool,
 }
 
 #[derive(Clone)]
@@ -143,11 +140,24 @@ impl Game {
         Self::action_mask_for_grid(&self.grid, self.active)
     }
 
+    /// Returns a fixed-size validity mask over action ids.
+    ///
+    /// Semantics:
+    /// - The action space has `ACTION_DIM = MAX_ROTS * W` "rotation slots".
+    /// - For a given `kind`, only rotations `rot_u < kind.num_rots()` are valid.
+    /// - Slots with `rot_u >= kind.num_rots()` are always invalid (masked out).
     pub fn action_mask_for_grid(grid: &[[u8; W]; H], kind: Kind) -> [bool; ACTION_DIM] {
         let mut m = [false; ACTION_DIM];
+
         for aid in 0..ACTION_DIM {
             let (rot_u, col_u) = decode_action_id(aid);
-            let rot = rot_u % MAX_ROTS;
+
+            // Reject redundant/non-existent rotation slots (prevents duplicate action ids).
+            if rot_u >= kind.num_rots() {
+                continue;
+            }
+
+            let rot = rot_u;
             let col_left = col_u as i32;
 
             let (_min_dx, _bbox_w, bbox_left_max) = bbox_params(kind, rot);
@@ -163,10 +173,11 @@ impl Game {
                 m[aid] = true;
             }
         }
+
         m
     }
 
-    pub fn legal_action_ids(&self) -> Vec<usize> {
+    pub fn valid_action_ids(&self) -> Vec<usize> {
         let m = self.action_mask();
         m.iter()
             .enumerate()
@@ -183,8 +194,29 @@ impl Game {
         kind: Kind,
         action_id: usize,
     ) -> SimPlacement {
+        // Out-of-range action id => invalid.
+        if action_id >= ACTION_DIM {
+            return SimPlacement {
+                grid_after_lock: *grid_in,
+                grid_after_clear: *grid_in,
+                cleared_lines: 0,
+                invalid: true,
+            };
+        }
+
         let (rot_u, col_u) = decode_action_id(action_id);
-        let rot = rot_u % MAX_ROTS;
+
+        // Reject redundant/non-existent rotation slots (prevents duplicate action ids).
+        if rot_u >= kind.num_rots() {
+            return SimPlacement {
+                grid_after_lock: *grid_in,
+                grid_after_clear: *grid_in,
+                cleared_lines: 0,
+                invalid: true,
+            };
+        }
+
+        let rot = rot_u;
         let col_left = col_u as i32;
 
         let (_min_dx, _bbox_w, bbox_left_max) = bbox_params(kind, rot);
@@ -238,10 +270,10 @@ impl Game {
     // Mutating step (FAST PATH)
     // -------------------------------------------------------------------------
 
-    /// Applies a placement action for the current active piece.
+    /// Applies a placement action id for the current active piece.
     ///
     /// Engine semantics:
-    /// - Illegal actions are a no-op and return `illegal_action=true` without terminating.
+    /// - Invalid actions are a no-op and return `invalid_action=true` without terminating.
     /// - True game over is detected iff the *post-clear* locked grid occupies any spawn row
     ///   (`r < HIDDEN_ROWS`).
     pub fn step_action_id(&mut self, action_id: usize) -> StepResult {
@@ -249,30 +281,29 @@ impl Game {
             return StepResult {
                 terminated: true,
                 cleared_lines: 0,
-                illegal_action: false,
+                invalid_action: false,
             };
         }
 
-        // Out-of-range action id => illegal no-op (engine does not terminate).
+        // Out-of-range action id => invalid no-op (engine does not terminate).
         if action_id >= ACTION_DIM {
             return StepResult {
                 terminated: false,
                 cleared_lines: 0,
-                illegal_action: true,
+                invalid_action: true,
             };
         }
 
         let sim = Self::apply_action_id_to_grid(&self.grid, self.active, action_id);
 
-        // Illegal placement => no-op.
+        // Invalid placement => no-op.
         if sim.invalid {
             return StepResult {
                 terminated: false,
                 cleared_lines: 0,
-                illegal_action: true,
+                invalid_action: true,
             };
         }
-
 
         // Valid placement: commit post-clear grid.
         self.grid = sim.grid_after_clear;
@@ -287,7 +318,7 @@ impl Game {
             return StepResult {
                 terminated: true,
                 cleared_lines: sim.cleared_lines,
-                illegal_action: false,
+                invalid_action: false,
             };
         }
 
@@ -296,16 +327,25 @@ impl Game {
         StepResult {
             terminated: false,
             cleared_lines: sim.cleared_lines,
-            illegal_action: false,
+            invalid_action: false,
         }
     }
 
-    pub fn step_macro(&mut self, rot: usize, col: i32) -> (bool, u32) {
+    /// Convenience wrapper around fixed action-id encoding.
+    ///
+    /// This engine only supports macro placement actions; this method exists purely
+    /// to accept (rot, col) and forward to `step_action_id`.
+    pub fn step_rot_col(&mut self, rot: usize, col: i32) -> (bool, u32) {
         if col < 0 || col >= W as i32 {
-            // Macro convenience: treat as illegal no-op.
+            // Convenience: treat as invalid no-op.
             return (false, 0);
         }
-        let aid = encode_action_id(rot % MAX_ROTS, col as usize);
+
+        // Note: `rot` is a distinct-rotation index for the current piece.
+        // If `rot >= active.num_rots()`, the encoded action id will be invalid and become
+        // a no-op in `step_action_id` (with invalid_action=true).
+        let aid = encode_action_id(rot, col as usize);
+
         let r = self.step_action_id(aid);
         (r.terminated, r.cleared_lines)
     }

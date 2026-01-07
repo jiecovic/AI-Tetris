@@ -1,13 +1,13 @@
-// src/policy/codemy/core.rs
+// rust/engine/src/policy/codemy/core.rs
 #![forbid(unsafe_code)]
 
 use std::collections::HashMap;
 
-use crate::engine::{Game, Kind, ACTION_DIM, H, W};
+use crate::engine::{ACTION_DIM, Game, H, Kind, W};
 
-use crate::policy::beam::{prune_top_n_scores, BeamConfig};
+use crate::policy::beam::{BeamConfig, prune_top_n_scores};
 
-use super::empty_cache::{empty_legal_action_ids, kind_idx0_u8};
+use super::empty_cache::{empty_valid_action_ids, kind_idx0_u8};
 use super::score::score_grid;
 use super::unknown::UnknownModel;
 
@@ -38,10 +38,10 @@ impl CodemyCore {
     fn best_leaf_score_for_known_piece(&self, grid: &[[u8; W]; H], kind: Kind) -> f64 {
         let mut best = f64::NEG_INFINITY;
 
-        for &aid in empty_legal_action_ids(kind) {
+        for &aid in empty_valid_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.invalid {
-                continue;
+                continue; // collisions / out-of-bounds on this grid
             }
             let s = score_grid(&sim.grid_after_lock);
             if s > best {
@@ -62,7 +62,7 @@ impl CodemyCore {
     ) -> f64 {
         let mut scores: Vec<(usize, f64)> = Vec::new();
 
-        for &aid in empty_legal_action_ids(kind) {
+        for &aid in empty_valid_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.invalid {
                 continue;
@@ -107,12 +107,13 @@ impl CodemyCore {
         let Some(_n) = self.should_prune(depth) else {
             let mut best = f64::NEG_INFINITY;
 
-            for &aid in empty_legal_action_ids(kind) {
+            for &aid in empty_valid_action_ids(kind) {
                 let sim = Game::apply_action_id_to_grid(grid, kind, aid);
                 if sim.invalid {
                     continue;
                 }
-                let v = self.value_after_clear::<M>(&sim.grid_after_clear, plies_left - 1, depth + 1);
+                let v =
+                    self.value_after_clear::<M>(&sim.grid_after_clear, plies_left - 1, depth + 1);
                 if v > best {
                     best = v;
                 }
@@ -125,7 +126,7 @@ impl CodemyCore {
         let n = self.should_prune(depth).unwrap_or(ACTION_DIM);
 
         let mut proxies: Vec<(usize, f64)> = Vec::new();
-        for &aid in empty_legal_action_ids(kind) {
+        for &aid in empty_valid_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.invalid {
                 continue;
@@ -173,11 +174,11 @@ impl CodemyCore {
 
         for aid0 in 0..ACTION_DIM {
             if !mask[aid0] {
-                continue;
+                continue; // invalid by engine mask (includes redundant rotation slots)
             }
             let sim1 = g.simulate_action_id_active(aid0);
             if sim1.invalid {
-                continue;
+                continue; // should be rare if mask is correct; keep as safety
             }
             out.push((aid0, score_grid(&sim1.grid_after_lock)));
         }
@@ -223,7 +224,7 @@ impl CodemyCore {
         let mut best_score = f64::NEG_INFINITY;
         let mut best_clear = *grid;
 
-        for &aid in empty_legal_action_ids(kind) {
+        for &aid in empty_valid_action_ids(kind) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.invalid {
                 continue;
