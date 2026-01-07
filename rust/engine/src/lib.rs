@@ -1,4 +1,4 @@
-// rust_engine/src/lib.rs
+// rust/engine/src/lib.rs
 #![forbid(unsafe_code)]
 
 pub mod engine;
