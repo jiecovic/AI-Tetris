@@ -1,9 +1,9 @@
-// src/policy/random.rs
+// rust/engine/src/policy/random.rs
 #![forbid(unsafe_code)]
 
 use rand::prelude::*;
 
-use crate::engine::{decode_action_id, Game};
+use crate::engine::Game;
 
 use super::base::Policy;
 
@@ -20,10 +20,9 @@ impl RandomPolicy {
 }
 
 impl Policy for RandomPolicy {
-    fn choose_action(&mut self, g: &Game) -> Option<(usize, i32)> {
+    fn choose_action(&mut self, g: &Game) -> Option<usize> {
         let ids = g.legal_action_ids();
         let &aid = ids.choose(&mut self.rng)?;
-        let (rot, col_u) = decode_action_id(aid);
-        Some((rot, col_u as i32))
+        Some(aid)
     }
 }

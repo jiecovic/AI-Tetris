@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use tetris_engine::engine::{Game, PieceRuleKind};
+use tetris_engine::engine::Game;
 use tetris_engine::policy::Policy;
 
 use super::sinks::{ReportRow, RolloutSink};
@@ -22,7 +22,7 @@ pub struct RunnerConfig {
     pub steps: u64,
     /// Base seed; each episode uses base_seed + episode_id.
     pub base_seed: u64,
-    pub rule_kind: PieceRuleKind,
+    pub rule_kind: tetris_engine::engine::PieceRuleKind,
 
     /// Used only for the final report string.
     pub policy_name: String,
@@ -131,18 +131,19 @@ impl Runner {
             }
 
             // ------------------------------------------------------------
-            // One placement: policy chooses (rot, bbox-left col).
+            // One placement: policy chooses action_id.
             // ------------------------------------------------------------
-            let (rot, col) = match policy.choose_action(&game) {
-                Some(x) => x,
+            let aid = match policy.choose_action(&game) {
+                Some(aid) => aid,
                 None => {
                     game.game_over = true;
                     continue;
                 }
             };
 
-            let (_term, cleared) = game.step_macro(rot, col);
-            let _ = cleared; // cleared is already tracked via game.lines_cleared; keep if you want.
+            let r = game.step_action_id(aid);
+            let _ = r.terminated; // game.game_over is the canonical termination flag.
+
 
             // Stats update (includes heavy features + deltas internally).
             let (mh, ah) = game.height_metrics();
@@ -154,10 +155,7 @@ impl Runner {
 
             // Rendering (ASCII) every step when enabled.
             if let Some(ms) = cfg.render_ms {
-                println!(
-                    "step={} action=(rot={}, col={}) cleared={}",
-                    stats.steps_done, rot, col, game.lines_cleared
-                );
+                println!("step={} action_id={} lines={}", stats.steps_done, aid, game.lines_cleared);
                 print!("{}", game.render_ascii());
                 if ms > 0 {
                     std::thread::sleep(Duration::from_millis(ms));

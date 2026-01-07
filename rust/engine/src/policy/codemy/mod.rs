@@ -1,9 +1,9 @@
-// src/policy/codemy/mod.rs
+// rust/engine/src/policy/codemy/mod.rs
 #![forbid(unsafe_code)]
 
 use ::core::marker::PhantomData;
 
-use crate::engine::{decode_action_id, Game};
+use crate::engine::Game;
 
 use crate::policy::base::Policy;
 use crate::policy::beam::BeamConfig;
@@ -37,7 +37,7 @@ impl CodemyPolicyDynamic {
 }
 
 impl Policy for CodemyPolicyDynamic {
-    fn choose_action(&mut self, g: &Game) -> Option<(usize, i32)> {
+    fn choose_action(&mut self, g: &Game) -> Option<usize> {
         let aid0_cands = self.core.aid0_candidates_with_proxy(g);
         if aid0_cands.is_empty() {
             return None;
@@ -69,10 +69,7 @@ impl Policy for CodemyPolicyDynamic {
             }
         }
 
-        best.map(|(aid, _)| {
-            let (rot, col) = decode_action_id(aid);
-            (rot, col as i32)
-        })
+        best.map(|(aid, _)| aid)
     }
 }
 
@@ -94,7 +91,7 @@ impl<M: UnknownModel, const PLIES: u8> CodemyPolicyStatic<M, PLIES> {
 }
 
 impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
-    fn choose_action(&mut self, g: &Game) -> Option<(usize, i32)> {
+    fn choose_action(&mut self, g: &Game) -> Option<usize> {
         debug_assert!(PLIES >= 1);
 
         let aid0_cands = self.core.aid0_candidates_with_proxy(g);
@@ -124,10 +121,7 @@ impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
             }
         }
 
-        best.map(|(aid, _)| {
-            let (rot, col) = decode_action_id(aid);
-            (rot, col as i32)
-        })
+        best.map(|(aid, _)| aid)
     }
 }
 

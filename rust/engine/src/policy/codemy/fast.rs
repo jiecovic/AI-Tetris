@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::engine::{decode_action_id, Game, ACTION_DIM, H, W};
+use crate::engine::{Game, ACTION_DIM, H, W};
 use crate::policy::base::Policy;
 
 use super::core::CodemyCore;
@@ -22,7 +22,7 @@ impl Codemy2FastPolicy {
 }
 
 impl Policy for Codemy2FastPolicy {
-    fn choose_action(&mut self, g: &Game) -> Option<(usize, i32)> {
+    fn choose_action(&mut self, g: &Game) -> Option<usize> {
         let core = CodemyCore::new(None);
 
         // Per-decision caches:
@@ -61,9 +61,6 @@ impl Policy for Codemy2FastPolicy {
             }
         }
 
-        best.map(|(aid, _)| {
-            let (rot, col) = decode_action_id(aid);
-            (rot, col as i32)
-        })
+        best.map(|(aid, _)| aid)
     }
 }

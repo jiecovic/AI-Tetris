@@ -1,3 +1,5 @@
-from .tetris_rl_engine import TetrisEngine
+# src/tetris_rl_engine/__init__.py
 
-__all__ = ["TetrisEngine"]
+from .tetris_rl_engine import TetrisEngine, ExpertPolicy
+
+__all__ = ["TetrisEngine", "ExpertPolicy"]
