@@ -1,8 +1,12 @@
 // src/engine/constants.rs
 #![forbid(unsafe_code)]
 
-pub const H: usize = 20;
+pub const H: usize = 22;
 pub const W: usize = 10;
+
+// number of hidden spawn rows at the top (not rendered)
+pub const HIDDEN_ROWS: usize = 2;
+pub const VISIBLE_H: usize = H - HIDDEN_ROWS;
 
 pub const MAX_ROTS: usize = 4;
 pub const ACTION_DIM: usize = MAX_ROTS * W;

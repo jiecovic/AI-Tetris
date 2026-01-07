@@ -27,6 +27,12 @@ pub struct StepFeatures {
 
 /// Compute classic Tetris grid features on a *locked* grid.
 /// Complexity: O(H*W), no allocations.
+///
+/// NOTE (hidden spawn rows):
+/// With `H=22` (and a conceptual hidden top area), this implementation currently computes
+/// heights/holes over the FULL 22-row grid (i.e., hidden rows are included).
+/// If you later want "visible-only" features, adjust the scans in `column_heights` and
+/// `count_holes` to start from `HIDDEN_ROWS` instead of `0`.
 pub fn compute_grid_features(grid: &[[u8; W]; H]) -> GridFeatures {
     let heights = column_heights(grid);
 

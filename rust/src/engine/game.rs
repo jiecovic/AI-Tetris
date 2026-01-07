@@ -4,7 +4,9 @@
 use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
 use crate::engine::pieces::Kind;
 
-use crate::engine::constants::{decode_action_id, encode_action_id, ACTION_DIM, H, MAX_ROTS, W};
+use crate::engine::constants::{
+    decode_action_id, encode_action_id, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
+};
 use crate::engine::geometry::{bbox_left_to_anchor_x, bbox_params};
 use crate::engine::grid::{
     apply_warmup_garbage, clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics,
@@ -67,7 +69,8 @@ impl Game {
 
         if warmup_rows > 0 {
             // Keep top rows empty to avoid blocking spawn.
-            let spawn_buffer: usize = 4;
+            // With hidden rows: reserve them + a little extra headroom.
+            let spawn_buffer: usize = HIDDEN_ROWS + 2;
             let max_rows = H.saturating_sub(spawn_buffer).min(u8::MAX as usize) as u8;
 
             let rows = warmup_rows.min(max_rows);
@@ -276,7 +279,7 @@ impl Game {
     pub fn render_ascii(&self) -> String {
         let mut s = String::new();
         s.push_str("+----------+\n");
-        for r in 0..H {
+        for r in HIDDEN_ROWS..H {
             s.push('|');
             for c in 0..W {
                 let v = self.grid[r][c];

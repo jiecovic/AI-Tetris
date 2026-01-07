@@ -5,7 +5,12 @@ use core::marker::PhantomData;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use crate::engine::{decode_action_id, features::compute_grid_features, Game, Kind, ACTION_DIM, H, W};
+use crate::engine::{
+    decode_action_id,
+    features::compute_grid_features,
+    Game, Kind,
+    ACTION_DIM, H, HIDDEN_ROWS, W,
+};
 
 use super::base::Policy;
 
@@ -109,16 +114,22 @@ impl CodemyCore {
     }
 
     #[inline]
-    fn complete_lines(grid: &[[u8; W]; H]) -> u32 {
-        grid.iter()
+    fn complete_lines_visible_only(grid: &[[u8; W]; H]) -> u32 {
+        // With H=22 and HIDDEN_ROWS=2, CodemyRoad-style scoring should treat the bottom 20 rows
+        // as the "playfield". So we ignore full rows in the hidden spawn buffer.
+        grid[HIDDEN_ROWS..]
+            .iter()
             .filter(|row| row.iter().all(|&c| c != 0))
             .count() as u32
     }
 
     #[inline]
     fn score_grid(grid_after_lock: &[[u8; W]; H]) -> f64 {
+        // NOTE: compute_grid_features currently scans the FULL grid height (including hidden rows).
+        // This is consistent, but if you want strict CodemyRoad (20-row) comparability,
+        // you'll want a visible-only feature variant later.
         let f = compute_grid_features(grid_after_lock);
-        let complete_lines = Self::complete_lines(grid_after_lock);
+        let complete_lines = Self::complete_lines_visible_only(grid_after_lock);
 
         // CodemyRoad GA weights
         -0.510066 * (f.agg_h as f64)
@@ -179,7 +190,12 @@ impl CodemyCore {
 
     /// Leaf with beam pruning:
     /// compute scores for all candidate actions, select top-N, then return the max score among them.
-    fn best_leaf_score_for_known_piece_beam(&self, grid: &[[u8; W]; H], kind: Kind, n: usize) -> f64 {
+    fn best_leaf_score_for_known_piece_beam(
+        &self,
+        grid: &[[u8; W]; H],
+        kind: Kind,
+        n: usize,
+    ) -> f64 {
         let mut scores: Vec<(usize, f64)> = Vec::new();
 
         for &aid in empty_legal_action_ids(kind) {
@@ -277,7 +293,12 @@ impl CodemyCore {
     }
 
     #[inline]
-    fn value_after_clear<M: UnknownModel>(&self, grid: &[[u8; W]; H], plies_left: u8, depth: u8) -> f64 {
+    fn value_after_clear<M: UnknownModel>(
+        &self,
+        grid: &[[u8; W]; H],
+        plies_left: u8,
+        depth: u8,
+    ) -> f64 {
         debug_assert!(plies_left >= 1);
         M::expected_value(self, grid, plies_left, depth)
     }
@@ -362,7 +383,11 @@ impl CodemyCore {
 
     /// Compute best leaf scores for all 7 kinds on a given grid, with per-decision cache.
     #[inline]
-    fn best_leaf_scores_all_kinds_cached(&self, grid: &[[u8; W]; H], cache: &mut HashMap<u64, [f64; 7]>) -> [f64; 7] {
+    fn best_leaf_scores_all_kinds_cached(
+        &self,
+        grid: &[[u8; W]; H],
+        cache: &mut HashMap<u64, [f64; 7]>,
+    ) -> [f64; 7] {
         let key = Self::hash_grid(grid);
         if let Some(v) = cache.get(&key) {
             return *v;

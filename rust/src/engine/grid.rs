@@ -3,8 +3,8 @@
 
 use rand::prelude::*;
 
-use crate::engine::constants::{H, W};
-use crate::engine::pieces::{rotations, Kind};
+use crate::engine::constants::{H, HIDDEN_ROWS, W};
+use crate::engine::pieces::{Kind, rotations};
 
 pub fn fits_on_grid(grid: &[[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32) -> bool {
     let cells = rotations(kind)[rot];
@@ -85,6 +85,10 @@ pub fn apply_warmup_garbage(grid: &mut [[u8; W]; H], seed: u64, rows: u8, holes:
 }
 
 /// Column height: number of filled cells from bottom (0..H).
+///
+/// NOTE: With `H=22` and `HIDDEN_ROWS=2`, this currently counts occupancy in the hidden spawn
+/// rows as part of the height. That is intentional for now (simple + consistent), but if you
+/// want "visible-only" metrics you should start scanning from `HIDDEN_ROWS` instead of `0`.
 #[inline]
 pub fn col_height(grid: &[[u8; W]; H], c: usize) -> u32 {
     for r in 0..H {
@@ -109,3 +113,8 @@ pub fn height_metrics(grid: &[[u8; W]; H]) -> (u32, f32) {
     let avg = sum as f32 / (W as f32);
     (max_h, avg)
 }
+
+// Silence "unused import" warnings for now while we keep the note above.
+// (If you later switch to visible-only metrics, you'll use HIDDEN_ROWS in code.)
+#[allow(dead_code)]
+const _HIDDEN_ROWS_NOTE_ONLY: usize = HIDDEN_ROWS;
