@@ -6,7 +6,10 @@ use crate::engine::pieces::Kind;
 
 use crate::engine::constants::{decode_action_id, encode_action_id, ACTION_DIM, H, MAX_ROTS, W};
 use crate::engine::geometry::{bbox_left_to_anchor_x, bbox_params};
-use crate::engine::grid::{clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics, lock_on_grid};
+use crate::engine::grid::{
+    apply_warmup_garbage, clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics,
+    lock_on_grid,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SimPlacement {
@@ -45,13 +48,39 @@ impl Game {
     }
 
     pub fn new_with_rule(seed: u64, rule_kind: PieceRuleKind) -> Self {
+        Self::new_with_rule_and_warmup(seed, rule_kind, 0, 1)
+    }
+
+    pub fn new_with_rule_and_warmup(
+        seed: u64,
+        rule_kind: PieceRuleKind,
+        warmup_rows: u8,
+        warmup_holes: u8,
+    ) -> Self {
         let mut piece_rule = PieceRule::new(seed, rule_kind);
 
+        // Draw pieces first (keeps piece stream semantics identical regardless of warmup mode).
         let active = piece_rule.draw();
         let next = piece_rule.draw();
 
+        let mut grid = [[0u8; W]; H];
+
+        if warmup_rows > 0 {
+            // Keep top rows empty to avoid blocking spawn.
+            let spawn_buffer: usize = 4;
+            let max_rows = H.saturating_sub(spawn_buffer).min(u8::MAX as usize) as u8;
+
+            let rows = warmup_rows.min(max_rows);
+
+            // Ensure at least 1 hole and at most W-1 holes.
+            let max_holes = (W.saturating_sub(1)).min(u8::MAX as usize) as u8;
+            let holes = warmup_holes.clamp(1, max_holes);
+
+            apply_warmup_garbage(&mut grid, seed, rows, holes);
+        }
+
         Self {
-            grid: [[0; W]; H],
+            grid,
             piece_rule,
             active,
             next,

@@ -53,6 +53,15 @@ struct Args {
     #[arg(long, default_value = "uniform")]
     piece_rule: String,
 
+    // ---------------- warmup ----------------
+    /// Fill the bottom N rows with garbage on episode reset (0 disables warmup).
+    #[arg(long, default_value_t = 0)]
+    warmup_rows: u8,
+
+    /// Holes per warmed row (clamped in engine). Only relevant if --warmup-rows > 0.
+    #[arg(long, default_value_t = 1)]
+    warmup_holes: u8,
+
     // ---------------- visualization ----------------
     /// Render board as ASCII every step; value is sleep in ms (e.g. 30). Omit to disable rendering.
     /// Examples:
@@ -112,6 +121,9 @@ fn main() {
         steps: args.steps,
         base_seed,
         rule_kind,
+
+        warmup_rows: args.warmup_rows,
+        warmup_holes: args.warmup_holes,
 
         render_ms: args.render,
 

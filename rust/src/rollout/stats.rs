@@ -3,7 +3,7 @@
 
 use std::time::Instant;
 
-use crate::engine::{GridDelta, GridFeatures, PieceRuleKind, compute_grid_features};
+use crate::engine::{compute_grid_features, GridDelta, GridFeatures, PieceRuleKind};
 
 #[derive(Clone, Debug)]
 pub struct RolloutStats {
@@ -237,6 +237,8 @@ impl RolloutStats {
         &self,
         policy_name: &str,
         rule_kind: PieceRuleKind,
+        warmup_rows: u8,
+        warmup_holes: u8,
         total_lines: u64,
         total_score: u64,
         last_ep_len: u64,
@@ -245,6 +247,10 @@ impl RolloutStats {
         FinalReport {
             policy: policy_name.to_string(),
             piece_rule: rule_kind,
+
+            warmup_rows,
+            warmup_holes,
+
             steps_done: self.steps_done,
             elapsed_s: self.elapsed_secs(),
             steps_per_s: self.steps_per_sec(),
@@ -275,6 +281,10 @@ impl RolloutStats {
 pub struct FinalReport {
     pub policy: String,
     pub piece_rule: PieceRuleKind,
+
+    pub warmup_rows: u8,
+    pub warmup_holes: u8,
+
     pub steps_done: u64,
     pub elapsed_s: f64,
     pub steps_per_s: f64,

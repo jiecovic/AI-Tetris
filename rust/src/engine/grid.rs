@@ -1,6 +1,8 @@
 // src/engine/grid.rs
 #![forbid(unsafe_code)]
 
+use rand::prelude::*;
+
 use crate::engine::constants::{H, W};
 use crate::engine::pieces::{rotations, Kind};
 
@@ -44,6 +46,42 @@ pub fn clear_lines_grid(grid: &[[u8; W]; H]) -> ([[u8; W]; H], u32) {
     }
 
     (new_grid, cleared)
+}
+
+/// Fill the bottom `rows` with "garbage": each row is filled except for `holes` empty cells.
+/// Uses a derived RNG from `seed` so warmup does not perturb the piece stream.
+///
+/// Preconditions (enforced with debug_assert):
+/// - rows <= H
+/// - 1 <= holes <= W-1
+pub fn apply_warmup_garbage(grid: &mut [[u8; W]; H], seed: u64, rows: u8, holes: u8) {
+    debug_assert!((rows as usize) <= H);
+    debug_assert!(holes >= 1);
+    debug_assert!((holes as usize) < W);
+
+    let mut rng = StdRng::seed_from_u64(seed ^ 0x9E3779B97F4A7C15);
+
+    let rows_usize = rows as usize;
+    let holes_usize = holes as usize;
+
+    // Reused scratch buffer for sampling distinct hole columns without allocations.
+    let mut cols: [usize; W] = core::array::from_fn(|i| i);
+
+    for i in 0..rows_usize {
+        let r = H - 1 - i;
+
+        // Fill row
+        for c in 0..W {
+            grid[r][c] = 1;
+        }
+
+        // Sample `holes` distinct columns: shuffle prefix of [0..W)
+        cols.shuffle(&mut rng);
+        for j in 0..holes_usize {
+            let hole_c = cols[j];
+            grid[r][hole_c] = 0;
+        }
+    }
 }
 
 /// Column height: number of filled cells from bottom (0..H).

@@ -27,6 +27,13 @@ pub struct RunnerConfig {
     /// Used only for the final report string.
     pub policy_name: String,
 
+    // ---------------- warmup ----------------
+    /// Number of bottom rows to fill with warmup garbage on episode reset.
+    /// 0 disables warmup.
+    pub warmup_rows: u8,
+    /// Number of holes per warmed row (clamped in engine).
+    pub warmup_holes: u8,
+
     // ---------------- output ----------------
     /// 0 = final summary only
     /// 1 = progress bar
@@ -74,7 +81,12 @@ impl Runner {
 
         // Episode state.
         let mut episode_id: u64 = 0;
-        let mut game = Game::new_with_rule(cfg.base_seed.wrapping_add(episode_id), cfg.rule_kind);
+        let mut game = Game::new_with_rule_and_warmup(
+            cfg.base_seed.wrapping_add(episode_id),
+            cfg.rule_kind,
+            cfg.warmup_rows,
+            cfg.warmup_holes,
+        );
 
         // Totals across completed episodes (live totals include current episode too).
         let mut total_lines_finished: u64 = 0;
@@ -99,7 +111,12 @@ impl Runner {
 
                 // Reset env
                 episode_id += 1;
-                game = Game::new_with_rule(cfg.base_seed.wrapping_add(episode_id), cfg.rule_kind);
+                game = Game::new_with_rule_and_warmup(
+                    cfg.base_seed.wrapping_add(episode_id),
+                    cfg.rule_kind,
+                    cfg.warmup_rows,
+                    cfg.warmup_holes,
+                );
 
                 if cfg.render_ms.is_some() {
                     println!(
@@ -151,7 +168,9 @@ impl Runner {
             // Periodic table report (verbosity == 2 only).
             // IMPORTANT: the table prints only AGGREGATE stats.
             // ------------------------------------------------------------
-            if cfg.verbosity == 2 && cfg.report_every > 0 && (stats.steps_done % cfg.report_every == 0)
+            if cfg.verbosity == 2
+                && cfg.report_every > 0
+                && (stats.steps_done % cfg.report_every == 0)
             {
                 let live_total_lines = total_lines_finished + game.lines_cleared;
                 let live_total_score = total_score_finished + game.score;
@@ -217,6 +236,8 @@ impl Runner {
         stats.final_report(
             &cfg.policy_name,
             cfg.rule_kind,
+            cfg.warmup_rows,
+            cfg.warmup_holes,
             total_lines,
             total_score,
             stats.ep_len,
