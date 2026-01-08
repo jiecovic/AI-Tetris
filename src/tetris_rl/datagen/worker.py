@@ -9,6 +9,9 @@ import numpy as np
 
 from tetris_rl.config.datagen_spec import DataGenSpec
 from tetris_rl.datagen.expert_factory import make_expert_from_spec
+from tetris_rl.datagen.schema import ShardInfo
+from tetris_rl.datagen.writer import append_shard_to_manifest
+from tetris_rl.envs.factory import make_env_from_cfg
 from tetris_rl.utils.seed import seed32_from
 
 # Injected once per spawned worker process via ProcessPoolExecutor(initializer=..., initargs=...)
@@ -55,37 +58,34 @@ def worker_generate_shards(
     worker_id: int,
     shard_ids: list[int],
     spec: DataGenSpec,
-    cfg: dict[str, Any],          # resolved root cfg used by training/watch
+    cfg: dict[str, Any],  # resolved root cfg used by training/watch
     dataset_dir: str,
     progress_queue: Any = None,
     progress_every: int = 0,
 ) -> WorkerResult:
     """
-    ENV-ONLY datagen worker:
+    BC-only datagen worker:
 
-      - builds the env via tetris_rl.env_bundles.factory.make_env_from_cfg (SSOT)
+      - builds env via make_env_from_cfg (SSOT)
       - steps engine with Rust expert (action_id)
-      - records env obs dict: {"grid","active_kind","next_kind"} and the action_id
-      - writes NPZ shards directly (no rewardfit, no K, no extra labels)
+      - records obs BEFORE expert action: {"grid","active_kind","next_kind"} + action_id
+      - writes NPZ shard (uint8 everywhere except grid already uint8)
+      - appends shard entry to manifest.json
 
     Shard format (npz):
       - grid:        uint8  (N, H, W)
-      - active_kind: int64  (N,)
-      - next_kind:   int64  (N,)
-      - action:      int64  (N,)
+      - active_kind: uint8  (N,)
+      - next_kind:   uint8  (N,)
+      - action:      uint8  (N,)
     """
     if bool(spec.generation.labels.record_rewardfit):
-        raise RuntimeError("record_rewardfit=true is disabled for the env-only datagen path (removed for now).")
-
-    from tetris_rl.envs.factory import make_env_from_cfg
+        raise RuntimeError("record_rewardfit=true is disabled for the BC-only datagen path.")
 
     out_dir = Path(dataset_dir)
     shards_dir = out_dir / "shards"
     shards_dir.mkdir(parents=True, exist_ok=True)
 
-    # Expert factory SSOT (datagen-owned)
-    expert_bundle = make_expert_from_spec(expert_spec=spec.expert)
-    expert = expert_bundle.policy
+    expert = make_expert_from_spec(expert_spec=spec.expert).policy
 
     shards_written = 0
     samples_written = 0
@@ -94,6 +94,7 @@ def worker_generate_shards(
     if k < 0:
         k = 0
 
+    # Optional noise interleaving (kept because it’s in DataGenSpec)
     noise_enabled = bool(spec.generation.noise.enabled)
     noise_prob = float(spec.generation.noise.interleave_prob)
     noise_max_steps = int(spec.generation.noise.interleave_max_steps)
@@ -102,50 +103,57 @@ def worker_generate_shards(
         s32 = seed32_from(base_seed=int(spec.run.seed), stream_id=int(sid))
         rng = np.random.default_rng(int(s32))
 
-        # One env per shard (simple + robust)
         built = make_env_from_cfg(cfg=cfg, seed=int(s32))
         env = built.env
 
-        # Determine shapes from a real reset (env is SSOT)
-        ep_seed0 = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
-        obs, _info = env.reset(seed=ep_seed0)
+        try:
+            # reset once to lock shapes
+            ep_seed0 = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
+            obs, _info = env.reset(seed=ep_seed0)
 
-        grid0 = np.asarray(obs["grid"], dtype=np.uint8)
-        if grid0.ndim != 2:
-            raise RuntimeError(f"env obs['grid'] must be 2D, got shape={grid0.shape}")
+            grid0 = np.asarray(obs["grid"], dtype=np.uint8)
+            if grid0.ndim != 2:
+                raise RuntimeError(f"env obs['grid'] must be 2D, got shape={grid0.shape}")
 
-        H, W = int(grid0.shape[0]), int(grid0.shape[1])
-        action_dim = int(getattr(env.action_space, "n", -1))
-        if action_dim <= 0:
-            raise RuntimeError("env.action_space must be Discrete for this datagen path")
+            H, W = int(grid0.shape[0]), int(grid0.shape[1])
 
-        N = int(spec.dataset.shards.shard_steps)
-        if N <= 0:
-            raise ValueError(f"invalid shard_steps: {N}")
+            # SSOT dims
+            action_dim = int(getattr(env.action_space, "n", -1))
+            if action_dim <= 0:
+                raise RuntimeError("env.action_space must be Discrete for this datagen path")
+            if action_dim > 256:
+                raise RuntimeError(f"action_dim={action_dim} > 256 requires wider dtype than uint8 for action")
 
-        pq = _get_progress_queue(progress_queue)
-        _q_put(pq, ("start", int(worker_id), int(sid), int(N)))
+            num_kinds = int(getattr(env.observation_space["active_kind"], "n", -1))  # type: ignore[index]
+            if num_kinds <= 0:
+                raise RuntimeError("env.observation_space['active_kind'] must be Discrete for this datagen path")
 
-        grid_buf = np.empty((N, H, W), dtype=np.uint8)
-        ak_buf = np.empty((N,), dtype=np.int64)
-        nk_buf = np.empty((N,), dtype=np.int64)
-        act_buf = np.empty((N,), dtype=np.int64)
+            N = int(spec.dataset.shards.shard_steps)
+            if N <= 0:
+                raise ValueError(f"invalid shard_steps: {N}")
 
-        filled = 0
-        ep_steps = 0
-        max_ep = spec.generation.episode_max_steps
-        max_ep_i = None if max_ep is None else int(max_ep)
+            pq = _get_progress_queue(progress_queue)
+            _q_put(pq, ("start", int(worker_id), int(sid), int(N)))
 
-        def do_reset() -> None:
-            nonlocal obs, ep_steps
+            grid_buf = np.empty((N, H, W), dtype=np.uint8)
+            ak_buf = np.empty((N,), dtype=np.uint8)
+            nk_buf = np.empty((N,), dtype=np.uint8)
+            act_buf = np.empty((N,), dtype=np.uint8)
+
+            filled = 0
             ep_steps = 0
-            ep_seed = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
-            obs, _ = env.reset(seed=ep_seed)
+            max_ep = spec.generation.episode_max_steps
+            max_ep_i = None if max_ep is None else int(max_ep)
 
-        while filled < N:
-            # Optional: interleave noise steps between recorded samples
-            if noise_enabled and noise_prob > 0.0 and noise_max_steps > 0:
-                if float(rng.random()) < float(noise_prob):
+            def do_reset() -> None:
+                nonlocal obs, ep_steps
+                ep_steps = 0
+                ep_seed = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
+                obs, _ = env.reset(seed=ep_seed)
+
+            while filled < N:
+                # Noise steps (via env.step to keep env state consistent)
+                if noise_enabled and noise_prob > 0.0 and noise_max_steps > 0 and float(rng.random()) < noise_prob:
                     nsteps = int(rng.integers(1, noise_max_steps + 1))
                     for _ in range(nsteps):
                         mask = np.asarray(env.action_masks(), dtype=bool).reshape(-1)
@@ -154,86 +162,101 @@ def worker_generate_shards(
                             do_reset()
                             break
 
-                        # Step via env (keeps env caches consistent)
                         obs, _r, terminated, truncated, _info = env.step(int(aid_noise))
                         ep_steps += 1
                         if bool(terminated) or bool(truncated) or (max_ep_i is not None and ep_steps >= max_ep_i):
                             do_reset()
                             break
 
-            # If ended, reset
-            if bool(getattr(env, "last_state", {}).get("game_over", False)):  # defensive
-                do_reset()
-                continue
+                # Record obs BEFORE expert action (BC convention)
+                g = np.asarray(obs["grid"], dtype=np.uint8)
+                if g.shape != (H, W):
+                    raise RuntimeError(f"obs['grid'] shape changed: got {g.shape} expected {(H, W)}")
 
-            # Record obs BEFORE expert action (BC convention)
-            g = np.asarray(obs["grid"], dtype=np.uint8)
-            if g.shape != (H, W):
-                raise RuntimeError(f"obs['grid'] shape changed: got {g.shape} expected {(H, W)}")
+                ak = int(obs["active_kind"])
+                nk = int(obs["next_kind"])
+                if ak < 0 or ak >= num_kinds:
+                    raise RuntimeError(f"active_kind out of range: {ak} (K={num_kinds})")
+                if nk < 0 or nk >= num_kinds:
+                    raise RuntimeError(f"next_kind out of range: {nk} (K={num_kinds})")
 
-            ak = int(obs["active_kind"])
-            nk = int(obs["next_kind"])
+                # Step engine directly via expert
+                terminated, _cleared, invalid, aid_opt = env.game.step_expert(expert)  # type: ignore[attr-defined]
+                if aid_opt is None:
+                    do_reset()
+                    continue
 
-            # Ask expert for action_id using the underlying engine (fast + SSOT).
-            # Engine binding method: env.game.step_expert(policy) -> (terminated, cleared, invalid, action_id|None)
-            terminated, _cleared, invalid, aid_opt = env.game.step_expert(expert)  # type: ignore[attr-defined]
-            if aid_opt is None:
-                do_reset()
-                continue
-            aid = int(aid_opt)
-            if bool(invalid):
-                raise RuntimeError(f"[datagen] expert produced invalid action: sid={sid} aid={aid}")
+                aid = int(aid_opt)
+                if bool(invalid):
+                    raise RuntimeError(f"[datagen] expert produced invalid action: sid={sid} aid={aid}")
+                if aid < 0 or aid >= action_dim:
+                    raise RuntimeError(f"[datagen] action out of range: sid={sid} aid={aid} action_dim={action_dim}")
 
-            # IMPORTANT: we stepped the engine directly => resync env caches for next obs.
-            # MacroTetrisEnv already has _snapshot/_obs_from_state; use them.
-            st = env._snapshot()  # type: ignore[attr-defined]
-            env._last_state = st  # type: ignore[attr-defined]
-            obs = env._obs_from_state(st)  # type: ignore[attr-defined]
+                # Resync env caches for next obs (engine stepped directly)
+                st = env._snapshot()  # type: ignore[attr-defined]
+                env._last_state = st  # type: ignore[attr-defined]
+                obs = env._obs_from_state(st)  # type: ignore[attr-defined]
 
-            # Store sample
-            grid_buf[filled] = g
-            ak_buf[filled] = np.int64(ak)
-            nk_buf[filled] = np.int64(nk)
-            act_buf[filled] = np.int64(aid)
+                # Store sample (compact dtypes)
+                grid_buf[filled] = g
+                ak_buf[filled] = np.uint8(ak)
+                nk_buf[filled] = np.uint8(nk)
+                act_buf[filled] = np.uint8(aid)
 
-            filled += 1
-            ep_steps += 1
+                filled += 1
+                ep_steps += 1
 
-            if k and (filled % k == 0):
-                _q_put(pq, ("progress", int(worker_id), int(sid), int(filled), int(N)))
+                if k and (filled % k == 0):
+                    _q_put(pq, ("progress", int(worker_id), int(sid), int(filled), int(N)))
 
-            if bool(terminated) or (max_ep_i is not None and ep_steps >= max_ep_i):
-                do_reset()
+                if bool(terminated) or (max_ep_i is not None and ep_steps >= max_ep_i):
+                    do_reset()
 
-        _q_put(pq, ("progress", int(worker_id), int(sid), int(N), int(N)))
+            _q_put(pq, ("progress", int(worker_id), int(sid), int(N), int(N)))
 
-        shard_path = shards_dir / f"shard_{int(sid):04d}.npz"
-        if bool(spec.dataset.compression):
-            np.savez_compressed(
-                shard_path,
-                grid=grid_buf,
-                active_kind=ak_buf,
-                next_kind=nk_buf,
-                action=act_buf,
-            )
-        else:
-            np.savez(
-                shard_path,
-                grid=grid_buf,
-                active_kind=ak_buf,
-                next_kind=nk_buf,
-                action=act_buf,
-            )
+            shard_path = shards_dir / f"shard_{int(sid):04d}.npz"
+            if bool(spec.dataset.compression):
+                np.savez_compressed(
+                    shard_path,
+                    grid=grid_buf,
+                    active_kind=ak_buf,
+                    next_kind=nk_buf,
+                    action=act_buf,
+                )
+            else:
+                np.savez(
+                    shard_path,
+                    grid=grid_buf,
+                    active_kind=ak_buf,
+                    next_kind=nk_buf,
+                    action=act_buf,
+                )
 
-        shards_written += 1
-        samples_written += int(N)
+            # Best-effort manifest update (don’t brick shard generation on races)
+            try:
+                append_shard_to_manifest(
+                    dataset_dir=out_dir,
+                    shard=ShardInfo(
+                        shard_id=int(sid),
+                        file=f"shards/shard_{int(sid):04d}.npz",
+                        num_samples=int(N),
+                        seed=int(s32),
+                        episode_max_steps=None if max_ep_i is None else int(max_ep_i),
+                    ),
+                )
+            except Exception:
+                pass
 
-        _q_put(pq, ("done", int(worker_id), int(sid), int(N)))
+            shards_written += 1
+            samples_written += int(N)
 
-        try:
-            env.close()
-        except Exception:
-            pass
+            _q_put(pq, ("done", int(worker_id), int(sid), int(N)))
+
+        finally:
+            try:
+                env.close()
+            except Exception:
+                pass
 
     return WorkerResult(
         worker_id=int(worker_id),

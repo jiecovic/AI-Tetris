@@ -79,37 +79,44 @@ def _hard_kill_executor(ex: ProcessPoolExecutor, futures: list[Any] | None = Non
 
 
 def _init_worker_progress_queue(q: Any) -> None:
-    # Windows: Ctrl+C is broadcast to *all* console processes.
-    # Only the parent should handle it; workers ignore SIGINT.
+    # Windows: Ctrl+C is broadcast to all console processes.
+    # Only parent handles SIGINT.
     try:
         import signal
+
         signal.signal(signal.SIGINT, signal.SIG_IGN)
     except Exception:
         pass
 
     from tetris_rl.datagen.worker import _set_worker_progress_queue
+
     _set_worker_progress_queue(q)
 
 
-
-def run_datagen(*, spec: DataGenSpec, cfg: dict[str, Any], repo_root: Path, logger: Any = None) -> Path:
+def run_datagen(
+    *,
+    spec: DataGenSpec,
+    cfg: dict[str, Any],
+    repo_root: Path,
+    logger: Any = None,
+) -> Path:
     """
-    ENV-ONLY runner.
-
-    Inputs:
-      - spec: datagen-only blocks (dataset/run/generation/expert)
-      - cfg:  resolved root cfg dict (same one used by training/watch)
+    BC-only datagen runner.
 
     Writes:
       - datagen_spec.json
       - datagen_cfg.json
+      - manifest.json        (BC-minimal schema contract)
       - index.json
       - shards/shard_XXXX.npz
     """
     from tetris_rl.datagen.worker import worker_generate_shards
+    from tetris_rl.datagen.writer import init_manifest, write_manifest
+    from tetris_rl.envs.factory import make_env_from_cfg
+    from tetris_rl.utils.seed import seed32_from
 
     if not isinstance(cfg, dict):
-        raise TypeError(f"run_datagen(cfg=...) must be a dict, got {type(cfg)!r}")
+        raise TypeError(f"run_datagen(cfg=...) must be dict, got {type(cfg)!r}")
 
     dataset_dir = _dataset_dir(spec=spec, repo_root=repo_root)
     _ensure_dataset_dir(dataset_dir=dataset_dir)
@@ -125,18 +132,58 @@ def run_datagen(*, spec: DataGenSpec, cfg: dict[str, Any], repo_root: Path, logg
     if num_shards <= 0 or shard_steps <= 0:
         raise ValueError("num_shards and shard_steps must be > 0")
 
-    # persist inputs
+    # ------------------------------------------------------------------
+    # persist inputs (debug / reproducibility only)
+    # ------------------------------------------------------------------
     write_json(dataset_dir / "datagen_spec.json", _spec_to_dict(spec))
     write_json(dataset_dir / "datagen_cfg.json", cfg)
 
+    # ------------------------------------------------------------------
+    # manifest.json (BC-minimal, written ONCE before workers start)
+    # ------------------------------------------------------------------
+    seed0 = int(seed32_from(base_seed=int(run.seed), stream_id=0xDA7A))
+    built = make_env_from_cfg(cfg=cfg, seed=seed0)
+    env = built.env
+    try:
+        obs_space = env.observation_space
+        act_space = env.action_space
+
+        board_h = int(obs_space["grid"].shape[0])
+        board_w = int(obs_space["grid"].shape[1])
+        num_kinds = int(obs_space["active_kind"].n)
+        action_dim = int(act_space.n)
+    finally:
+        try:
+            env.close()
+        except Exception:
+            pass
+
+    manifest = init_manifest(
+        name=str(ds.name),
+        board_h=board_h,
+        board_w=board_w,
+        num_kinds=num_kinds,
+        action_dim=action_dim,
+        compression=compression,
+    )
+    write_manifest(dataset_dir=dataset_dir, manifest=manifest)
+
+    # ------------------------------------------------------------------
+    # resume bookkeeping
+    # ------------------------------------------------------------------
     shards_dir = dataset_dir / "shards"
     existing = _existing_shard_ids(shards_dir)
     expected = set(range(num_shards))
     missing = sorted(expected - existing)
 
     mode = "resume" if existing else "new"
-    progress_every = 1 if num_workers <= 1 else max(1, int(getattr(run, "progress_update_every_k", 2000)))
+    progress_every = 1 if num_workers <= 1 else max(
+        1, int(getattr(run, "progress_update_every_k", 2000))
+    )
 
+    # ------------------------------------------------------------------
+    # generate shards
+    # ------------------------------------------------------------------
     if missing:
         with MultiWorkerProgress(
             total_shards=num_shards,
@@ -176,30 +223,32 @@ def run_datagen(*, spec: DataGenSpec, cfg: dict[str, Any], repo_root: Path, logg
                             spec=spec,
                             cfg=cfg,
                             dataset_dir=str(dataset_dir),
-                            progress_queue=None,  # uses injected global queue
+                            progress_queue=None,
                             progress_every=progress_every,
                         )
                         futures.append(fut)
 
                     pending = set(futures)
                     while pending:
-                        done, pending = wait(pending, timeout=0.25, return_when=FIRST_COMPLETED)
+                        done, pending = wait(
+                            pending, timeout=0.25, return_when=FIRST_COMPLETED
+                        )
                         for fut in done:
-                            fut.result()  # surface worker exceptions
+                            fut.result()
 
-                    ex.shutdown(wait=True, cancel_futures=False)
+                    ex.shutdown(wait=True)
                     ex = None
 
                 except KeyboardInterrupt:
                     if logger:
-                        logger.warning("[datagen] interrupted; stopping workers...")
+                        logger.warning("[datagen] interrupted; stopping workers")
                     if ex is not None:
                         _hard_kill_executor(ex, futures)
                     _best_effort_close_queue(prog.queue)
                     raise
                 except Exception:
                     if logger:
-                        logger.exception("[datagen] worker failure; stopping remaining workers...")
+                        logger.exception("[datagen] worker failure")
                     if ex is not None:
                         _hard_kill_executor(ex, futures)
                     _best_effort_close_queue(prog.queue)
@@ -208,12 +257,9 @@ def run_datagen(*, spec: DataGenSpec, cfg: dict[str, Any], repo_root: Path, logg
                     if ex is not None:
                         _hard_kill_executor(ex, futures)
 
-    # verify shards exist
-    for sid in range(num_shards):
-        p = shards_dir / f"shard_{sid:04d}.npz"
-        if not p.is_file():
-            raise FileNotFoundError(f"missing shard after generation: {p}")
-
+    # ------------------------------------------------------------------
+    # index.json (summary only, not schema)
+    # ------------------------------------------------------------------
     write_json(
         dataset_dir / "index.json",
         {

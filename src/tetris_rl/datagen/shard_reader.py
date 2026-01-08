@@ -9,7 +9,6 @@ import numpy as np
 
 from tetris_rl.datagen.schema import (
     DatasetManifest,
-    OPTIONAL_KEYS,
     REQUIRED_KEYS,
     validate_shard_arrays,
 )
@@ -25,10 +24,7 @@ class ShardRef:
 
 
 def _get_field(obj: Any, key: str) -> Any:
-    """
-    manifest.shards entries may be typed objects (attr access) or plain dicts (json).
-    Support both.
-    """
+    # manifest.shards entries may be dicts (json) or typed objects
     if isinstance(obj, dict):
         return obj.get(key)
     return getattr(obj, key, None)
@@ -51,23 +47,33 @@ def _req_str(obj: Any, key: str, *, where: str) -> str:
     return str(v)
 
 
+def _raise_missing_manifest(dataset_dir: Path, manifest_path: Path) -> None:
+    # Common footgun: passing a config yaml path as dataset_dir
+    if str(dataset_dir).lower().endswith((".yaml", ".yml")):
+        raise FileNotFoundError(
+            "dataset_dir points to a YAML file; expected a dataset folder.\n"
+            f"  got: {dataset_dir}\n"
+            "  expected: <repo>/datasets/bc/<dataset_name>\n"
+            f"  missing: {manifest_path}"
+        )
+    raise FileNotFoundError(f"missing or invalid manifest.json: {manifest_path}")
+
+
 class ShardDataset:
     """
-    Schema-level reader for datagen datasets.
+    BC-only schema reader for datagen datasets.
 
     Responsibilities:
       - load manifest.json
       - enumerate shards
       - load shard NPZ files
-      - validate arrays against datagen.schema
-      - return raw numpy arrays exactly as stored
+      - validate arrays (BC-only)
+      - return raw numpy arrays exactly as stored (after dtype casts)
 
-    Non-responsibilities (by design):
-      - batching
-      - shuffling
-      - torch / tensors
-      - BC / RL semantics
-      - loss / masking logic
+    Non-responsibilities:
+      - batching/shuffling
+      - torch/tensors
+      - BC loss/masking logic
     """
 
     def __init__(self, *, dataset_dir: Path) -> None:
@@ -77,10 +83,8 @@ class ShardDataset:
 
         manifest_raw = read_json(self.manifest_path)
         if not isinstance(manifest_raw, dict):
-            raise FileNotFoundError(f"missing or invalid manifest.json: {self.manifest_path}")
+            _raise_missing_manifest(self.dataset_dir, self.manifest_path)
 
-        # NOTE: Depending on how DatasetManifest is implemented, nested "shards"
-        # may remain plain dicts. We therefore parse shards robustly below.
         self.manifest = DatasetManifest(**manifest_raw)
 
         # Basic sanity
@@ -111,8 +115,7 @@ class ShardDataset:
                 )
             )
 
-        # IMPORTANT: allow empty shard lists so partially-generated datasets can be loaded.
-        # Downstream consumers can decide what to do if there are no shards yet.
+        # allow empty shards list (partially generated datasets)
         shards.sort(key=lambda r: int(r.shard_id))
         self.shards: Tuple[ShardRef, ...] = tuple(shards)
 
@@ -124,9 +127,9 @@ class ShardDataset:
         return self._load_and_validate(ref)
 
     def iter_shards(
-            self,
-            *,
-            shard_ids: Optional[Iterable[int]] = None,
+        self,
+        *,
+        shard_ids: Optional[Iterable[int]] = None,
     ) -> Iterator[Tuple[int, Dict[str, np.ndarray]]]:
         wanted = None
         if shard_ids is not None:
@@ -150,14 +153,17 @@ class ShardDataset:
         with np.load(str(ref.path), allow_pickle=False) as z:
             arrays: Dict[str, np.ndarray] = {}
 
+            # Required BC keys only
             for k in REQUIRED_KEYS:
                 if k not in z:
                     raise RuntimeError(f"shard {ref.path} missing required key {k!r}")
                 arrays[k] = np.asarray(z[k])
 
-            for k in OPTIONAL_KEYS:
-                if k in z:
-                    arrays[k] = np.asarray(z[k])
+        # Enforce BC dtypes (compact)
+        arrays["grid"] = np.asarray(arrays["grid"], dtype=np.uint8)
+        arrays["active_kind"] = np.asarray(arrays["active_kind"], dtype=np.uint8).reshape(-1)
+        arrays["next_kind"] = np.asarray(arrays["next_kind"], dtype=np.uint8).reshape(-1)
+        arrays["action"] = np.asarray(arrays["action"], dtype=np.uint8).reshape(-1)
 
         validate_shard_arrays(
             grid=arrays["grid"],
@@ -167,22 +173,8 @@ class ShardDataset:
             board_h=int(self.manifest.board_h),
             board_w=int(self.manifest.board_w),
             num_kinds=int(self.manifest.num_kinds),
-            placed_cells_cleared=arrays.get("placed_cells_cleared"),
-            placed_cells_all_cleared=arrays.get("placed_cells_all_cleared"),
-            legal_mask=arrays.get("legal_mask"),
-            phi=arrays.get("phi"),
-            delta=arrays.get("delta"),
             action_dim=int(self.manifest.action_dim),
-            feature_names=arrays.get("feature_names"),
         )
-
-        if "feature_names" in arrays:
-            fn_arr = np.asarray(arrays["feature_names"])
-            fn = [str(x) for x in fn_arr.tolist()]
-            if fn != list(getattr(self.manifest, "feature_names", [])):
-                raise ValueError(
-                    f"feature_names mismatch in shard {ref.path}: {fn} vs manifest {self.manifest.feature_names}"
-                )
 
         return arrays
 

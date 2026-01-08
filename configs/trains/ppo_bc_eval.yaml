@@ -18,19 +18,19 @@ train:
           max_steps: null            # no truncation
 
   imitation:
-    enabled: false                  # enable imitation (behavior cloning) phase
-    dataset_dir: datasets/bc/heuristic_uniform_noise_depth1  # path to offline dataset
-    epochs: 1                       # number of epochs over dataset
+    enabled: true                  # enable imitation (behavior cloning) phase
+    dataset_dir: datasets/bc/codemy0_uniform_noise
+    epochs: 10                       # number of epochs over dataset
     batch_size: 512                 # batch size for BC updates
     learning_rate: 4.0e-5             # optimizer learning rate
     max_grad_norm: 1.0              # gradient clipping norm
     shuffle: true                   # shuffle dataset each epoch
-    max_samples: 200_000                  # max samples to use (0 = all)
+    max_samples: 0                  # max samples to use (0 = all)
     save_archive: true              # archive final imitation checkpoint
     archive_dir: checkpoints/imitation  # directory for BC archives
 
   rl:
-    enabled: true                   # enable reinforcement learning phase
+    enabled: false                   # enable reinforcement learning phase
     total_timesteps: 100_000_000    # total env steps for RL training
     algo:
       type: maskable_ppo            # ppo | maskable_ppo
