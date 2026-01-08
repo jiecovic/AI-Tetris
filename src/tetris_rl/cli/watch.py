@@ -26,7 +26,6 @@ from tetris_rl.training.model_io import load_model_from_spec, warn_if_maskable_w
 from tetris_rl.utils.paths import repo_root, resolve_run_dir
 from tetris_rl.config.resolve import resolve_config
 
-
 from tetris_rl.utils.config_merge import merge_env_for_eval  # type: ignore[import-not-found]
 
 
@@ -81,6 +80,15 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--heuristic-beam-width", type=int, default=10)
     ap.add_argument("--heuristic-beam-from-depth", type=int, default=1)
     ap.add_argument("--heuristic-tail-weight", type=float, default=0.5)
+
+    ap.add_argument(
+        "--piece-rule",
+        type=str,
+        default=None,
+        choices=["uniform", "bag7"],
+        help="Override cfg.game.piece_rule for watch (Rust engine).",
+    )
+
     return ap.parse_args()
 
 
@@ -143,14 +151,14 @@ def _make_expert_policy(*, args: argparse.Namespace, engine: Any) -> Any:
 
 
 def _choose_action(
-    *,
-    args: argparse.Namespace,
-    algo_type: str,
-    model: Any,
-    obs: Any,
-    env: Any,
-    game: Any,
-    expert_policy: Any,
+        *,
+        args: argparse.Namespace,
+        algo_type: str,
+        model: Any,
+        obs: Any,
+        env: Any,
+        game: Any,
+        expert_policy: Any,
 ) -> Any:
     action_mode = str(getattr(env, "action_mode", "discrete")).strip().lower()
 
@@ -191,6 +199,16 @@ def main() -> int:
     train_spec = parse_train_spec(cfg=cfg)
 
     cfg_watch = _build_watch_cfg(cfg=cfg, train_spec=train_spec, which=str(args.env))
+
+    if args.piece_rule is not None:
+        cfg_watch = dict(cfg_watch)
+        game_cfg = cfg_watch.get("game", {}) or {}
+        if not isinstance(game_cfg, dict):
+            game_cfg = {}
+        game_cfg = dict(game_cfg)
+        game_cfg["piece_rule"] = str(args.piece_rule).strip().lower()
+        cfg_watch["game"] = game_cfg
+
     built = make_env_from_cfg(cfg=cfg_watch, seed=int(args.seed))
     env = built.env
 
