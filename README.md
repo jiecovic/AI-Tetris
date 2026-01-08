@@ -1,6 +1,6 @@
 # RL-Tetris 🧩🤖
 
-<img src="assets/demo.gif" width="500" />
+<img src="assets/demo_v3.gif" width="500" />
 
 
 **Experimental playground for teaching AI to play Tetris.**
@@ -47,6 +47,27 @@ Configurable entirely via **YAML**:
 * Custom Tetris engine
 * Gymnasium-compatible, PyGame Rendering
 ---
+
+## Requirements
+
+### Python
+- Python **≥ 3.10**
+- `pip`
+
+### System / Native dependencies
+This project includes a Rust-based Tetris engine built via **PyO3 + maturin**.
+
+You need a working **Rust toolchain**:
+- `rustc` and `cargo`
+- Install via **rustup**
+
+**Windows (MSVC)**:
+- Visual Studio Build Tools
+- Enable *Desktop development with C++*
+
+### Python dependencies
+Installed automatically via `pip install -e .` (see `pyproject.toml`).
+
 
 ## Installation
 
