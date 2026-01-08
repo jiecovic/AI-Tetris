@@ -27,7 +27,7 @@ class Palette:
 
     text: Color = (235, 235, 245)
     muted: Color = (170, 170, 190)
-    matrix: Color = (140, 220, 255)
+    matrix: Color = (0, 255, 128)
 
     empty: Color = (32, 32, 40)         # empty cell fill
     grid: Color = (45, 45, 58)          # grid line color

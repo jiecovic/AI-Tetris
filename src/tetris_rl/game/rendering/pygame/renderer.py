@@ -15,6 +15,9 @@ from tetris_rl.game.rendering.pygame.window import Layout, WindowSpec, compute_l
 
 __all__ = ["Color", "Palette", "TetrisRenderer"]
 
+# Neon / “matrix terminal” green (ACCENT ONLY)
+MATRIX_GREEN = (120, 255, 140)
+
 
 @dataclass(frozen=True)
 class Fonts:
@@ -30,19 +33,6 @@ def _state_get(state: Any, key: str, default: Any = None) -> Any:
 
 
 def _extract_game_metrics(env_info: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
-    """
-    Renderer must NOT compute metrics.
-
-    With the new env_info schema (macro_info.build_step_info_update), we expect:
-      env_info["tf"] contains:
-        - holes
-        - max_height
-        - bumpiness
-        - agg_height
-      (plus deltas, etc.)
-
-    Sidebar expects game_metrics dict (optional). We provide a minimal stable subset.
-    """
     if not isinstance(env_info, dict):
         return None
 
@@ -66,11 +56,20 @@ class TetrisRenderer:
         show_grid_lines: bool,
         palette: Optional[Palette] = None,
         hud_height: int = 0,
+        footer_h: int = 28,  # dedicated footer bar height
     ) -> None:
         self.cell = int(cell)
         self.show_grid_lines = bool(show_grid_lines)
         self.palette = palette or Palette()
         self.hud_height = int(hud_height)
+        self.footer_h = int(max(0, footer_h))
+
+        # Accent only: DO NOT override normal text/muted colors.
+        try:
+            if hasattr(self.palette, "matrix"):
+                setattr(self.palette, "matrix", MATRIX_GREEN)
+        except Exception:
+            pass
 
         main = pygame.font.SysFont("consolas", 18) or pygame.font.SysFont(None, 18)
         small = pygame.font.SysFont("consolas", 16) or pygame.font.SysFont(None, 16)
@@ -87,6 +86,7 @@ class TetrisRenderer:
         hud_text: Optional[str],
         title: str = "RL-Tetris | watch",
         sidebar_w: int = SIDEBAR_W,
+        bottom_pad: int = 8,
     ) -> tuple[pygame.Surface, Layout]:
         n_lines = 0
         if hud_text:
@@ -103,9 +103,11 @@ class TetrisRenderer:
             cell=int(self.cell),
             hud_h=int(self.hud_height),
             sidebar_w=int(sidebar_w),
+            bottom_pad=int(bottom_pad),
+            footer_h=int(self.footer_h),
         )
 
-        spec = WindowSpec(width=layout.window.width, height=layout.window.height, title=str(title))
+        spec = WindowSpec(width=layout.window_w, height=layout.window_h, title=str(title))
         screen = create_window(spec)
         return screen, layout
 
@@ -120,7 +122,8 @@ class TetrisRenderer:
         hud_text: Optional[str] = None,
         env_info: Optional[dict[str, Any]] = None,
         ghost: Optional[dict[str, Any]] = None,
-        engine: Any = None,  # Rust engine (PyO3), used for UI-only preview masks
+        engine: Any = None,
+        overlay_text: Optional[str] = None,
     ) -> None:
         grid = _state_get(state, "grid", None)
         if grid is None:
@@ -134,14 +137,17 @@ class TetrisRenderer:
             )
             return
 
-        # Renderer decides whether to show the "active piece preview":
-        # - when NOT paused => ghost is None => show active preview
-        # - when paused     => ghost exists  => suppress active preview (ghost replaces it)
         show_active_preview = ghost is None
-
         game_metrics = _extract_game_metrics(env_info)
 
         screen.fill(self.palette.bg)
+
+        # Clip board/sidebar to everything ABOVE the footer.
+        # This prevents any draw_* function from painting into the footer bar area.
+        if int(layout.footer_h) > 0:
+            screen.set_clip(pygame.Rect(0, 0, int(layout.window_w), int(layout.footer_y)))
+        else:
+            screen.set_clip(None)
 
         if self.hud_height > 0 and hud_text:
             draw_hud_panel(
@@ -187,6 +193,26 @@ class TetrisRenderer:
             font_tiny=self.fonts.tiny,
             engine=engine,
         )
+
+        # Footer: draw after un-clipping so it is always visible.
+        screen.set_clip(None)
+
+        if int(layout.footer_h) > 0:
+            footer_rect = pygame.Rect(0, int(layout.footer_y), int(layout.window_w), int(layout.footer_h))
+            pygame.draw.rect(screen, (12, 14, 18), footer_rect)
+            pygame.draw.line(
+                screen,
+                (34, 38, 46),
+                (0, int(layout.footer_y)),
+                (int(layout.window_w), int(layout.footer_y)),
+                1,
+            )
+
+            if overlay_text:
+                surf = self.fonts.tiny.render(str(overlay_text), True, MATRIX_GREEN)
+                x = 12
+                y = int(layout.footer_y) + (int(layout.footer_h) - surf.get_height()) // 2
+                screen.blit(surf, (x, y))
 
     def hud_height_for_lines(self, *, n_lines: int, pad_y: int = 10, gap_y: int = 3) -> int:
         return hud_panel_height_for_lines(
