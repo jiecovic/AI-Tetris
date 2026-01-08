@@ -24,6 +24,8 @@ from tetris_rl.runs.run_io import choose_config_path
 from tetris_rl.runs.speed_control import RateMeter, SpeedControl
 from tetris_rl.training.model_io import load_model_from_spec, warn_if_maskable_with_multidiscrete
 from tetris_rl.utils.paths import repo_root, resolve_run_dir
+from tetris_rl.config.resolve import resolve_config
+
 
 from tetris_rl.utils.config_merge import merge_env_for_eval  # type: ignore[import-not-found]
 
@@ -185,6 +187,7 @@ def main() -> int:
 
     cfg_path = choose_config_path(run_dir)
     cfg = load_yaml(cfg_path)
+    cfg = resolve_config(cfg=cfg, cfg_path=cfg_path)
     train_spec = parse_train_spec(cfg=cfg)
 
     cfg_watch = _build_watch_cfg(cfg=cfg, train_spec=train_spec, which=str(args.env))

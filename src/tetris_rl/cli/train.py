@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import time
+from typing import Any, Dict
 
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 
@@ -34,6 +35,46 @@ from tetris_rl.utils.logging import setup_logger
 from tetris_rl.utils.paths import repo_root as find_repo_root
 
 
+def _deep_merge(base: Any, patch: Any) -> Any:
+    """
+    Simple deep-merge for config patches.
+
+    Rules:
+      - mapping + mapping => recursively merge keys
+      - otherwise => patch replaces base
+      - patch=None => replaces base with None (used to disable warmup etc.)
+    """
+    if patch is None:
+        return None
+    if isinstance(base, dict) and isinstance(patch, dict):
+        out: Dict[str, Any] = dict(base)
+        for k, v in patch.items():
+            out[k] = _deep_merge(out.get(k, None), v)
+        return out
+    return patch
+
+
+def _build_eval_cfg(*, cfg: Dict[str, Any], train: Any) -> Dict[str, Any]:
+    """
+    Apply train.eval.env_override as a deep-merge patch and return a new cfg mapping.
+
+    Intended overrides:
+      - disable warmup:  {"game": {"warmup": None}}
+      - disable truncation: {"env": {"params": {"max_steps": None}}}
+
+    IMPORTANT:
+      We keep EvalCheckpointSpec unchanged by precomputing the eval cfg
+      and passing it as the callback's `cfg` argument.
+    """
+    patch = getattr(getattr(train, "eval", None), "env_override", None) or {}
+    if not isinstance(patch, dict) or not patch:
+        return cfg
+    merged = _deep_merge(cfg, patch)
+    if not isinstance(merged, dict):
+        raise TypeError("train.eval.env_override patch produced non-mapping cfg")
+    return merged
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", type=str, default="configs/mlp.yaml")
@@ -46,8 +87,6 @@ def main() -> int:
     cfg = resolve_config(cfg=cfg, cfg_path=cfg_path)
 
     run = parse_run_spec(cfg=cfg)
-
-
     train = parse_train_spec(cfg=cfg)
 
     paths = make_run_paths(run_spec=run)
@@ -162,9 +201,13 @@ def main() -> int:
     ]
 
     if int(train.eval.eval_every) > 0 and str(train.eval.mode).strip().lower() != "off":
+        # IMPORTANT: keep EvalCheckpointSpec unchanged by passing an eval-specific cfg
+        # into the callback (callback still receives `cfg` and can build eval env as before).
+        eval_cfg = _build_eval_cfg(cfg=cfg, train=train)
+
         callbacks.append(
             EvalCheckpointCallback(
-                cfg=cfg,
+                cfg=eval_cfg,
                 spec=EvalCheckpointSpec(
                     checkpoint_dir=paths.ckpt_dir,
                     eval_every=int(train.eval.eval_every),

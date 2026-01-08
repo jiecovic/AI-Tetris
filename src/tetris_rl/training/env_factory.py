@@ -12,7 +12,6 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 from tetris_rl.config.run_spec import RunSpec
 from tetris_rl.config.schema_types import require_mapping
 from tetris_rl.envs.factory import make_env_from_cfg
-from tetris_rl.game.factory import make_game_from_cfg
 
 
 @dataclass(frozen=True)
@@ -29,11 +28,12 @@ def _spawn_env_seeds(base_seed: int, n_envs: int) -> list[int]:
 def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_spec: RunSpec) -> BuiltVecEnv:
     """
     Build VecEnv using:
-      - raw cfg for env/game wiring (cfg.env + cfg.game)
+      - raw cfg for env wiring (cfg.env + cfg.game)
       - RunSpec for runtime wiring (seed, n_envs, vec backend)
 
-    Training semantics (RL vs imitation vs eval) are NOT handled here.
-    This factory is strictly responsible for environment construction.
+    IMPORTANT (Rust engine + Windows spawn):
+      - Do not construct/hold a PyO3 engine in the parent.
+      - Each worker must construct its own engine inside make_env_from_cfg().
     """
     root = require_mapping(cfg, where="cfg")
 
@@ -42,15 +42,20 @@ def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_spec: RunSpec) -> BuiltVec
     vec_kind = str(run_spec.vec).strip().lower()
 
     set_random_seed(int(base_seed))
-
     env_seeds = _spawn_env_seeds(int(base_seed), int(n_envs))
 
     def make_one(rank: int):
         def _thunk():
-            game = make_game_from_cfg(root)
-            built = make_env_from_cfg(cfg=root, game=game)
+            # Engine is created inside make_env_from_cfg() (per-process).
+            # Pass per-rank seed so the initial engine instance differs across workers.
+            built = make_env_from_cfg(cfg=root, seed=int(env_seeds[int(rank)]))
+
+            # Monitor expects a Gym Env, not your wrapper object.
             env = Monitor(built.env)
-            env.reset(seed=int(env_seeds[int(rank)]))
+
+            # IMPORTANT: do NOT reset here.
+            # VecEnv/SB3 will reset when needed; manual reset can double-reset
+            # and create confusing Monitor episode boundaries.
             return env
 
         return _thunk
