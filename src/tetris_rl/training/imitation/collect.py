@@ -30,11 +30,6 @@ def split_shards_modulo(
     eval_mod_offset: int,
     seed_offset: int,
 ) -> SplitShards:
-    """
-    Deterministic shard split with optional seed shift.
-
-    eval iff (shard_id % eval_mod) == ((eval_mod_offset + seed32_from(base_seed, seed_offset)) % eval_mod)
-    """
     ids = [int(x) for x in shard_ids]
     ids.sort()
 
@@ -51,7 +46,21 @@ def split_shards_modulo(
         else:
             tr.append(int(sid))
 
+    # --- fallback: guarantee eval shards when shards exist ---
+    if ids and not ev:
+        if len(ids) == 1:
+            # one-shard dataset: keep train-only semantics, but allow offline eval to run
+            ev = [ids[0]]
+            tr = [ids[0]]
+        else:
+            # move 1 deterministic shard from train -> eval
+            j = seed32_from(base_seed=base_seed, stream_id=0xE11A) % len(tr)
+            ev.append(tr.pop(j))
+            ev.sort()
+            tr.sort()
+
     return SplitShards(train=tr, eval=ev)
+
 
 
 def _maybe_shuffle(rng: np.random.Generator, xs: List[int], enabled: bool) -> List[int]:
@@ -219,10 +228,10 @@ def iter_bc_batches_from_dataset(
 
             jj = int(j)
 
-            pending[NPZ_GRID].append(grid[jj: jj + 1])
-            pending[NPZ_ACTIVE_KIND].append(ak[jj: jj + 1])
-            pending[NPZ_NEXT_KIND].append(nk[jj: jj + 1])
-            pending[NPZ_ACTION].append(act[jj: jj + 1])
+            pending[NPZ_GRID].append(grid[jj : jj + 1])
+            pending[NPZ_ACTIVE_KIND].append(ak[jj : jj + 1])
+            pending[NPZ_NEXT_KIND].append(nk[jj : jj + 1])
+            pending[NPZ_ACTION].append(act[jj : jj + 1])
 
             pending_n += 1
             if remaining is not None:
