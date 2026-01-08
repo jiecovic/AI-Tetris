@@ -1,11 +1,11 @@
 train:
   checkpoints:
-    latest_every: 250_000            # save latest checkpoint every N env steps
+    latest_every: 500_000            # save latest checkpoint every N env steps
 
   eval:
     mode: both                       # off | rl | imitation | both
-    steps: 50_000                  # evaluation step budget (env steps)
-    eval_every: 1_000_000              # run eval every N training env steps
+    steps: 100_000                  # evaluation step budget (env steps)
+    eval_every: 5_000_000              # run eval every N training env steps
     deterministic: true             # use deterministic policy during eval
     seed_offset: 10_000             # seed offset added to training base seed
 
