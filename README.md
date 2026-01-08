@@ -48,6 +48,27 @@ Configurable entirely via **YAML**:
 * Gymnasium-compatible, PyGame Rendering
 ---
 
+## Requirements
+
+### Python
+- Python **≥ 3.10**
+- `pip`
+
+### System / Native dependencies
+This project includes a Rust-based Tetris engine built via **PyO3 + maturin**.
+
+You need a working **Rust toolchain**:
+- `rustc` and `cargo`
+- Install via **rustup**
+
+**Windows (MSVC)**:
+- Visual Studio Build Tools
+- Enable *Desktop development with C++*
+
+### Python dependencies
+Installed automatically via `pip install -e .` (see `pyproject.toml`).
+
+
 ## Installation
 
 Install locally via `pyproject.toml`:
