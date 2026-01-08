@@ -11,7 +11,7 @@ class HudStep:
     score: int
     delta_score: float
     game_over: bool
-    illegal_action: bool
+    invalid_action: bool
 
     masked_action: bool
     redundant_rotation: bool
@@ -92,7 +92,7 @@ def from_info(info: Any) -> HudStep:
             score=_safe_int(game.get("score", 0), 0),
             delta_score=_safe_float(game.get("delta_score", 0.0), 0.0),
             game_over=_safe_bool(tf.get("game_over", False)),
-            illegal_action=_safe_bool(tf.get("illegal_action", False)),
+            invalid_action=_safe_bool(tf.get("invalid_action", False)),
             masked_action=_safe_bool(ui.get("masked_action", False)),
             redundant_rotation=_safe_bool(tf.get("redundant_rotation", False)),
             action_id=action_id,
@@ -109,7 +109,7 @@ def from_info(info: Any) -> HudStep:
         score=_safe_int(d.get("score", 0), 0),
         delta_score=0.0,
         game_over=_safe_bool(d.get("game_over", False)),
-        illegal_action=False,
+        invalid_action=False,
         masked_action=False,
         redundant_rotation=False,
         action_id=None,

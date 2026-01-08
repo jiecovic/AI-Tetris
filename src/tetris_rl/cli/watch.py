@@ -384,7 +384,7 @@ def main() -> int:
         window.push(
             step_reward=float(r),
             cleared_lines=int(h2.cleared_lines),
-            illegal=int(h2.illegal_action),
+            illegal=int(h2.invalid_action),
             masked=int(h2.masked_action),
             redrot=int(h2.redundant_rotation),
             score_delta=float(h2.delta_score),

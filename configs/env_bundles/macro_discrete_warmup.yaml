@@ -3,7 +3,7 @@ env:
   params:
     action_mode: discrete     # discrete | multidiscrete
     max_steps: 10_000          # null disables truncation
-    illegal_action_policy: noop   # noop | terminate | closest_legal | random_legal
+    invalid_action_policy: noop   # noop | terminate | closest_legal | random_legal
 
   reward:
     type: learned_ridge

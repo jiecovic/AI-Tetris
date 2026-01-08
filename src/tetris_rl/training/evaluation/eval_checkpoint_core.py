@@ -140,7 +140,7 @@ class EvalCheckpointCore:
         self.emit(
             "[eval] cols: "
             f"{self._t_col_name()}=progress  phase=caller(rl|imitation)  upd=best updates  steps=eval budget used  ep=episodes finished in budget  "
-            "rwd/s=return_mean/steps_mean  ep_len=steps_mean (done=go or trunc)  ill%=illegal_action_rate  "
+            "rwd/s=return_mean/steps_mean  ep_len=steps_mean (done=go or trunc)  ill%=invalid_action_rate  "
             "bc_val_*=optional offline validation metrics (if wired by caller)"
         )
         self.emit("")
@@ -235,7 +235,7 @@ class EvalCheckpointCore:
             lines_per_step: Optional[float],
             level_max: Optional[float],
             ep_len_mean: Optional[float],
-            illegal_action_rate: Optional[float],
+            invalid_action_rate: Optional[float],
             # optional extra metrics (offline validation etc.)
             bc_val_loss: Optional[float] = None,
             bc_val_acc_top1: Optional[float] = None,
@@ -250,7 +250,7 @@ class EvalCheckpointCore:
             self.emit(self._table_sep())
 
         upd_fixed = (upd[: self._COL_W_UPD]).ljust(self._COL_W_UPD)
-        ill_pct = None if illegal_action_rate is None else 100.0 * float(illegal_action_rate)
+        ill_pct = None if invalid_action_rate is None else 100.0 * float(invalid_action_rate)
 
         ph = str(phase).strip().lower()[: self._COL_W_PH].ljust(self._COL_W_PH)
 
@@ -434,7 +434,7 @@ class EvalCheckpointCore:
             lines_per_step=_as_float(metrics.get("game/lines_per_step")),
             level_max=_as_float(metrics.get("game/level_max")),
             ep_len_mean=ep_len,
-            illegal_action_rate=_as_float(metrics.get("tf/illegal_action_rate")),
+            invalid_action_rate=_as_float(metrics.get("tf/invalid_action_rate")),
             bc_val_loss=bc_vloss,
             bc_val_acc_top1=bc_vacc,
             bc_val_entropy=bc_vH,

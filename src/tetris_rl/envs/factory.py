@@ -35,10 +35,10 @@ def _env_kwargs_compat(*, env_cfg: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(params, dict):
         p = dict(params)
 
-        # Old name in configs: illegal_action_policy
+        # Old name in configs: invalid_action_policy
         # New MacroTetrisEnv ctor kw: invalid_action_policy
-        if "illegal_action_policy" in p and "invalid_action_policy" not in p:
-            p["invalid_action_policy"] = p.pop("illegal_action_policy")
+        if "invalid_action_policy" in p and "invalid_action_policy" not in p:
+            p["invalid_action_policy"] = p.pop("invalid_action_policy")
 
         out["params"] = p
 

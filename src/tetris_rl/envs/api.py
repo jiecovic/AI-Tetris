@@ -24,14 +24,14 @@ class TransitionFeatures:
     Strict legality (North Star: invalid_rot OR oob OR collision at current py):
       - applied: True iff we actually applied *some* placement to the active piece and executed hard_drop.
                 (False for noop/terminate, or if remap fails / no legal actions exist.)
-      - illegal_action: True iff the originally requested action was illegal under strict rules.
+      - invalid_action: True iff the originally requested action was illegal under strict rules.
       - illegal_reason: why it was illegal ("invalid_rotation" | "oob" | "collision" | ...), else None.
-      - remapped: True iff we executed a different (rot,col) than requested due to illegal_action_policy.
+      - remapped: True iff we executed a different (rot,col) than requested due to invalid_action_policy.
       - invalid_action_policy: "closest_legal" | "random_legal" if remapped, else None.
 
     Mask/debug-only signals (mainly for MaskablePPO / sanity checks):
       - masked_action: whether the requested joint Discrete(rot×col) action was masked out as illegal.
-                       Under “one truth”, this should agree with illegal_action in discrete mode.
+                       Under “one truth”, this should agree with invalid_action in discrete mode.
       - redundant_rotation: requested_rot >= num_rotations(kind) (asset-level invalid rotation).
                             This is a *subset* of strict illegality; useful to separate causes.
 

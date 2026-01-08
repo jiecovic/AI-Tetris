@@ -93,8 +93,8 @@ class StatsAccumulator:
         self._sum_all_cells_cleared = 0.0
         self._cnt_all_cells_cleared = 0
 
-        self._sum_illegal_action = 0.0
-        self._cnt_illegal_action = 0
+        self._sum_invalid_action = 0.0
+        self._cnt_invalid_action = 0
 
         self._sum_redundant_rotation = 0.0
         self._cnt_redundant_rotation = 0
@@ -211,10 +211,10 @@ class StatsAccumulator:
             self._sum_all_cells_cleared += 1.0 if b else 0.0
             self._cnt_all_cells_cleared += 1
 
-        b = _as_bool(tf.get("illegal_action"))
+        b = _as_bool(tf.get("invalid_action"))
         if b is not None:
-            self._sum_illegal_action += 1.0 if b else 0.0
-            self._cnt_illegal_action += 1
+            self._sum_invalid_action += 1.0 if b else 0.0
+            self._cnt_invalid_action += 1
 
         b = _as_bool(tf.get("redundant_rotation"))
         if b is not None:
@@ -304,9 +304,9 @@ class StatsAccumulator:
         if r is not None:
             out["tf/placed_all_cells_cleared_rate"] = r
 
-        r = self._rate(self._sum_illegal_action, self._cnt_illegal_action)
+        r = self._rate(self._sum_invalid_action, self._cnt_invalid_action)
         if r is not None:
-            out["tf/illegal_action_rate"] = r
+            out["tf/invalid_action_rate"] = r
 
         r = self._rate(self._sum_redundant_rotation, self._cnt_redundant_rotation)
         if r is not None:

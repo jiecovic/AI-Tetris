@@ -66,7 +66,7 @@ class HeuristicDeltaReward(RewardFn):
         # ------------------------------------------------------------
         # Illegal action: penalties only
         # ------------------------------------------------------------
-        if bool(getattr(features, "illegal_action", False)):
+        if bool(getattr(features, "invalid_action", False)):
             r -= float(self.illegal_penalty)
             if bool(getattr(features, "game_over", False)):
                 r -= float(self.terminal_penalty)
