@@ -367,7 +367,7 @@ def draw_sidebar(
 
     legend = [
         ("P", "pause / resume"),
-        ("A / D", "move left / right (paused)"),
+        ("A / D", "move (paused)"),
         ("Space", "hard drop"),
         ("N", "step"),
         ("R", "reset"),
