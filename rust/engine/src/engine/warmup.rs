@@ -29,13 +29,13 @@ HoleCount:
 
 Spawn safety
 ------------
-We reserve `spawn_buffer` top rows to avoid blocking spawn. The effective maximum
-warmup rows is `H - spawn_buffer`.
+We reserve `DEFAULT_SPAWN_BUFFER` top rows to avoid blocking spawn. The effective maximum
+warmup rows is `H - DEFAULT_SPAWN_BUFFER`.
 
 Notes
 -----
-- `spawn_buffer` MUST be >= HIDDEN_ROWS to guarantee spawn rows remain empty.
-- This module enforces that invariant by clamping.
+- Spawn buffer MUST be >= HIDDEN_ROWS to guarantee spawn rows remain empty.
+- This module enforces that invariant by clamping, but the value itself is not configurable.
 */
 
 use rand::rngs::StdRng;
@@ -68,8 +68,6 @@ pub enum HoleCount {
 pub struct WarmupSpec {
     pub rows: RowCountDist,
     pub holes: HoleCount,
-    /// Keep the top `spawn_buffer` rows empty; default is DEFAULT_SPAWN_BUFFER.
-    pub spawn_buffer: u8,
     /// Salt mixed into the episode seed to create an independent warmup RNG stream.
     pub seed_salt: u64,
 }
@@ -81,7 +79,6 @@ impl WarmupSpec {
         Self {
             rows: RowCountDist::Fixed(0),
             holes: HoleCount::Fixed(1),
-            spawn_buffer: DEFAULT_SPAWN_BUFFER as u8,
             seed_salt: Self::DEFAULT_SEED_SALT,
         }
     }
@@ -96,7 +93,7 @@ impl Default for WarmupSpec {
 /// Apply warmup to the provided grid.
 /// Deterministic w.r.t. (seed, spec), but does not consume piece RNG.
 pub fn apply_warmup(grid: &mut [[u8; W]; H], episode_seed: u64, spec: &WarmupSpec) {
-    let max_rows = max_warmup_rows(spec.spawn_buffer);
+    let max_rows = max_warmup_rows();
 
     // Derive an independent RNG stream for warmup.
     let mut rng = StdRng::seed_from_u64(episode_seed ^ spec.seed_salt);
@@ -117,9 +114,9 @@ pub fn apply_warmup(grid: &mut [[u8; W]; H], episode_seed: u64, spec: &WarmupSpe
     apply_warmup_garbage(grid, fill_seed, rows, holes);
 }
 
-fn max_warmup_rows(spawn_buffer: u8) -> u8 {
-    // Enforce invariant: spawn_buffer >= HIDDEN_ROWS
-    let sb = (spawn_buffer as usize).max(HIDDEN_ROWS);
+fn max_warmup_rows() -> u8 {
+    // Enforce invariant: DEFAULT_SPAWN_BUFFER >= HIDDEN_ROWS
+    let sb = (DEFAULT_SPAWN_BUFFER as usize).max(HIDDEN_ROWS);
 
     let max_rows_usize = H.saturating_sub(sb).min(u8::MAX as usize);
     max_rows_usize as u8

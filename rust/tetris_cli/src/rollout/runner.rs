@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
+use tetris_engine::engine::warmup::{HoleCount, RowCountDist, WarmupSpec};
 use tetris_engine::engine::Game;
 use tetris_engine::policy::Policy;
 
@@ -59,6 +60,26 @@ impl Runner {
         Self { cfg, sink }
     }
 
+    #[inline]
+    fn warmup_spec(&self) -> WarmupSpec {
+        // Canonical engine API: warmup is *always* configured via WarmupSpec.
+        // Keep CLI semantics: warmup_rows==0 disables warmup.
+        if self.cfg.warmup_rows == 0 {
+            WarmupSpec::none()
+        } else {
+            WarmupSpec {
+                rows: RowCountDist::Fixed(self.cfg.warmup_rows),
+                holes: HoleCount::Fixed(self.cfg.warmup_holes.max(1)),
+                ..WarmupSpec::none()
+            }
+        }
+    }
+
+    #[inline]
+    fn new_game(&self, seed: u64) -> Game {
+        Game::new_with_rule_and_warmup_spec(seed, self.cfg.rule_kind, self.warmup_spec())
+    }
+
     pub fn run(&mut self, policy: &mut dyn Policy) -> FinalReport {
         let cfg = self.cfg.clone();
 
@@ -81,12 +102,7 @@ impl Runner {
 
         // Episode state.
         let mut episode_id: u64 = 0;
-        let mut game = Game::new_with_rule_and_warmup(
-            cfg.base_seed.wrapping_add(episode_id),
-            cfg.rule_kind,
-            cfg.warmup_rows,
-            cfg.warmup_holes,
-        );
+        let mut game = self.new_game(cfg.base_seed.wrapping_add(episode_id));
 
         // Totals across completed episodes (live totals include current episode too).
         let mut total_lines_finished: u64 = 0;
@@ -111,12 +127,7 @@ impl Runner {
 
                 // Reset env
                 episode_id += 1;
-                game = Game::new_with_rule_and_warmup(
-                    cfg.base_seed.wrapping_add(episode_id),
-                    cfg.rule_kind,
-                    cfg.warmup_rows,
-                    cfg.warmup_holes,
-                );
+                game = self.new_game(cfg.base_seed.wrapping_add(episode_id));
 
                 if cfg.render_ms.is_some() {
                     println!(
@@ -144,7 +155,6 @@ impl Runner {
             let r = game.step_action_id(aid);
             let _ = r.terminated; // game.game_over is the canonical termination flag.
 
-
             // Stats update (includes heavy features + deltas internally).
             let (mh, ah) = game.height_metrics();
             stats.on_step(&game.grid, mh, ah);
@@ -166,10 +176,7 @@ impl Runner {
             // Periodic table report (verbosity == 2 only).
             // IMPORTANT: the table prints only AGGREGATE stats.
             // ------------------------------------------------------------
-            if cfg.verbosity == 2
-                && cfg.report_every > 0
-                && (stats.steps_done % cfg.report_every == 0)
-            {
+            if cfg.verbosity == 2 && cfg.report_every > 0 && (stats.steps_done % cfg.report_every == 0) {
                 let live_total_lines = total_lines_finished + game.lines_cleared;
                 let live_total_score = total_score_finished + game.score;
 

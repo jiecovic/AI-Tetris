@@ -1,15 +1,14 @@
 // rust/engine/src/engine/game.rs
 #![forbid(unsafe_code)]
 
-use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
-use crate::engine::pieces::Kind;
-
 use crate::engine::constants::{decode_action_id, encode_action_id, ACTION_DIM, H, HIDDEN_ROWS, W};
 use crate::engine::geometry::{bbox_left_to_anchor_x, bbox_params};
 use crate::engine::grid::{
     clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics, lock_on_grid,
 };
-use crate::engine::warmup::{apply_warmup, HoleCount, RowCountDist, WarmupSpec};
+use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
+use crate::engine::pieces::Kind;
+use crate::engine::warmup::{apply_warmup, WarmupSpec};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SimPlacement {
@@ -45,42 +44,21 @@ pub struct Game {
 }
 
 impl Game {
-    /// Default: uniform IID stream.
+    /// Default: uniform IID stream, no warmup.
     pub fn new(seed: u64) -> Self {
-        Self::new_with_rule(seed, PieceRuleKind::Uniform)
+        Self::new_with_rule_and_warmup_spec(seed, PieceRuleKind::Uniform, WarmupSpec::none())
     }
 
+    /// Select piece rule, no warmup.
     pub fn new_with_rule(seed: u64, rule_kind: PieceRuleKind) -> Self {
-        Self::new_with_rule_and_warmup(seed, rule_kind, 0, 1)
+        Self::new_with_rule_and_warmup_spec(seed, rule_kind, WarmupSpec::none())
     }
 
-    /// Backwards-compatible convenience constructor.
-    /// Uses fixed warmup rows/holes if warmup_rows > 0, otherwise no warmup.
-    pub fn new_with_rule_and_warmup(
-        seed: u64,
-        rule_kind: PieceRuleKind,
-        warmup_rows: u8,
-        warmup_holes: u8,
-    ) -> Self {
-        let spec = if warmup_rows == 0 {
-            WarmupSpec::none()
-        } else {
-            WarmupSpec {
-                rows: RowCountDist::Fixed(warmup_rows),
-                holes: HoleCount::Fixed(warmup_holes),
-                spawn_buffer: (HIDDEN_ROWS as u8) + 2,
-                seed_salt: WarmupSpec::DEFAULT_SEED_SALT,
-            }
-        };
-        Self::new_with_rule_and_warmup_spec(seed, rule_kind, spec)
-    }
-
-    /// New constructor: warmup is configured via a documented spec.
-    pub fn new_with_rule_and_warmup_spec(
-        seed: u64,
-        rule_kind: PieceRuleKind,
-        warmup: WarmupSpec,
-    ) -> Self {
+    /// Primary constructor: piece rule + explicit warmup spec.
+    ///
+    /// Key invariant:
+    /// - Draw `active` and `next` before warmup so piece-stream consumption is independent of warmup.
+    pub fn new_with_rule_and_warmup_spec(seed: u64, rule_kind: PieceRuleKind, warmup: WarmupSpec) -> Self {
         let mut piece_rule = PieceRule::new(seed, rule_kind);
 
         // Draw pieces first (keeps piece stream semantics identical regardless of warmup mode).
@@ -189,11 +167,7 @@ impl Game {
     // Pure transition kernel
     // -------------------------------------------------------------------------
 
-    pub fn apply_action_id_to_grid(
-        grid_in: &[[u8; W]; H],
-        kind: Kind,
-        action_id: usize,
-    ) -> SimPlacement {
+    pub fn apply_action_id_to_grid(grid_in: &[[u8; W]; H], kind: Kind, action_id: usize) -> SimPlacement {
         // Out-of-range action id => invalid.
         if action_id >= ACTION_DIM {
             return SimPlacement {
@@ -333,11 +307,9 @@ impl Game {
 
     /// Convenience wrapper around fixed action-id encoding.
     ///
-    /// This engine only supports macro placement actions; this method exists purely
-    /// to accept (rot, col) and forward to `step_action_id`.
+    /// Exists to accept (rot, col) and forward to `step_action_id`.
     pub fn step_rot_col(&mut self, rot: usize, col: i32) -> (bool, u32) {
         if col < 0 || col >= W as i32 {
-            // Convenience: treat as invalid no-op.
             return (false, 0);
         }
 
