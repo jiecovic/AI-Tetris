@@ -92,7 +92,6 @@ class EvalCheckpointCore:
     _COL_W_BCL = 10  # bc_val_loss
     _COL_W_BCA = 8  # bc_val_acc_top1
     _COL_W_BCH = 8  # bc_val_entropy
-    _COL_W_BCS = 9  # bc_val_samples
 
     def __init__(
             self,
@@ -171,7 +170,6 @@ class EvalCheckpointCore:
             f"{'bc_vloss':>{self._COL_W_BCL}} "
             f"{'bc_acc':>{self._COL_W_BCA}} "
             f"{'bc_H':>{self._COL_W_BCH}} "
-            f"{'bc_vn':>{self._COL_W_BCS}}"
         )
 
     def _table_sep(self) -> str:
@@ -190,7 +188,6 @@ class EvalCheckpointCore:
             f"{'-' * self._COL_W_BCL} "
             f"{'-' * self._COL_W_BCA} "
             f"{'-' * self._COL_W_BCH} "
-            f"{'-' * self._COL_W_BCS}"
         )
 
     def _fmt_float(self, v: Optional[float], width: int, *, prec: int = 4) -> str:
@@ -243,7 +240,6 @@ class EvalCheckpointCore:
             bc_val_loss: Optional[float] = None,
             bc_val_acc_top1: Optional[float] = None,
             bc_val_entropy: Optional[float] = None,
-            bc_val_samples: Optional[int] = None,
     ) -> None:
         self._tick_count += 1
 
@@ -273,7 +269,6 @@ class EvalCheckpointCore:
             f"{self._fmt_float(bc_val_loss, self._COL_W_BCL, prec=4)} "
             f"{self._fmt_float(bc_val_acc_top1, self._COL_W_BCA, prec=3)} "
             f"{self._fmt_float(bc_val_entropy, self._COL_W_BCH, prec=3)} "
-            # f"{self._fmt_int(bc_val_samples, self._COL_W_BCS)}"
         )
         self.emit(row)
 
@@ -427,13 +422,6 @@ class EvalCheckpointCore:
         bc_vloss = _as_float(metrics.get("bc_val/loss", metrics.get("bc_val_loss")))
         bc_vacc = _as_float(metrics.get("bc_val/acc_top1", metrics.get("bc_val_acc_top1")))
         bc_vH = _as_float(metrics.get("bc_val/entropy", metrics.get("bc_val_entropy")))
-        bc_vn = metrics.get("bc_val/samples", metrics.get("bc_val_samples"))
-        bc_vn_i: Optional[int] = None
-        try:
-            if bc_vn is not None:
-                bc_vn_i = int(float(bc_vn))
-        except Exception:
-            bc_vn_i = None
 
         self._print_row(
             t=t,
@@ -450,7 +438,6 @@ class EvalCheckpointCore:
             bc_val_loss=bc_vloss,
             bc_val_acc_top1=bc_vacc,
             bc_val_entropy=bc_vH,
-            bc_val_samples=bc_vn_i,
         )
 
         return True

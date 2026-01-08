@@ -16,7 +16,7 @@ dataset:
 
   shards:
     shard_steps: 500_000
-    num_shards: 20
+    num_shards: 1_000
 
   compression: true
 
