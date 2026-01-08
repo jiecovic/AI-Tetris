@@ -138,10 +138,10 @@ def _extract_env_rows(env_info: Optional[dict[str, Any]]) -> List[tuple[str, Any
 
 
 def _try_engine_preview_mask(
-    *,
-    engine: Any | None,
-    kind_idx0: int | None,
-    rot: int = 0,
+        *,
+        engine: Any | None,
+        kind_idx0: int | None,
+        rot: int = 0,
 ) -> Any | None:
     """
     UI-only: ask Rust engine (PyO3) for a 4x4 preview mask.
@@ -178,25 +178,25 @@ def _try_engine_preview_mask(
 # Public draw
 # -----------------------------------------------------------------------------
 def draw_sidebar(
-    *,
-    screen: pygame.Surface,
-    state: Any,
-    env_info: Optional[dict[str, Any]] = None,
-    game_metrics: Optional[dict[str, Any]] = None,
-    reward: float,
-    done: bool,
-    x: int,
-    y: int,
-    w: int,
-    origin: Tuple[int, int],
-    margin: int,
-    grid: Any,
-    cell: int,
-    palette: Palette,
-    cache: SurfaceCache,
-    font_small: pygame.font.Font,
-    font_tiny: pygame.font.Font,
-    engine: Any = None,  # Rust engine (PyO3) - UI only
+        *,
+        screen: pygame.Surface,
+        state: Any,
+        env_info: Optional[dict[str, Any]] = None,
+        game_metrics: Optional[dict[str, Any]] = None,
+        reward: float,
+        done: bool,
+        x: int,
+        y: int,
+        w: int,
+        origin: Tuple[int, int],
+        margin: int,
+        grid: Any,
+        cell: int,
+        palette: Palette,
+        cache: SurfaceCache,
+        font_small: pygame.font.Font,
+        font_tiny: pygame.font.Font,
+        engine: Any = None,  # Rust engine (PyO3) - UI only
 ) -> None:
     """
     Render the right sidebar (presentation only).
@@ -295,9 +295,14 @@ def draw_sidebar(
     st_game_over = _get(state, "game_over", None)
     game_over = bool(done) if st_game_over is None else bool(st_game_over)
 
-    gm = game_metrics if isinstance(game_metrics, dict) else {}
-    holes = gm.get("holes", None)
-    max_height = gm.get("max_height", None)
+    # New SSOT: env_info["game"] (populated by macro_info.build_step_info_update)
+    holes = None
+    max_height = None
+    if isinstance(env_info, dict):
+        g = env_info.get("game", None)
+        if isinstance(g, dict):
+            holes = g.get("holes", None)
+            max_height = g.get("max_height", None)
 
     col1_label_x = int(x) + int(_LAYOUT.stats_pad_x)
     col1_value_x = int(col1_label_x) + int(_LAYOUT.stats_value_dx)
@@ -402,15 +407,15 @@ def draw_sidebar(
 # Small primitives
 # -----------------------------------------------------------------------------
 def _draw_kv(
-    *,
-    screen: pygame.Surface,
-    font: pygame.font.Font,
-    palette: Palette,
-    k: str,
-    v: Any,
-    label_x: int,
-    value_x: int,
-    y: int,
+        *,
+        screen: pygame.Surface,
+        font: pygame.font.Font,
+        palette: Palette,
+        k: str,
+        v: Any,
+        label_x: int,
+        value_x: int,
+        y: int,
 ) -> None:
     label = f"{k:>5}:"
     blit_text(screen=screen, font=font, text=label, pos=(int(label_x), int(y)), color=palette.muted)
@@ -418,15 +423,15 @@ def _draw_kv(
 
 
 def draw_piece_preview_mask(
-    *,
-    screen: pygame.Surface,
-    mask: Any,
-    dst_x: int,
-    dst_y: int,
-    cells: int,
-    cell: int,
-    palette: Palette,
-    cache: SurfaceCache,
+        *,
+        screen: pygame.Surface,
+        mask: Any,
+        dst_x: int,
+        dst_y: int,
+        cells: int,
+        cell: int,
+        palette: Palette,
+        cache: SurfaceCache,
 ) -> None:
     """
     Draw a piece preview from an engine-provided mask.
@@ -467,15 +472,15 @@ def draw_piece_preview_mask(
 
 
 def _panel(
-    *,
-    screen: pygame.Surface,
-    palette: Palette,
-    font_small: pygame.font.Font,
-    x: int,
-    y: int,
-    w: int,
-    h: int,
-    title: Optional[str] = None,
+        *,
+        screen: pygame.Surface,
+        palette: Palette,
+        font_small: pygame.font.Font,
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        title: Optional[str] = None,
 ) -> None:
     rect = pygame.Rect(int(x), int(y), int(w), int(h))
     pygame.draw.rect(screen, palette.panel_bg, rect)

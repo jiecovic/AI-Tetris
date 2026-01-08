@@ -27,7 +27,7 @@ class TransitionFeatures:
       - illegal_action: True iff the originally requested action was illegal under strict rules.
       - illegal_reason: why it was illegal ("invalid_rotation" | "oob" | "collision" | ...), else None.
       - remapped: True iff we executed a different (rot,col) than requested due to illegal_action_policy.
-      - remap_policy: "closest_legal" | "random_legal" if remapped, else None.
+      - invalid_action_policy: "closest_legal" | "random_legal" if remapped, else None.
 
     Mask/debug-only signals (mainly for MaskablePPO / sanity checks):
       - masked_action: whether the requested joint Discrete(rot×col) action was masked out as illegal.
@@ -56,13 +56,10 @@ class TransitionFeatures:
     used_column: int
 
     applied: bool
-    illegal_action: bool
-    illegal_reason: str | None
-    remapped: bool
-    remap_policy: str | None
+    invalid_action: bool
+    invalid_action_policy: str | None
 
     masked_action: bool
-    redundant_rotation: bool
 
     delta_holes: int | None = None
     delta_max_height: int | None = None

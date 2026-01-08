@@ -5,11 +5,9 @@ from typing import Any, Dict, Mapping, Optional
 
 from tetris_rl.envs.api import TransitionFeatures
 
+# Env-side HUD rows (right column of sidebar STATS panel).
 ENV_SIDEBAR_ROWS_ORDER = (
-    "Illegal",
-    "RedRot",
-    "PClear",  # placed cells cleared (0..4)
-    "AllClr",  # whole placed tetromino vanished
+    "Invalid",
     "ΔHoles",
     "ΔMaxH",
     "ΔBump",
@@ -28,40 +26,30 @@ def _get_field(obj: Any, key: str, default: Any = None) -> Any:
 
 
 def sidebar_env_rows(
-        *,
-        illegal_action: bool,
-        redundant_rotation: bool,
-        placed_cells_cleared: int,
-        placed_all_cells_cleared: bool,
-        delta_holes: Optional[int],
-        delta_max_height: Optional[int],
-        delta_bumpiness: Optional[int],
-        bumpiness: Optional[int],
+    *,
+    invalid_action: bool,
+    delta_holes: Optional[int],
+    delta_max_height: Optional[int],
+    delta_bumpiness: Optional[int],
+    bumpiness: Optional[int],
 ) -> list[tuple[str, Any]]:
     rows_map: Dict[str, Any] = {
-        "Illegal": bool(illegal_action),
-        "RedRot": bool(redundant_rotation),
-        "PClear": int(placed_cells_cleared),
-        "AllClr": bool(placed_all_cells_cleared),
+        "Invalid": bool(invalid_action),
         "ΔHoles": delta_holes,
         "ΔMaxH": delta_max_height,
         "ΔBump": delta_bumpiness,
         "Bumpy": bumpiness,
     }
-    out: list[tuple[str, Any]] = []
-    for k in ENV_SIDEBAR_ROWS_ORDER:
-        if k in rows_map:
-            out.append((k, rows_map[k]))
-    return out
+    return [(k, rows_map[k]) for k in ENV_SIDEBAR_ROWS_ORDER if k in rows_map]
 
 
 def build_reset_info(
-        *,
-        state: Any,
-        episode_idx: int,
-        episode_step: int,
-        action_mode: str,
-        piece_rule: str,
+    *,
+    state: Any,
+    episode_idx: int,
+    episode_step: int,
+    action_mode: str,
+    piece_rule: str,
 ) -> Dict[str, Any]:
     # Works with both legacy State objects and Rust snapshot dicts.
     return {
@@ -80,36 +68,29 @@ def build_reset_info(
 
 
 def build_transition_features(
-        *,
-        cleared: int,
-        placed_cells_cleared: int,
-        placed_all_cells_cleared: bool,
-        terminated: bool,
-        placed_kind: str,
-        requested_rot: int,
-        requested_col: int,
-        used_rot: int,
-        used_col: int,
-        applied: bool,
-        illegal_action: bool,
-        illegal_reason: Optional[str],
-        remapped: bool,
-        remap_policy: Optional[str],
-        masked_action: bool,
-        redundant_rotation: bool,
-        delta_holes: Optional[int],
-        delta_max_height: Optional[int],
-        delta_bumpiness: Optional[int],
-        delta_agg_height: Optional[int],
-        holes_after: Optional[int],
-        max_height_after: Optional[int],
-        bumpiness_after: Optional[int],
-        agg_height_after: Optional[int],
+    *,
+    cleared: int,
+    terminated: bool,
+    placed_kind: str,
+    requested_rot: int,
+    requested_col: int,
+    used_rot: int,
+    used_col: int,
+    applied: bool,
+    invalid_action: bool,
+    invalid_action_policy: Optional[str],
+    masked_action: bool,
+    delta_holes: Optional[int],
+    delta_max_height: Optional[int],
+    delta_bumpiness: Optional[int],
+    delta_agg_height: Optional[int],
+    holes_after: Optional[int],
+    max_height_after: Optional[int],
+    bumpiness_after: Optional[int],
+    agg_height_after: Optional[int],
 ) -> TransitionFeatures:
     return TransitionFeatures(
         cleared_lines=int(cleared),
-        placed_cells_cleared=int(placed_cells_cleared),
-        placed_all_cells_cleared=bool(placed_all_cells_cleared),
         game_over=bool(terminated),
         placed_kind=str(placed_kind),
         requested_rotation=int(requested_rot),
@@ -117,12 +98,9 @@ def build_transition_features(
         used_rotation=int(used_rot),
         used_column=int(used_col),
         applied=bool(applied),
-        illegal_action=bool(illegal_action),
-        illegal_reason=str(illegal_reason) if illegal_reason is not None else None,
-        remapped=bool(remapped),
-        remap_policy=str(remap_policy) if remap_policy is not None else None,
+        invalid_action=bool(invalid_action),
+        invalid_action_policy=str(invalid_action_policy) if invalid_action_policy is not None else None,
         masked_action=bool(masked_action),
-        redundant_rotation=bool(redundant_rotation),
         delta_holes=delta_holes,
         delta_max_height=delta_max_height,
         delta_bumpiness=delta_bumpiness,
@@ -135,55 +113,47 @@ def build_transition_features(
 
 
 def build_step_info_update(
-        *,
-        # --- env truth (must be passed in) ---
-        illegal_action: bool,
-        illegal_reason: Optional[str],
-        illegal_action_policy: str,
-        remapped: bool,
-        remap_policy: Optional[str],
-        applied: bool,
-        mask_mismatch: bool,
-        game_over: bool,
-        delta_score: Optional[float],
-        # --- state / presentation ---
-        state: Any,
-        cleared: int,
-        placed_cells_cleared: int,
-        placed_all_cells_cleared: bool,
-        action_mode: str,
-        requested_rot: int,
-        requested_col: int,
-        requested_action_id: int,
-        used_rot: int,
-        used_col: int,
-        masked_action: bool,
-        redundant_rotation: bool,
-        action_dim: Optional[int] = None,
-        masked_action_count: Optional[int] = None,
-        episode_idx: int,
-        episode_step: int,
-        piece_rule: str,
-        holes_after: Optional[int] = None,
-        delta_holes: Optional[int] = None,
-        max_height_after: Optional[int] = None,
-        delta_max_height: Optional[int] = None,
-        bumpiness_after: Optional[int] = None,
-        delta_bumpiness: Optional[int] = None,
-        agg_height_after: Optional[int] = None,
-        delta_agg_height: Optional[int] = None,
-        sidebar_env: Optional[list[tuple[str, Any]]] = None,
-        engine_info: Optional[Dict[str, Any]] = None,
+    *,
+    # --- env truth (must be passed in) ---
+    invalid_action: bool,
+    remapped: bool,
+    invalid_action_policy: Optional[str],
+    applied: bool,
+    mask_mismatch: bool,
+    game_over: bool,
+    delta_score: Optional[float],
+    # --- state / presentation ---
+    state: Any,
+    cleared: int,
+    action_mode: str,
+    requested_rot: int,
+    requested_col: int,
+    requested_action_id: int,
+    used_rot: int,
+    used_col: int,
+    masked_action: bool,
+    action_dim: Optional[int] = None,
+    masked_action_count: Optional[int] = None,
+    episode_idx: int,
+    episode_step: int,
+    piece_rule: str,
+    holes_after: Optional[int] = None,
+    delta_holes: Optional[int] = None,
+    max_height_after: Optional[int] = None,
+    delta_max_height: Optional[int] = None,
+    bumpiness_after: Optional[int] = None,
+    delta_bumpiness: Optional[int] = None,
+    agg_height_after: Optional[int] = None,
+    delta_agg_height: Optional[int] = None,
+    sidebar_env: Optional[list[tuple[str, Any]]] = None,
+    engine_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     sidebar_env = sidebar_env or []
     engine_info = engine_info or {}
 
     tf: Dict[str, Any] = {
         "cleared_lines": int(cleared),
-        "placed_cells_cleared": int(placed_cells_cleared),
-        "placed_all_cells_cleared": bool(placed_all_cells_cleared),
-        "illegal_action": bool(illegal_action),
-        "redundant_rotation": bool(redundant_rotation),
+        "invalid_action": bool(invalid_action),
         "game_over": bool(game_over),
         "holes": holes_after,
         "delta_holes": delta_holes,
@@ -195,10 +165,17 @@ def build_step_info_update(
         "delta_agg_height": delta_agg_height,
     }
 
+    # GAME panel: store "game-ish" metrics here so the sidebar can show them
+    # without needing an extra game_metrics arg plumbed through the renderer.
     game: Dict[str, Any] = {
         "score": int(_get_field(state, "score", 0)),
         "lines_total": int(_get_field(state, "lines", 0)),
         "level": int(_get_field(state, "level", 0)),
+        "holes": holes_after,
+        "max_height": max_height_after,
+        # Optional (keep commented unless you want them in GAME column too):
+        # "bumpiness": bumpiness_after,
+        # "agg_height": agg_height_after,
     }
     if delta_score is not None:
         game["delta_score"] = float(delta_score)
@@ -220,10 +197,8 @@ def build_step_info_update(
         "used_column": int(used_col),
         "masked_action": bool(masked_action),
         "mask_mismatch": bool(mask_mismatch),
-        "illegal_reason": str(illegal_reason) if illegal_reason is not None else None,
-        "illegal_action_policy": str(illegal_action_policy),
+        "invalid_action_policy": str(invalid_action_policy),
         "remapped": bool(remapped),
-        "remap_policy": str(remap_policy) if remap_policy is not None else None,
         "applied": bool(applied),
     }
     if action_dim is not None:

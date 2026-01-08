@@ -201,8 +201,7 @@ class MacroTetrisEnv(gym.Env):
             action_mode=str(self.action_mode),
             piece_rule=self._piece_rule_name(),
         )
-        # NOTE: macro_info still uses illegal_* keys for now.
-        info["illegal_action_policy"] = str(self.invalid_action_policy)
+        info["invalid_action_policy"] = str(self.invalid_action_policy)
         info["warmup"] = None if self._warmup is None else getattr(self._warmup.__class__, "__name__", "warmup")
         info["episode_seed"] = int(ep_seed)
         return obs, info
@@ -279,9 +278,6 @@ class MacroTetrisEnv(gym.Env):
                 int(cur.get("bump", 0)),
             )
 
-        placed_cells_cleared = 0
-        placed_all_cells_cleared = False
-
         prev_score = float(prev_state.get("score", 0.0))
         next_score = float(st.get("score", 0.0))
         delta_score = float(next_score - prev_score)
@@ -301,8 +297,6 @@ class MacroTetrisEnv(gym.Env):
 
         features = build_transition_features(
             cleared=int(cleared),
-            placed_cells_cleared=int(placed_cells_cleared),
-            placed_all_cells_cleared=bool(placed_all_cells_cleared),
             terminated=bool(terminated),
             placed_kind=str(placed_kind),
             requested_rot=int(requested_rot),
@@ -310,13 +304,9 @@ class MacroTetrisEnv(gym.Env):
             used_rot=int(used_rot),
             used_col=int(used_col),
             applied=bool(applied),
-            # NOTE: macro_info still uses illegal_* naming.
-            illegal_action=bool(invalid_action),
-            illegal_reason=None,
-            remapped=False,
-            remap_policy=None,
+            invalid_action=bool(invalid_action),
+            invalid_action_policy=None,
             masked_action=bool(masked_action),
-            redundant_rotation=False,
             delta_holes=delta_holes,
             delta_max_height=delta_max_height,
             delta_bumpiness=delta_bumpiness,
@@ -328,10 +318,7 @@ class MacroTetrisEnv(gym.Env):
         )
 
         sidebar_env = sidebar_env_rows(
-            illegal_action=bool(invalid_action),
-            redundant_rotation=False,
-            placed_cells_cleared=int(placed_cells_cleared),
-            placed_all_cells_cleared=bool(placed_all_cells_cleared),
+            invalid_action=bool(invalid_action),
             delta_holes=delta_holes,
             delta_max_height=delta_max_height,
             delta_bumpiness=delta_bumpiness,
@@ -339,19 +326,15 @@ class MacroTetrisEnv(gym.Env):
         )
 
         info = build_step_info_update(
-            illegal_action=bool(invalid_action),
-            illegal_reason=None,
-            illegal_action_policy=str(self.invalid_action_policy),
+            invalid_action=bool(invalid_action),
+            invalid_action_policy=str(self.invalid_action_policy),
             remapped=False,
-            remap_policy=None,
             applied=bool(applied),
             mask_mismatch=bool(mask_mismatch),
             game_over=bool(terminated),
             delta_score=float(delta_score),
             state=st,
             cleared=int(cleared),
-            placed_cells_cleared=int(placed_cells_cleared),
-            placed_all_cells_cleared=bool(placed_all_cells_cleared),
             action_mode=str(self.action_mode),
             requested_rot=int(requested_rot),
             requested_col=int(requested_col),
@@ -359,7 +342,6 @@ class MacroTetrisEnv(gym.Env):
             used_rot=int(used_rot),
             used_col=int(used_col),
             masked_action=bool(masked_action),
-            redundant_rotation=False,
             action_dim=int(action_dim),
             masked_action_count=int(masked_action_count),
             episode_idx=int(self._episode_idx),

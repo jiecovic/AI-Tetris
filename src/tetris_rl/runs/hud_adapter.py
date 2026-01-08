@@ -123,38 +123,6 @@ def from_info(info: Any) -> HudStep:
 
 
 def env_info_for_renderer(info: Any) -> Optional[Dict[str, Any]]:
-    """
-    Adapter for pygame renderer/sidebar.
-
-    Goal: renderer stays passive:
-      - GAME metrics come from engine/env info, not recomputed in renderer.
-      - ENV sidebar rows are whatever env put in ui["sidebar_env"].
-
-    Returns a dict with at least:
-      - "sidebar_env": [...]
-      - "game_metrics": {"holes": ..., "max_height": ..., "bumpiness": ..., "agg_height": ...}
-    """
     d = _as_dict(info)
-    if not d:
-        return None
+    return d or None
 
-    tf = _as_nested(d, "tf")
-    ui = _as_nested(d, "ui")
-
-    # Metrics computed by Rust via env.step_features() and packed into tf.
-    game_metrics: Dict[str, Any] = {
-        "holes": tf.get("holes", None),
-        "max_height": tf.get("max_height", None),
-        "bumpiness": tf.get("bumpiness", None),
-        "agg_height": tf.get("agg_height", None),
-    }
-
-    # Prefer ui dict, but ensure game_metrics is present at top-level for renderer.
-    out: Dict[str, Any] = dict(ui) if ui else dict(d)
-    out["game_metrics"] = game_metrics
-
-    # Ensure sidebar_env exists (sidebar code expects it, but can handle missing too).
-    if "sidebar_env" not in out and isinstance(ui, dict) and "sidebar_env" in ui:
-        out["sidebar_env"] = ui.get("sidebar_env")
-
-    return out
