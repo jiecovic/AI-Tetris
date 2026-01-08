@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/sparse_reward.py
+# src/tetris_rl/env_bundles/rewards/sparse_reward.py
 from __future__ import annotations
 
 from dataclasses import dataclass

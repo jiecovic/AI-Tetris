@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/holes.py
+# src/tetris_rl/env_bundles/rewards/holes.py
 from __future__ import annotations
 
 from dataclasses import dataclass

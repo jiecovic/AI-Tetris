@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping, Type, TypeVar, cast
 
+from tetris_rl.config.env_spec import parse_env_spec
 from tetris_rl.config.schema_types import (
     get_mapping,
     get_str,
@@ -11,8 +12,9 @@ from tetris_rl.config.schema_types import (
     require_mapping_strict,
 )
 from tetris_rl.config.snapshot import load_yaml
-from tetris_rl.utils.paths import repo_root as find_repo_root
 from tetris_rl.utils.logging import setup_logger
+from tetris_rl.utils.paths import repo_root as find_repo_root, resolve_repo_or_cfg_path
+
 
 LOG = setup_logger(name="tetris_rl.config.resolve", use_rich=True, level="info")
 
@@ -82,19 +84,6 @@ def _hydrate_tagged_params(
     params_registry: Mapping[str, Type[Any]],
     where: str,
 ) -> Any:
-    """
-    Build the correct params dataclass for a tagged-union section.
-
-      section:
-        type: <tag>
-        params: {...}
-
-    -> params_registry[tag](**params)
-
-    Notes:
-    - params may be missing/None => treated as {}
-    - if params already is instance of expected dataclass => returned as-is
-    """
     tag = str(type_value).strip().lower()
     if not tag:
         raise ValueError(f"{where}.type must be a non-empty string")
@@ -118,31 +107,8 @@ def _hydrate_tagged_params(
         raise TypeError(f"{where}.params: failed to build {params_cls.__name__} from {m!r}: {e}") from e
 
 
-def _normalize_col_collapse_backcompat(params: Any) -> Any:
-    """
-    Back-compat for ColumnCollapseParams:
-      - allow YAML to pass `pooling: ...` (older configs)
-      - map it to `pool` if `pool` is left default / not explicitly set
-    """
-    # Avoid importing dataclass type here; duck-type the fields.
-    try:
-        pooling = getattr(params, "pooling", None)
-        pool = getattr(params, "pool", None)
-        if pooling and isinstance(pooling, str):
-            p = str(pooling).strip().lower()
-            if p in {"avg", "max", "avgmax"}:
-                # If user still has pooling, prefer it unless pool was explicitly changed.
-                # Dataclasses are frozen; rebuild with updated pool.
-                # Safe: ColumnCollapseParams ctor signature matches these names.
-                if pool == "avg":  # default in our params class
-                    return type(params)(**{**params.__dict__, "pool": p, "pooling": pooling})
-    except Exception:
-        pass
-    return params
-
-
 # =============================================================================
-# Central config patching / back-compat shims
+# Central config patching
 # =============================================================================
 
 def deep_merge(base: Any, patch: Any) -> Any:
@@ -164,188 +130,8 @@ def deep_merge(base: Any, patch: Any) -> Any:
     return patch
 
 
-def _legacy_env_warmup_to_game_warmup(warmup_obj: Any) -> Any:
-    """
-    Translate legacy *env-owned* warmup schemas (pre Rust-engine warmup) into
-    canonical *game-owned* warmup schema:
-
-      game:
-        warmup:
-          prob: <float 0..1>
-          spec: {type: <rust WarmupSpec tag>, ...}
-
-    Supported legacy:
-      env.warmup:
-        type: init_rows_poisson
-        params:
-          enabled: true/false
-          prob: 0.9
-          rows_mean: 16
-          rows_max: 0
-          holes_mean: 2.5
-          fill_value: 3  # ignored by rust warmup
-    """
-    if warmup_obj is None:
-        return None
-
-    if not isinstance(warmup_obj, dict):
-        return warmup_obj
-
-    wtype = str(warmup_obj.get("type", "")).strip().lower()
-    params = warmup_obj.get("params", {}) or {}
-    if not isinstance(params, dict):
-        params = {}
-
-    if wtype == "init_rows_poisson":
-        enabled = bool(params.get("enabled", True))
-        prob = float(params.get("prob", 1.0)) if enabled else 0.0
-        if prob <= 0.0:
-            return None
-
-        rows_mean = float(params.get("rows_mean", 0.0))
-        if rows_mean <= 0.0:
-            return None
-
-        rows_max = int(params.get("rows_max", 0))
-        cap = int(rows_max) if int(rows_max) > 0 else 18  # conservative default
-
-        holes_mean = float(params.get("holes_mean", 1.0))
-        holes = max(1, int(round(holes_mean)))
-
-        fv = params.get("fill_value", None)
-        if fv not in (None, 0):
-            LOG.warning("legacy warmup.fill_value not supported by rust warmup; ignoring")
-
-        if "holes_mean" in params and holes != float(params.get("holes_mean")):
-            # don't spam; just one warning to indicate we quantize
-            LOG.warning("legacy warmup.holes_mean not supported by rust warmup; quantizing to holes=%d", holes)
-
-        return {
-            "prob": float(prob),
-            "spec": {
-                "type": "poisson",
-                "lambda": float(rows_mean),
-                "cap": int(cap),
-                "holes": int(holes),
-                # NOTE: no spawn_buffer here (engine constant)
-            },
-        }
-
-    # If legacy uses "null/none/off" semantics, treat as disabled.
-    if wtype in {"none", "null", "off", "disabled"}:
-        return None
-
-    return warmup_obj
-
-
-def _drop_spawn_buffer_from_game_warmup(*, root: dict[str, Any]) -> None:
-    """
-    spawn_buffer is a Rust engine constant (DEFAULT_SPAWN_BUFFER) now.
-    If old configs include it, drop it so we keep YAML clean and avoid implying it's user-tunable.
-    """
-    game = root.get("game", None)
-    if not isinstance(game, dict):
-        return
-    warm = game.get("warmup", None)
-    if not isinstance(warm, dict):
-        return
-
-    spec = warm.get("spec", None)
-    if isinstance(spec, dict) and "spawn_buffer" in spec:
-        spec = dict(spec)
-        spec.pop("spawn_buffer", None)
-        warm2 = dict(warm)
-        warm2["spec"] = spec
-        game["warmup"] = warm2
-
-
-def _migrate_env_warmup_to_game(*, root: dict[str, Any]) -> None:
-    """
-    Back-compat:
-      - legacy configs sometimes define warmup under cfg.env.warmup
-      - canonical location is cfg.game.warmup
-
-    Behavior:
-      - if env.warmup exists and game.warmup is missing, move it to game.warmup
-      - always remove env.warmup so env instantiation never sees it
-
-    Additionally:
-      - translate known legacy env warmup schemas into canonical game warmup schema.
-    """
-    env = root.get("env", None)
-    if not isinstance(env, dict):
-        return
-    if "warmup" not in env:
-        return
-
-    warmup_obj = _legacy_env_warmup_to_game_warmup(env.get("warmup", None))
-
-    game = root.get("game", None)
-    if not isinstance(game, dict):
-        game = {}
-        root["game"] = game
-
-    if "warmup" not in game:
-        game["warmup"] = warmup_obj
-        LOG.info("migrated legacy cfg.env.warmup -> cfg.game.warmup")
-    else:
-        LOG.warning("cfg.env.warmup ignored because cfg.game.warmup is already set")
-
-    env.pop("warmup", None)
-
-
-def _normalize_game_warmup_legacy_types(*, root: dict[str, Any]) -> None:
-    """
-    Back-compat for legacy warmup types under cfg.game.warmup.
-
-    Handles:
-      game.warmup: {type: init_rows_poisson, params: {...}}
-    -> game.warmup: {prob: ..., spec: {...}}
-    """
-    game = root.get("game", None)
-    if not isinstance(game, dict):
-        return
-
-    warm = game.get("warmup", None)
-    if warm is None:
-        return
-
-    # Already canonical
-    if isinstance(warm, dict) and ("spec" in warm or "prob" in warm):
-        return
-
-    # If it's a dict and looks like a legacy env schema, translate it too
-    warm2 = _legacy_env_warmup_to_game_warmup(warm)
-    if warm2 is not warm:
-        game["warmup"] = warm2
-        if warm2 is None:
-            LOG.info("normalized legacy cfg.game.warmup -> disabled warmup")
-        else:
-            LOG.info("normalized legacy cfg.game.warmup -> game.warmup(prob/spec)")
-        return
-
-    # If it is a rust-style spec dict already (type: poisson, etc.), leave it.
-    if isinstance(warm, dict):
-        t = str(warm.get("type", "")).strip().lower()
-        if t in {
-            "", "none", "off", "disabled",
-            "fixed", "uniform_rows", "uniform",
-            "poisson", "base_plus_poisson", "base+poisson",
-        }:
-            return
-
-        # Unknown mapping type: don't crash in resolve; disable warmup so old runs still load.
-        LOG.warning("unknown warmup mapping type=%r; disabling warmup for back-compat", t)
-        game["warmup"] = None
-        return
-
-    # Non-dict warmup: disable for safety.
-    LOG.warning("cfg.game.warmup has unexpected type %r; disabling warmup for back-compat", type(warm).__name__)
-    game["warmup"] = None
-
-
 # =============================================================================
-# Model feature_extractor hydration (single place, all spec modules)
+# Model feature_extractor hydration (single place)
 # =============================================================================
 
 def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
@@ -418,7 +204,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         if not stem_type or stem_type == "none":
             fe["stem"] = None
         else:
-            # only type='cnn' has structured params
             if stem_type == "cnn":
                 params = stem_m.get("params", None)
                 if params is None:
@@ -449,13 +234,11 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         raise ValueError("cfg.model.feature_extractor.encoder.type must be 'token' or 'spatial'")
 
     if enc_type == "token":
-        # ===== tokenizer (required) =====
         tok = enc_m.get("tokenizer")
         if tok is None:
             raise KeyError("cfg.model.feature_extractor.encoder.tokenizer missing for token encoder")
         tok_m = _ensure_mapping(tok, where="cfg.model.feature_extractor.encoder.tokenizer")
 
-        # layout tagged union
         layout = tok_m.get("layout")
         if layout is None:
             raise KeyError("cfg.model.feature_extractor.encoder.tokenizer.layout missing")
@@ -470,7 +253,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         )
         layout_dc = LayoutConfig(type=cast(Any, str(layout_type).strip().lower()), params=layout_params)
 
-        # board_embedding tagged union
         be = tok_m.get("board_embedding")
         if be is None:
             raise KeyError("cfg.model.feature_extractor.encoder.tokenizer.board_embedding missing")
@@ -495,7 +277,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         )
         enc_m["tokenizer"] = tok_spec
 
-        # ===== mixer tagged union (required) =====
         mix = enc_m.get("mixer")
         if mix is None:
             raise KeyError("cfg.model.feature_extractor.encoder.mixer missing for token encoder")
@@ -525,7 +306,7 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
 
         sh_features_dim_raw = sh_m.get("features_dim", None)
         if sh_features_dim_raw is None:
-            raise KeyError("cfg.model.feature_extractor.encoder.spatial_head.features_dim missing (pattern B)")
+            raise KeyError("cfg.model.feature_extractor.encoder.spatial_head.features_dim missing")
 
         sh_params = _hydrate_tagged_params(
             type_value=sh_type,
@@ -533,7 +314,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
             params_registry=cast(Mapping[str, Type[Any]], SPATIAL_HEAD_PARAMS_REGISTRY),
             where="cfg.model.feature_extractor.encoder.spatial_head",
         )
-        sh_params = _normalize_col_collapse_backcompat(sh_params)
 
         enc_m["spatial_head"] = SpatialHeadConfig(
             type=cast(Any, sh_type),
@@ -555,19 +335,14 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
     else:
         aug_m = _ensure_mapping(aug, where="cfg.model.feature_extractor.feature_augmenter")
         aug_type_raw = aug_m.get("type", None)
-
         aug_type = "" if aug_type_raw is None else str(aug_type_raw).strip().lower()
 
         if aug_type in {"", "none", "null"}:
             if aug_m.get("params", None) not in (None, {}):
-                LOG.warning(
-                    "feature_augmenter disabled (type=%r) but params were provided; ignoring params.",
-                    aug_type_raw,
-                )
+                raise ValueError("feature_augmenter disabled but params were provided")
             fe["feature_augmenter"] = None
         else:
             aug_params_raw = aug_m.get("params", None)
-
             aug_params = _hydrate_tagged_params(
                 type_value=aug_type,
                 params_value=aug_params_raw,
@@ -584,6 +359,10 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
 # Public entry
 # =============================================================================
 
+# src/tetris_rl/config/resolve.py
+
+from tetris_rl.config.env_spec import parse_env_spec  # add import
+
 def resolve_config(*, cfg: dict[str, Any], cfg_path: Path) -> dict[str, Any]:
     root = require_mapping(cfg, where="cfg")
     specs = get_mapping(root, "specs", default=None, where="cfg.specs")
@@ -599,31 +378,30 @@ def resolve_config(*, cfg: dict[str, Any], cfg_path: Path) -> dict[str, Any]:
             if not raw:
                 return
 
-            p = _resolve_path(raw=raw, cfg_path=cfg_path, repo=repo)
+            p = resolve_repo_or_cfg_path(raw=raw, repo=repo, cfg_path=cfg_path)
             if not p.is_file():
                 raise FileNotFoundError(f"specs.{key} path not found: {p}")
 
             loaded_any = load_yaml(p)
             loaded = require_mapping_strict(loaded_any, where=f"specs.{key} ({p})")
-            root[key] = _unwrap_single_root(loaded=loaded, key=key, where=f"specs.{key} ({p})")
+
+            if key == "env":
+                # SPECIAL: env bundle must contain BOTH env + game
+                bundle = parse_env_spec(obj=loaded, where=f"specs.env ({p})")
+                root["env"] = bundle.env
+                root["game"] = bundle.game
+            else:
+                # train/model: allow wrapped-or-bare
+                root[key] = _unwrap_single_root(loaded=loaded, key=key, where=f"specs.{key} ({p})")
 
         _load_spec("train")
         _load_spec("env")
         _load_spec("model")
 
-    # Back-compat: env.warmup -> game.warmup (and translate legacy env warmup schema)
-    _migrate_env_warmup_to_game(root=root)
-
-    # Back-compat: legacy warmup types -> new canonical warmup (prob/spec)
-    _normalize_game_warmup_legacy_types(root=root)
-
-    # Keep YAML clean: spawn_buffer is a rust constant now; drop it if present.
-    _drop_spawn_buffer_from_game_warmup(root=root)
-
-    # Always hydrate model.feature_extractor if present
+    # (keep whatever else you do afterwards)
     _hydrate_model_feature_extractor_config(root=root)
-
     return root
+
 
 
 __all__ = ["resolve_config", "deep_merge"]

@@ -5,14 +5,10 @@ run:
   tensorboard: true
   device: cuda
   n_envs: 16
-  vec: subproc
-
-game:
-  pieces: classic7
-  piece_rule: uniform
+  vec: dummy
 
 # point to sub-configs (paths are strings)
 specs:
-  env: configs/envs/macro_discrete_warmup.yaml
+  env: configs/env_bundles/macro_discrete_warmup.yaml
   model: configs/models/vit.yaml
   train: configs/trains/ppo_bc_eval.yaml

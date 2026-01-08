@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/heuristic_delta.py
+# src/tetris_rl/env_bundles/rewards/heuristic_delta.py
 from __future__ import annotations
 
 from dataclasses import dataclass

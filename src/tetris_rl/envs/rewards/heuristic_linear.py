@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/heuristic_linear.py
+# src/tetris_rl/env_bundles/rewards/heuristic_linear.py
 from __future__ import annotations
 
 from dataclasses import dataclass

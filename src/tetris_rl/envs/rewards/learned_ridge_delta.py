@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/learned_ridge_delta.py
+# src/tetris_rl/env_bundles/rewards/learned_ridge_delta.py
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/api.py
+# src/tetris_rl/env_bundles/api.py
 from __future__ import annotations
 
 from dataclasses import dataclass

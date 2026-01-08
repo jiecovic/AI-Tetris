@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/macro_actions.py
+# src/tetris_rl/env_bundles/macro_actions.py
 from __future__ import annotations
 
 from dataclasses import dataclass

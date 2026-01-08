@@ -90,3 +90,48 @@ def resolve_run_dir(repo: Path, run: str) -> Path:
     if not out.is_dir():
         raise NotADirectoryError(f"run path is not a directory: {out}")
     return out
+
+
+def resolve_repo_or_cfg_path(*, raw: str, repo: Path, cfg_path: Path) -> Path:
+    """
+    Resolve a path string that may be:
+      - absolute
+      - repo-relative (including "configs/...")
+      - cfg-relative (relative to the YAML file)
+
+    Tries multiple candidates in a deterministic order.
+    """
+    s = str(raw).strip().strip('"').strip("'")
+    if not s:
+        raise ValueError("empty path")
+
+    p_raw = Path(s)
+
+    if p_raw.is_absolute():
+        return p_raw.resolve()
+
+    candidates: list[Path] = []
+
+    # 1) repo-relative as written
+    candidates.append((repo / p_raw).resolve())
+
+    # 2) if it starts with "configs/", also try stripping that prefix
+    #    (supports old QoL without breaking canonical "configs/..." usage)
+    if p_raw.parts and p_raw.parts[0].lower() == "configs":
+        p_stripped = Path(*p_raw.parts[1:]) if len(p_raw.parts) > 1 else Path()
+        candidates.append((repo / p_stripped).resolve())
+
+    # 3) cfg-relative as written
+    candidates.append((cfg_path.parent / p_raw).resolve())
+
+    # 4) cfg-relative stripped (if it started with configs/)
+    if p_raw.parts and p_raw.parts[0].lower() == "configs":
+        p_stripped = Path(*p_raw.parts[1:]) if len(p_raw.parts) > 1 else Path()
+        candidates.append((cfg_path.parent / p_stripped).resolve())
+
+    for cand in candidates:
+        if cand.is_file():
+            return cand
+
+    tried = "\n".join(f"  - {c}" for c in candidates)
+    raise FileNotFoundError(f"path not found. tried:\n{tried}")

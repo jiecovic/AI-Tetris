@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/__init__.py
+# src/tetris_rl/env_bundles/rewards/__init__.py
 from __future__ import annotations
 
 from tetris_rl.envs.rewards.lines import LinesReward

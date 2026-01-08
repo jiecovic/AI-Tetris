@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/macro_info.py
+# src/tetris_rl/env_bundles/macro_info.py
 from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional

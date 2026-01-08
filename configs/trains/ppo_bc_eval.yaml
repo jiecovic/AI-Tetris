@@ -10,10 +10,12 @@ train:
     seed_offset: 10_000             # seed offset added to training base seed
 
     env_override:
-      params:
-        max_steps: null            # no truncation
-      warmup:
-        type: null                 # or params.enabled: false
+      game:
+        warmup: null                 # disables warmup entirely for eval/watch
+
+      env:
+        params:
+          max_steps: null            # no truncation
 
   imitation:
     enabled: false                  # enable imitation (behavior cloning) phase

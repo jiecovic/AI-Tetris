@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/__init__.py
+# src/tetris_rl/env_bundles/__init__.py
 from __future__ import annotations
 
 from tetris_rl.envs.api import RewardFn, TransitionFeatures

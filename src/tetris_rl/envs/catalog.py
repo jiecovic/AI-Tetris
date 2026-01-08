@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/catalog.py
+# src/tetris_rl/env_bundles/catalog.py
 from __future__ import annotations
 
 from typing import Any, Mapping

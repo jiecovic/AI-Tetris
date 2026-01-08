@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/invalid_action.py
+# src/tetris_rl/env_bundles/invalid_action.py
 from __future__ import annotations
 
 from typing import Literal
