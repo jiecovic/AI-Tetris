@@ -8,12 +8,18 @@ use pyo3::types::PyDict;
 
 use tetris_engine::engine::{
     compute_grid_features, compute_step_features, Game, GridFeatures, PieceRuleKind, SimPlacement,
-    StepFeatures, WarmupSpec, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
+    WarmupSpec, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
 };
 
 // SSOT: bind the engine's canonical action-id helpers (do NOT reimplement).
 use tetris_engine::engine::constants::{decode_action_id, encode_action_id};
 
+// UI helpers (SSOT) for piece layout preview.
+// NOTE: pieces live under tetris_engine::engine::pieces (not crate-root).
+use tetris_engine::engine::pieces::{preview_mask_4x4, Kind};
+
+use crate::engine_dicts::{grid_features_to_dict, step_features_to_dict};
+use crate::engine_helpers::{mask4_to_pyarray2, visible_grid_as_full_h};
 use crate::expert_policy::ExpertPolicy;
 use crate::util::{grid_rows_to_pyarray2, kind_glyph_to_idx};
 use crate::warmup_spec::PyWarmupSpec;
@@ -67,11 +73,6 @@ impl TetrisEngine {
         H.saturating_sub(HIDDEN_ROWS)
     }
 
-    /// Fixed action-space dimension (MAX_ROTS * W).
-    fn action_dim(&self) -> usize {
-        ACTION_DIM
-    }
-
     /// Fixed rotation slots used by action-id encoding.
     ///
     /// NOTE:
@@ -79,6 +80,25 @@ impl TetrisEngine {
     /// Distinct rotations are enforced by the engine's validity/mask logic.
     fn max_rots(&self) -> usize {
         MAX_ROTS
+    }
+
+    /// Fixed action-space dimension (MAX_ROTS * W).
+    fn action_dim(&self) -> usize {
+        ACTION_DIM
+    }
+
+    // ---------------------------------------------------------------------
+    // Piece rule reporting (UI/logging convenience)
+    // ---------------------------------------------------------------------
+
+    /// piece_rule() -> "uniform" | "bag7"
+    ///
+    /// Convenience getter so Python code doesn't have to depend on snapshot keys.
+    fn piece_rule(&self) -> &'static str {
+        match self.g.piece_rule_kind() {
+            PieceRuleKind::Uniform => "uniform",
+            PieceRuleKind::Bag7 => "bag7",
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -109,6 +129,37 @@ impl TetrisEngine {
             )));
         }
         Ok(decode_action_id(action_id))
+    }
+
+    // ---------------------------------------------------------------------
+    // UI-only helpers (piece preview layout)
+    // ---------------------------------------------------------------------
+
+    /// kind_preview_mask(kind_idx, rot=0) -> uint8[4,4]
+    ///
+    /// UI-only helper:
+    /// - Returns a 4x4 mask for the given piece kind and rotation.
+    /// - Filled cells contain the piece id (1..=7), empty cells are 0.
+    ///
+    /// Notes:
+    /// - `kind_idx` matches the engine grid encoding (0 = empty, 1..=7 = piece kind).
+    /// - `rot` is clamped to the last *distinct* rotation for that kind.
+    /// - This method must only be called by rendering / watch-mode code, never in the env step path.
+    #[pyo3(signature = (kind_idx, rot=0))]
+    fn kind_preview_mask<'py>(
+        &self,
+        py: Python<'py>,
+        kind_idx: u8,
+        rot: usize,
+    ) -> PyResult<Bound<'py, PyArray2<u8>>> {
+        let kind = Kind::from_idx(kind_idx).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "kind_preview_mask: invalid kind_idx {kind_idx} (expected 1..=7)"
+            ))
+        })?;
+
+        let m = preview_mask_4x4(kind, rot, kind.idx());
+        Ok(mask4_to_pyarray2(py, m))
     }
 
     // ---------------------------------------------------------------------
@@ -170,12 +221,6 @@ impl TetrisEngine {
     // ---------------------------------------------------------------------
 
     /// Returns mask as uint8 array of shape (ACTION_DIM,): 1 = valid, 0 = invalid.
-    ///
-    /// Validity includes:
-    /// - in-range action id
-    /// - rotation slot exists for the current piece (no redundant rotations)
-    /// - within bbox horizontal bounds
-    /// - fits on current grid at spawn (y=0)
     fn action_mask<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u8>> {
         let m = self.g.action_mask();
         let v: Vec<u8> = m.into_iter().map(|b| if b { 1 } else { 0 }).collect();
@@ -232,6 +277,9 @@ impl TetrisEngine {
         d.set_item("active_kind_idx", kind_glyph_to_idx(&active)?)?;
         d.set_item("next_kind_idx", kind_glyph_to_idx(&next)?)?;
 
+        // Piece rule reporting for env logging/UI.
+        d.set_item("piece_rule", self.piece_rule())?;
+
         if include_grid {
             let g = if visible { self.visible_grid(py) } else { self.grid(py) };
             d.set_item("grid", g)?;
@@ -241,34 +289,29 @@ impl TetrisEngine {
     }
 
     // ---------------------------------------------------------------------
-    // Features
+    // Features (VISIBLE GRID ONLY)
     // ---------------------------------------------------------------------
 
-    /// grid_features(visible=False) -> dict
+    /// grid_features() -> dict
     ///
-    /// Computes classic locked-grid features (max_h, agg_h, holes, bump).
-    #[pyo3(signature = (visible=false))]
-    fn grid_features<'py>(&self, py: Python<'py>, visible: bool) -> PyResult<PyObject> {
-        // NOTE: features are currently computed over the full engine grid.
-        let _ = visible;
-
-        let f = compute_grid_features(&self.g.grid);
+    /// Computes classic locked-grid features (max_h, agg_h, holes, bump)
+    /// on the VISIBLE rows only (HIDDEN_ROWS..H).
+    fn grid_features<'py>(&self, py: Python<'py>) -> PyResult<PyObject> {
+        let grid_vis = visible_grid_as_full_h(&self.g.grid);
+        let f = compute_grid_features(&grid_vis);
         Ok(grid_features_to_dict(py, f).into_py(py))
     }
 
-    /// step_features(prev=None, visible=False) -> dict
+    /// step_features(prev=None) -> dict
     ///
-    /// Computes current grid features plus deltas vs `prev`.
+    /// Computes current grid features plus deltas vs `prev` on the VISIBLE rows only.
     /// `prev` is either None or a 4-tuple: (max_h, agg_h, holes, bump).
-    #[pyo3(signature = (prev=None, visible=false))]
+    #[pyo3(signature = (prev=None))]
     fn step_features<'py>(
         &self,
         py: Python<'py>,
         prev: Option<(u32, u32, u32, u32)>,
-        visible: bool,
     ) -> PyResult<PyObject> {
-        let _ = visible;
-
         let prev_f = prev.map(|(max_h, agg_h, holes, bump)| GridFeatures {
             max_h,
             agg_h,
@@ -276,7 +319,8 @@ impl TetrisEngine {
             bump,
         });
 
-        let sf = compute_step_features(&self.g.grid, prev_f);
+        let grid_vis = visible_grid_as_full_h(&self.g.grid);
+        let sf = compute_step_features(&grid_vis, prev_f);
         Ok(step_features_to_dict(py, sf).into_py(py))
     }
 
@@ -285,11 +329,6 @@ impl TetrisEngine {
     // ---------------------------------------------------------------------
 
     /// simulate_active(action_id, include_grids=False, visible=True) -> dict
-    ///
-    /// Simulates placing the ACTIVE piece with action_id and returns:
-    ///   - cleared_lines
-    ///   - invalid (invalid placement, not game over)
-    /// Optionally includes post-lock and post-clear grids.
     #[pyo3(signature = (action_id, include_grids=false, visible=true))]
     fn simulate_active<'py>(
         &self,
@@ -339,38 +378,4 @@ impl TetrisEngine {
     fn next_kind(&self) -> String {
         self.g.next.glyph().to_string()
     }
-}
-
-// -----------------------------------------------------------------------------
-// Small dict helpers
-// -----------------------------------------------------------------------------
-
-fn grid_features_to_dict<'py>(py: Python<'py>, f: GridFeatures) -> Bound<'py, PyDict> {
-    let d = PyDict::new_bound(py);
-    d.set_item("max_h", f.max_h).unwrap();
-    d.set_item("agg_h", f.agg_h).unwrap();
-    d.set_item("holes", f.holes).unwrap();
-    d.set_item("bump", f.bump).unwrap();
-    d
-}
-
-fn step_features_to_dict<'py>(py: Python<'py>, sf: StepFeatures) -> Bound<'py, PyDict> {
-    let d = PyDict::new_bound(py);
-
-    let cur = PyDict::new_bound(py);
-    cur.set_item("max_h", sf.cur.max_h).unwrap();
-    cur.set_item("agg_h", sf.cur.agg_h).unwrap();
-    cur.set_item("holes", sf.cur.holes).unwrap();
-    cur.set_item("bump", sf.cur.bump).unwrap();
-
-    let delta = PyDict::new_bound(py);
-    delta.set_item("d_max_h", sf.delta.d_max_h).unwrap();
-    delta.set_item("d_agg_h", sf.delta.d_agg_h).unwrap();
-    delta.set_item("d_holes", sf.delta.d_holes).unwrap();
-    delta.set_item("d_bump", sf.delta.d_bump).unwrap();
-
-    d.set_item("cur", cur).unwrap();
-    d.set_item("delta", delta).unwrap();
-
-    d
 }

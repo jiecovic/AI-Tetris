@@ -6,8 +6,6 @@ from typing import Any, Optional
 
 import pygame
 
-from tetris_rl.game.core.metrics import board_snapshot_metrics_from_grid
-from tetris_rl.game.core.pieceset import PieceSet
 from tetris_rl.game.rendering.pygame.grid import draw_grid
 from tetris_rl.game.rendering.pygame.hud_panel import HudFonts, draw_hud_panel, hud_panel_height_for_lines
 from tetris_rl.game.rendering.pygame.palette import Palette, Color
@@ -25,20 +23,53 @@ class Fonts:
     tiny: pygame.font.Font
 
 
+def _state_get(state: Any, key: str, default: Any = None) -> Any:
+    if isinstance(state, dict):
+        return state.get(key, default)
+    return getattr(state, key, default)
+
+
+def _extract_game_metrics(env_info: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """
+    Renderer must NOT compute metrics.
+
+    With the new env_info schema (macro_info.build_step_info_update), we expect:
+      env_info["tf"] contains:
+        - holes
+        - max_height
+        - bumpiness
+        - agg_height
+      (plus deltas, etc.)
+
+    Sidebar expects game_metrics dict (optional). We provide a minimal stable subset.
+    """
+    if not isinstance(env_info, dict):
+        return None
+
+    tf = env_info.get("tf", None)
+    if not isinstance(tf, dict):
+        return None
+
+    return {
+        "holes": tf.get("holes", None),
+        "max_height": tf.get("max_height", None),
+        "bumpiness": tf.get("bumpiness", None),
+        "agg_height": tf.get("agg_height", None),
+    }
+
+
 class TetrisRenderer:
     def __init__(
-            self,
-            *,
-            cell: int,
-            show_grid_lines: bool,
-            pieces: PieceSet,
-            palette: Optional[Palette] = None,
-            hud_height: int = 0,
+        self,
+        *,
+        cell: int,
+        show_grid_lines: bool,
+        palette: Optional[Palette] = None,
+        hud_height: int = 0,
     ) -> None:
         self.cell = int(cell)
         self.show_grid_lines = bool(show_grid_lines)
         self.palette = palette or Palette()
-        self.pieces = pieces
         self.hud_height = int(hud_height)
 
         main = pygame.font.SysFont("consolas", 18) or pygame.font.SysFont(None, 18)
@@ -49,18 +80,14 @@ class TetrisRenderer:
         self.cache = SurfaceCache()
 
     def init_window(
-            self,
-            *,
-            board_h: int,
-            board_w: int,
-            hud_text: Optional[str],
-            title: str = "RL-Tetris | manual play",
-            sidebar_w: int = SIDEBAR_W,
+        self,
+        *,
+        board_h: int,
+        board_w: int,
+        hud_text: Optional[str],
+        title: str = "RL-Tetris | watch",
+        sidebar_w: int = SIDEBAR_W,
     ) -> tuple[pygame.Surface, Layout]:
-        """
-        Renderer-owned window/layout creation.
-        Callers (watch/manual) should not do any geometry.
-        """
         n_lines = 0
         if hud_text:
             raw = hud_text.splitlines()
@@ -83,35 +110,36 @@ class TetrisRenderer:
         return screen, layout
 
     def render(
-            self,
-            *,
-            screen: pygame.Surface,
-            state: Any,
-            reward: float,
-            done: bool,
-            layout: Layout,
-            hud_text: Optional[str] = None,
-            env_info: Optional[dict[str, Any]] = None,
-            ghost: Optional[dict[str, Any]] = None,
+        self,
+        *,
+        screen: pygame.Surface,
+        state: Any,
+        reward: float,
+        done: bool,
+        layout: Layout,
+        hud_text: Optional[str] = None,
+        env_info: Optional[dict[str, Any]] = None,
+        ghost: Optional[dict[str, Any]] = None,
+        engine: Any = None,  # Rust engine (PyO3), used for UI-only preview masks
     ) -> None:
-        grid = getattr(state, "grid", None)
+        grid = _state_get(state, "grid", None)
         if grid is None:
             screen.fill(self.palette.bg)
             blit_text(
                 screen=screen,
                 font=self.fonts.main,
-                text="State has no grid (state.grid expected).",
+                text='State has no grid (state["grid"] expected).',
                 pos=(20, 20),
                 color=(240, 90, 90),
             )
             return
 
-        # GAME metrics are derived from the LOCKED board grid (env-independent).
-        try:
-            m = board_snapshot_metrics_from_grid(grid)
-            game_metrics = {"holes": int(m.holes), "max_height": int(m.max_height)}
-        except Exception:
-            game_metrics = {"holes": None, "max_height": None}
+        # Renderer decides whether to show the "active piece preview":
+        # - when NOT paused => ghost is None => show active preview
+        # - when paused     => ghost exists  => suppress active preview (ghost replaces it)
+        show_active_preview = ghost is None
+
+        game_metrics = _extract_game_metrics(env_info)
 
         screen.fill(self.palette.bg)
 
@@ -134,8 +162,9 @@ class TetrisRenderer:
             cell=self.cell,
             show_grid_lines=self.show_grid_lines,
             palette=self.palette,
-            pieces=self.pieces,
             cache=self.cache,
+            engine=engine,
+            show_active=bool(show_active_preview),
         )
 
         draw_sidebar(
@@ -153,10 +182,10 @@ class TetrisRenderer:
             grid=grid,
             cell=self.cell,
             palette=self.palette,
-            pieces=self.pieces,
             cache=self.cache,
             font_small=self.fonts.small,
             font_tiny=self.fonts.tiny,
+            engine=engine,
         )
 
     def hud_height_for_lines(self, *, n_lines: int, pad_y: int = 10, gap_y: int = 3) -> int:

@@ -1,151 +1,131 @@
 # src/tetris_rl/game/factory.py
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from tetris_rl.game.core.game import TetrisGame
-from tetris_rl.game.core.piece_rules import (
-    BagPieceRule,
-    GameBoyOrPieceRule,
-    PieceRule,
-    UniformPieceRule,
-)
-from tetris_rl.game.core.pieceset import PieceSet
-from tetris_rl.utils.paths import repo_root
-from tetris_rl.config.datagen_spec import DataGenGameSpec
+if TYPE_CHECKING:
+    from tetris_rl_engine import TetrisEngine as _TetrisEngine  # type: ignore[import-not-found]
+    from tetris_rl_engine import WarmupSpec as _WarmupSpec      # type: ignore[import-not-found]
 
 
-def _as_mapping(x: Any) -> Mapping[str, Any] | None:
-    return x if isinstance(x, Mapping) else None
-
-
-def _resolve_pieces_path(spec: Any) -> Path:
+def _import_engine() -> tuple[Any, Any]:
     """
-    Resolve cfg.game.pieces into an on-disk YAML path.
+    Runtime import for the PyO3 extension.
+    Keeps static analyzers from hard-failing when the extension isn't built.
     """
-    if spec is None:
-        p = Path(PieceSet.default_classic7_path())
-        if not p.is_file():
-            raise FileNotFoundError(f"default classic7 pieceset missing: {p}")
-        return p
+    try:
+        from tetris_rl_engine import TetrisEngine, WarmupSpec  # type: ignore[import-not-found]
+        return TetrisEngine, WarmupSpec
+    except Exception as e:
+        raise ImportError(
+            "Failed to import 'tetris_rl_engine' (PyO3 extension). "
+            "Build/install it into this interpreter."
+        ) from e
 
-    m = _as_mapping(spec)
-    if m is not None:
-        if "path" in m:
-            return _resolve_pieces_path(m.get("path"))
-        if "name" in m:
-            return _resolve_pieces_path(m.get("name"))
-        raise TypeError("cfg.game.pieces dict must contain 'path' or 'name'")
 
-    s = str(spec).strip()
-    if not s:
-        p = Path(PieceSet.default_classic7_path())
-        if not p.is_file():
-            raise FileNotFoundError(f"default classic7 pieceset missing: {p}")
-        return p
+def _parse_warmup_spec(obj: Any) -> Optional[Any]:
+    """
+    Convert config -> tetris_rl_engine.WarmupSpec.
 
-    key = s.lower()
-    if key in {"classic7", "default", "classic"}:
-        p = Path(PieceSet.default_classic7_path())
-        if not p.is_file():
-            raise FileNotFoundError(f"default classic7 pieceset missing: {p}")
-        return p
+    Accepts:
+      - None
+      - already a WarmupSpec instance
+      - dict forms:
+          {"type":"none"}
+          {"type":"fixed", "rows":18, "holes":1, "spawn_buffer":2}
+          {"type":"uniform_rows", "min_rows":10, "max_rows":18, "holes":1, "spawn_buffer":2}
+          {"type":"poisson", "lambda":12.0, "cap":18, "holes":1, "spawn_buffer":2}
+          {"type":"base_plus_poisson", "base":8, "lambda":6.0, "cap":18, "holes":1, "spawn_buffer":2}
 
-    rr = repo_root()
+        Optional post-transform:
+          "uniform_holes": {"min": 1, "max": 3}
+    """
+    if obj is None:
+        return None
 
-    looks_like_short_name = ("/" not in s) and ("\\" not in s) and (not s.endswith((".yaml", ".yml")))
-    if looks_like_short_name:
-        p = (rr / "assets" / "pieces" / f"{s}.yaml").resolve()
+    _, WarmupSpec = _import_engine()
+
+    # already bound object
+    if obj.__class__.__name__ == "WarmupSpec":
+        return obj
+
+    if not isinstance(obj, dict):
+        raise TypeError(f"game.warmup must be None|WarmupSpec|dict, got {type(obj)!r}")
+
+    t = str(obj.get("type", "none")).strip().lower()
+
+    spawn_buffer = obj.get("spawn_buffer", None)
+    spawn_buffer_i = None if spawn_buffer is None else int(spawn_buffer)
+
+    if t in {"none", "off", "disabled"}:
+        spec = WarmupSpec.none()
+
+    elif t == "fixed":
+        rows = int(obj["rows"])
+        holes = int(obj.get("holes", 1))
+        spec = WarmupSpec.fixed(rows, holes=holes, spawn_buffer=spawn_buffer_i)
+
+    elif t in {"uniform_rows", "uniform"}:
+        min_rows = int(obj["min_rows"])
+        max_rows = int(obj["max_rows"])
+        holes = int(obj.get("holes", 1))
+        spec = WarmupSpec.uniform_rows(min_rows, max_rows, holes=holes, spawn_buffer=spawn_buffer_i)
+
+    elif t == "poisson":
+        lam_raw = obj.get("lambda", obj.get("lambda_", None))
+        if lam_raw is None:
+            raise KeyError("warmup.type=poisson requires key 'lambda' (or 'lambda_')")
+        lam = float(lam_raw)
+        cap = int(obj["cap"])
+        holes = int(obj.get("holes", 1))
+        spec = WarmupSpec.poisson(lam, cap, holes=holes, spawn_buffer=spawn_buffer_i)
+
+    elif t in {"base_plus_poisson", "base+poisson"}:
+        base = int(obj["base"])
+        lam_raw = obj.get("lambda", obj.get("lambda_", None))
+        if lam_raw is None:
+            raise KeyError("warmup.type=base_plus_poisson requires key 'lambda' (or 'lambda_')")
+        lam = float(lam_raw)
+        cap = int(obj["cap"])
+        holes = int(obj.get("holes", 1))
+        spec = WarmupSpec.base_plus_poisson(base, lam, cap, holes=holes, spawn_buffer=spawn_buffer_i)
+
     else:
-        p0 = Path(s)
-        p = (p0 if p0.is_absolute() else (rr / p0)).resolve()
+        raise ValueError(f"unknown warmup.type={t!r}")
 
-    if not p.is_file():
-        raise FileNotFoundError(f"pieceset yaml not found: {p} (from cfg.game.pieces={spec!r})")
-    return p
+    # optional: make holes uniform after base spec was built
+    uh = obj.get("uniform_holes", None)
+    if uh is not None:
+        if not isinstance(uh, dict):
+            raise TypeError("warmup.uniform_holes must be a dict {min,max}")
+        spec = spec.with_uniform_holes(int(uh["min"]), int(uh["max"]))
+
+    return spec
 
 
-def _make_piece_rule(spec: Any) -> PieceRule:
+def make_game_from_cfg(cfg: Dict[str, Any]) -> Any:
     """
-    Resolve cfg.game.piece_rule to a fresh PieceRule instance.
+    Construct the Rust engine wrapper.
 
-    Supported rules (canonical names only):
-      - "uniform"
-      - "k-bag"
-      - "gameboy_or"
-    """
-    if spec is None:
-        return UniformPieceRule()
-
-    m = _as_mapping(spec)
-    if m is not None:
-        name = str(m.get("type", "uniform")).strip().lower()
-    else:
-        name = str(spec).strip().lower()
-
-    if name == "uniform":
-        return UniformPieceRule()
-
-    if name == "k-bag":
-        if m is None:
-            return BagPieceRule(bag_copies=1)
-        bag_copies = int(m.get("bag_copies", 1))
-        return BagPieceRule(bag_copies=bag_copies)
-
-    if name == "gameboy_or":
-        return GameBoyOrPieceRule()
-
-    raise ValueError(
-        f"unknown game.piece_rule: {name!r} "
-        "(expected 'uniform', 'k-bag', or 'gameboy_or')"
-    )
-
-
-def make_game_from_cfg(cfg: Dict[str, Any]) -> TetrisGame:
-    """
-    Canonical cfg -> TetrisGame builder.
+    NOTE: Engine stores (piece_rule, warmup) as defaults and reuses them on reset()
+    unless reset() is called with explicit overrides. So the env only needs to pass
+    seed on each reset.
     """
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
 
     game_cfg = cfg.get("game", {}) or {}
     if not isinstance(game_cfg, dict):
-        raise TypeError("cfg.game must be a mapping")
+        game_cfg = {}
 
-    pieces_path = _resolve_pieces_path(game_cfg.get("pieces", None))
-    piece_set = PieceSet.from_yaml(pieces_path)
+    TetrisEngine, _ = _import_engine()
 
-    piece_rule = _make_piece_rule(game_cfg.get("piece_rule", None))
+    # default seed here is fine; env.reset(seed=episode_seed) should override per episode
+    seed = int(game_cfg.get("seed", 12345))
 
-    kwargs: Dict[str, Any] = {
-        "piece_set": piece_set,
-        "piece_rule": piece_rule,
-    }
+    # Rust expects "uniform" | "bag7"
+    piece_rule = str(game_cfg.get("piece_rule", "uniform")).strip().lower()
 
-    if "visible_height" in game_cfg and game_cfg["visible_height"] is not None:
-        kwargs["visible_height"] = int(game_cfg["visible_height"])
-    if "spawn_rows" in game_cfg and game_cfg["spawn_rows"] is not None:
-        kwargs["spawn_rows"] = int(game_cfg["spawn_rows"])
-    if "width" in game_cfg and game_cfg["width"] is not None:
-        kwargs["width"] = int(game_cfg["width"])
+    warmup_spec = _parse_warmup_spec(game_cfg.get("warmup", None))
 
-    return TetrisGame(**kwargs)
-
-
-def make_game_from_spec(spec: DataGenGameSpec) -> TetrisGame:
-    """
-    Typed builder (used by datagen and any spec-only pipelines).
-    """
-    pieces_path = _resolve_pieces_path(spec.pieces)
-    piece_set = PieceSet.from_yaml(pieces_path)
-
-    piece_rule = _make_piece_rule(spec.piece_rule)
-
-    kwargs: Dict[str, Any] = {
-        "piece_set": piece_set,
-        "piece_rule": piece_rule,
-    }
-    # DataGenGameSpec currently only has pieces + piece_rule.
-    # If you later add width/spawn_rows/etc to the spec, wire them here.
-    return TetrisGame(**kwargs)
+    return TetrisEngine(seed=seed, piece_rule=piece_rule, warmup=warmup_spec)

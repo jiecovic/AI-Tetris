@@ -32,6 +32,21 @@ impl Kind {
         }
     }
 
+    /// Inverse of `idx()` (1..=7). Returns None for invalid ids.
+    pub fn from_idx(idx: u8) -> Option<Self> {
+        use Kind::*;
+        match idx {
+            1 => Some(I),
+            2 => Some(O),
+            3 => Some(T),
+            4 => Some(S),
+            5 => Some(Z),
+            6 => Some(J),
+            7 => Some(L),
+            _ => None,
+        }
+    }
+
     pub fn glyph(self) -> char {
         use Kind::*;
         match self {
@@ -101,4 +116,36 @@ pub fn rotations(kind: Kind) -> &'static [&'static [(i32, i32)]] {
             &[(0, 0), (1, 0), (1, 1), (1, 2)],
         ],
     }
+}
+
+/// UI helper: rasterize a piece rotation into a 4x4 mask.
+///
+/// - `rot` is clamped to the last distinct rotation for `kind`.
+/// - `fill` is the value written into occupied cells (recommended: `kind.idx()`).
+///
+/// Returns a 4x4 grid in row-major order: m[y][x].
+pub fn preview_mask_4x4(kind: Kind, rot: usize, fill: u8) -> [[u8; 4]; 4] {
+    let mut m = [[0u8; 4]; 4];
+
+    let rots = rotations(kind);
+    let r = if rots.is_empty() {
+        0
+    } else {
+        rot.min(rots.len() - 1)
+    };
+
+    for &(dx, dy) in rots[r] {
+        // The hardcoded rotation tables are designed to fit a 4x4 preview.
+        // Still guard bounds for robustness.
+        if dx < 0 || dy < 0 {
+            continue;
+        }
+        let x = dx as usize;
+        let y = dy as usize;
+        if x < 4 && y < 4 {
+            m[y][x] = fill;
+        }
+    }
+
+    m
 }

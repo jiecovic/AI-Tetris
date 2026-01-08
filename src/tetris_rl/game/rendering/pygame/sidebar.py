@@ -6,15 +6,12 @@ from typing import Any, Optional, Tuple, List
 
 import pygame
 
-from tetris_rl.game.core.pieceset import PieceSet
 from tetris_rl.game.rendering.pygame.palette import Palette, Color
 from tetris_rl.game.rendering.pygame.surf import SurfaceCache, blit_text
 
 # -----------------------------------------------------------------------------
 # Public sizing contract
 # -----------------------------------------------------------------------------
-# Single source of truth for how much horizontal space the sidebar needs.
-# The window/layout code should size the window using this value.
 SIDEBAR_W = 280
 
 
@@ -28,41 +25,33 @@ class SidebarLayout:
 
     Keep all "magic numbers" here so render code stays readable and tweakable.
     """
-    # Vertical spacing between panels
+
     panel_gap_y: int = 14
 
-    # Heights of panels (px)
     next_panel_h: int = 170
     stats_panel_h: int = 230
     controls_min_h: int = 96
 
-    # Panel title padding
     title_pad_x: int = 10
     title_pad_y: int = 8
 
-    # NEXT: label placement
     next_label_y_offset: int = 32
 
-    # NEXT: preview box placement
     next_box_y_offset: int = 52
     next_box_border_w: int = 2
 
-    # STATS: internal padding and row layout
     stats_pad_x: int = 10
     stats_header_y_offset: int = 34
     stats_header_row_gap_y: int = 22
     stats_row_h: int = 20
 
-    # STATS: two-column geometry (value x is label x + value_dx)
     stats_value_dx: int = 68
 
-    # CONTROLS: list layout
     controls_list_y_offset: int = 36
     controls_key_x_offset: int = 10
     controls_desc_x_offset: int = 90
     controls_row_h: int = 20
 
-    # CONTROLS: footer placement
     controls_footer_needed_h: int = 120
     controls_game_over_y_from_bottom: int = 34
     controls_hint_y_from_bottom: int = 16
@@ -72,8 +61,14 @@ _LAYOUT = SidebarLayout()
 
 
 # -----------------------------------------------------------------------------
-# Formatting helpers
+# Small access helpers (dict snapshots OR legacy objects)
 # -----------------------------------------------------------------------------
+def _get(state: Any, key: str, default: Any = None) -> Any:
+    if isinstance(state, dict):
+        return state.get(key, default)
+    return getattr(state, key, default)
+
+
 def _as_int(v: Any, default: int = 0) -> int:
     try:
         if v is None:
@@ -109,17 +104,23 @@ def _fmt_value(v: Any) -> str:
 
 def _extract_env_rows(env_info: Optional[dict[str, Any]]) -> List[tuple[str, Any]]:
     """
-    The env is responsible for deciding what "ENV" rows exist.
-    Contract:
-      env_info may contain:
-        - env_info["sidebar_env"] = [("Key", value), ...]  (list/tuple of 2-tuples)
-        - OR env_info["sidebar_env"] = {"Key": value, ...} (dict)
-    Sidebar will render whatever is present, otherwise render nothing in ENV column.
+    Env rows are provided by macro_info.build_step_info_update under:
+      env_info["ui"]["sidebar_env"] = [("Key", value), ...]
+    For backwards compatibility we also accept:
+      env_info["sidebar_env"] = ...
     """
     if not isinstance(env_info, dict):
         return []
 
-    rows = env_info.get("sidebar_env", None)
+    rows = None
+
+    ui = env_info.get("ui", None)
+    if isinstance(ui, dict):
+        rows = ui.get("sidebar_env", None)
+
+    if rows is None:
+        rows = env_info.get("sidebar_env", None)
+
     if rows is None:
         return []
 
@@ -136,43 +137,90 @@ def _extract_env_rows(env_info: Optional[dict[str, Any]]) -> List[tuple[str, Any
     return []
 
 
+def _try_engine_preview_mask(
+    *,
+    engine: Any | None,
+    kind_idx0: int | None,
+    rot: int = 0,
+) -> Any | None:
+    """
+    UI-only: ask Rust engine (PyO3) for a 4x4 preview mask.
+
+    Snapshot kind idx convention (SSOT):
+      - engine snapshot uses 0..6 for I..L
+
+    Engine preview API convention:
+      - engine.kind_preview_mask expects 1..=7 (grid piece ids)
+
+    So we convert here: kind_id = kind_idx0 + 1.
+    """
+    if engine is None or kind_idx0 is None:
+        return None
+
+    try:
+        ki0 = int(kind_idx0)
+    except Exception:
+        return None
+
+    # snapshot convention: 0..6
+    if ki0 < 0 or ki0 > 6:
+        return None
+
+    kind_id = ki0 + 1  # UI boundary conversion ONLY (0..6 -> 1..7)
+
+    try:
+        return engine.kind_preview_mask(int(kind_id), rot=int(rot))
+    except Exception:
+        return None
+
+
 # -----------------------------------------------------------------------------
 # Public draw
 # -----------------------------------------------------------------------------
 def draw_sidebar(
-        *,
-        screen: pygame.Surface,
-        state: Any,
-        env_info: Optional[dict[str, Any]] = None,
-        game_metrics: Optional[dict[str, Any]] = None,
-        reward: float,
-        done: bool,
-        x: int,
-        y: int,
-        w: int,
-        origin: Tuple[int, int],
-        margin: int,
-        grid: Any,
-        cell: int,
-        palette: Palette,
-        pieces: PieceSet,
-        cache: SurfaceCache,
-        font_small: pygame.font.Font,
-        font_tiny: pygame.font.Font,
+    *,
+    screen: pygame.Surface,
+    state: Any,
+    env_info: Optional[dict[str, Any]] = None,
+    game_metrics: Optional[dict[str, Any]] = None,
+    reward: float,
+    done: bool,
+    x: int,
+    y: int,
+    w: int,
+    origin: Tuple[int, int],
+    margin: int,
+    grid: Any,
+    cell: int,
+    palette: Palette,
+    cache: SurfaceCache,
+    font_small: pygame.font.Font,
+    font_tiny: pygame.font.Font,
+    engine: Any = None,  # Rust engine (PyO3) - UI only
 ) -> None:
     """
-    Render the right sidebar. This file is strictly presentation:
-      - GAME column uses game_metrics provided by renderer (authoritative)
-      - ENV column uses env_info["sidebar_env"] provided by env (optional)
+    Render the right sidebar (presentation only).
+
+    State contract (Rust snapshot dict preferred):
+      - score, lines, steps, game_over, next_kind
+      - next_kind_idx / active_kind_idx are 0..6 (engine snapshot SSOT)
     """
     panel_w = int(w)
 
-    # Determine available height to size the CONTROLS panel.
     grid_h = len(grid)
     board_outer_h = int(grid_h) * int(cell) + 2 * int(margin)
 
     used_h = _LAYOUT.next_panel_h + _LAYOUT.panel_gap_y + _LAYOUT.stats_panel_h + _LAYOUT.panel_gap_y
     controls_h = max(_LAYOUT.controls_min_h, int(board_outer_h) - int(used_h))
+
+    # Read idx0 (0..6) from snapshot (SSOT)
+    next_kind_idx0 = _get(state, "next_kind_idx", None)
+    active_kind_idx0 = _get(state, "active_kind_idx", None)
+
+    # Ask engine for masks at render time (UI-only).
+    # Conversion 0..6 -> 1..7 happens inside _try_engine_preview_mask.
+    next_mask = _try_engine_preview_mask(engine=engine, kind_idx0=next_kind_idx0, rot=0)
+    active_mask = _try_engine_preview_mask(engine=engine, kind_idx0=active_kind_idx0, rot=0)
 
     # -------------------------------------------------------------------------
     # NEXT panel
@@ -188,14 +236,19 @@ def draw_sidebar(
         title="NEXT",
     )
 
-    next_kind = getattr(state, "next_kind", None)
+    next_kind = _get(state, "next_kind", None)
     next_label = f"{next_kind if next_kind else 'n/a'}"
 
     label_w = font_tiny.size(next_label)[0]
     label_x = int(x) + (int(panel_w) - int(label_w)) // 2
     label_y = int(y) + int(_LAYOUT.next_label_y_offset)
-
-    blit_text(screen=screen, font=font_tiny, text=next_label, pos=(label_x, label_y), color=palette.muted)
+    blit_text(
+        screen=screen,
+        font=font_tiny,
+        text=next_label,
+        pos=(label_x, label_y),
+        color=palette.muted,
+    )
 
     next_box_cells = 4
     box_w = int(next_box_cells) * int(cell)
@@ -208,16 +261,15 @@ def draw_sidebar(
     pygame.draw.rect(screen, palette.empty, box_rect)
     pygame.draw.rect(screen, palette.border, box_rect, width=int(_LAYOUT.next_box_border_w))
 
-    if next_kind and next_kind in pieces:
-        draw_piece_preview(
+    if next_mask is not None:
+        draw_piece_preview_mask(
             screen=screen,
-            kind=str(next_kind),
+            mask=next_mask,
             dst_x=int(box_x),
             dst_y=int(box_y),
             cells=int(next_box_cells),
             cell=int(cell),
             palette=palette,
-            pieces=pieces,
             cache=cache,
         )
 
@@ -236,21 +288,17 @@ def draw_sidebar(
         title="STATS",
     )
 
-    score = _as_int(getattr(state, "score", 0), 0)
-    lines = _as_int(getattr(state, "lines", 0), 0)
-    level = _as_int(getattr(state, "level", 0), 0)
+    score = _as_int(_get(state, "score", 0), 0)
+    lines = _as_int(_get(state, "lines", 0), 0)
+    steps = _as_int(_get(state, "steps", 0), 0)
 
-    # "done" is renderer-supplied; state may have its own game_over/done too.
-    game_over_val = getattr(state, "game_over", None)
-    if game_over_val is None:
-        game_over_val = getattr(state, "done", None)
-    game_over = bool(done) if game_over_val is None else bool(game_over_val)
+    st_game_over = _get(state, "game_over", None)
+    game_over = bool(done) if st_game_over is None else bool(st_game_over)
 
     gm = game_metrics if isinstance(game_metrics, dict) else {}
     holes = gm.get("holes", None)
     max_height = gm.get("max_height", None)
 
-    # Two columns inside STATS
     col1_label_x = int(x) + int(_LAYOUT.stats_pad_x)
     col1_value_x = int(col1_label_x) + int(_LAYOUT.stats_value_dx)
 
@@ -258,7 +306,6 @@ def draw_sidebar(
     col2_value_x = int(col2_label_x) + int(_LAYOUT.stats_value_dx)
 
     yy = int(stats_y) + int(_LAYOUT.stats_header_y_offset)
-
     blit_text(screen=screen, font=font_tiny, text="GAME", pos=(col1_label_x, yy), color=palette.matrix)
     blit_text(screen=screen, font=font_tiny, text="ENV", pos=(col2_label_x, yy), color=palette.matrix)
     yy += int(_LAYOUT.stats_header_row_gap_y)
@@ -266,7 +313,7 @@ def draw_sidebar(
     game_rows: List[tuple[str, Any]] = [
         ("Score", score),
         ("Lines", lines),
-        ("Level", level),
+        ("Steps", steps),
         ("Holes", holes),
         ("MaxH", max_height),
         ("Over", bool(game_over)),
@@ -319,10 +366,9 @@ def draw_sidebar(
     )
 
     legend = [
-        ("A / D", "move left/right"),
-        ("S", "soft drop"),
-        ("W / Space", "hard drop"),
-        ("Q / E", "rotate CCW/CW"),
+        ("Space", "toggle pause"),
+        ("Arrows", "macro rot/col"),
+        ("Enter", "place macro"),
         ("R", "reset"),
         ("Esc", "quit"),
     ]
@@ -331,7 +377,6 @@ def draw_sidebar(
     key_x = int(x) + int(_LAYOUT.controls_key_x_offset)
     desc_x = int(x) + int(_LAYOUT.controls_desc_x_offset)
 
-    # Don't let list overwrite panel bottom (reserve a little breathing room).
     bottom_guard = int(ctrl_y) + int(controls_h) - int(_LAYOUT.controls_row_h) - int(_LAYOUT.title_pad_y)
 
     for key, desc in legend:
@@ -353,40 +398,42 @@ def draw_sidebar(
 # Small primitives
 # -----------------------------------------------------------------------------
 def _draw_kv(
-        *,
-        screen: pygame.Surface,
-        font: pygame.font.Font,
-        palette: Palette,
-        k: str,
-        v: Any,
-        label_x: int,
-        value_x: int,
-        y: int,
+    *,
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    palette: Palette,
+    k: str,
+    v: Any,
+    label_x: int,
+    value_x: int,
+    y: int,
 ) -> None:
     label = f"{k:>5}:"
     blit_text(screen=screen, font=font, text=label, pos=(int(label_x), int(y)), color=palette.muted)
     blit_text(screen=screen, font=font, text=_fmt_value(v), pos=(int(value_x), int(y)), color=palette.text)
 
 
-def draw_piece_preview(
-        *,
-        screen: pygame.Surface,
-        kind: str,
-        dst_x: int,
-        dst_y: int,
-        cells: int,
-        cell: int,
-        palette: Palette,
-        pieces: PieceSet,
-        cache: SurfaceCache,
+def draw_piece_preview_mask(
+    *,
+    screen: pygame.Surface,
+    mask: Any,
+    dst_x: int,
+    dst_y: int,
+    cells: int,
+    cell: int,
+    palette: Palette,
+    cache: SurfaceCache,
 ) -> None:
-    m = pieces.mask(kind, 0)
+    """
+    Draw a piece preview from an engine-provided mask.
 
-    # Color comes from PieceSet by kind (no id indirection).
-    c = pieces.color_of(kind)
-    color: Color = c if c is not None else palette.fallback_piece
-
-    ys, xs = (m != 0).nonzero()
+    Mask is expected to be 2D array-like (numpy OK).
+    Non-zero entries are treated as filled cells, and values are piece ids 1..7.
+    """
+    try:
+        ys, xs = (mask != 0).nonzero()
+    except Exception:
+        return
     if len(xs) == 0:
         return
 
@@ -400,23 +447,31 @@ def draw_piece_preview(
 
     for yy in range(int(shape_h)):
         for xx in range(int(shape_w)):
-            if m[int(miny) + yy, int(minx) + xx] == 0:
+            try:
+                v = int(mask[int(miny) + yy, int(minx) + xx])
+            except Exception:
                 continue
+            if v == 0:
+                continue
+
+            pid = int(v)
+            color: Color = palette.color_for_piece_id(pid) if 1 <= pid <= 7 else palette.fallback_piece
+
             rx = int(dst_x) + (int(off_x) + int(xx)) * int(cell)
             ry = int(dst_y) + (int(off_y) + int(yy)) * int(cell)
             screen.blit(cache.cell(size=int(cell), color=color), (int(rx), int(ry)))
 
 
 def _panel(
-        *,
-        screen: pygame.Surface,
-        palette: Palette,
-        font_small: pygame.font.Font,
-        x: int,
-        y: int,
-        w: int,
-        h: int,
-        title: Optional[str] = None,
+    *,
+    screen: pygame.Surface,
+    palette: Palette,
+    font_small: pygame.font.Font,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    title: Optional[str] = None,
 ) -> None:
     rect = pygame.Rect(int(x), int(y), int(w), int(h))
     pygame.draw.rect(screen, palette.panel_bg, rect)

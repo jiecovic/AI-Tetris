@@ -8,7 +8,6 @@ from typing import Any
 from tetris_rl.config.snapshot import load_yaml
 from tetris_rl.config.train_spec import parse_train_spec
 from tetris_rl.envs.factory import make_env_from_cfg
-from tetris_rl.game.factory import make_game_from_cfg
 from tetris_rl.runs.action_source import (
     as_action_pair,
     as_action_scalar,
@@ -25,12 +24,6 @@ from tetris_rl.runs.run_io import choose_config_path
 from tetris_rl.training.model_io import load_model_from_spec, warn_if_maskable_with_multidiscrete
 from tetris_rl.utils.paths import repo_root, resolve_run_dir
 
-# NOTE:
-# We want watch() to default to the *eval* env semantics (no warmup/max_steps/etc if you override them),
-# but allow switching back to the original training env config via CLI.
-#
-# This relies on the same "env override merge" helper you added for eval env building.
-# Adjust the import below to the actual helper module you added.
 from tetris_rl.utils.config_merge import merge_env_for_eval  # type: ignore[import-not-found]
 
 
@@ -83,12 +76,6 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def _state_now(game: Any) -> Any:
-    if hasattr(game, "state"):
-        return game.state()
-    return game._state()  # type: ignore[attr-defined]
-
-
 def _choose_action(
     *,
     args: argparse.Namespace,
@@ -105,7 +92,11 @@ def _choose_action(
     if bool(args.heuristic_agent):
         if heuristic_agent is None:
             raise RuntimeError("--heuristic-agent set but agent not initialized")
-        st = _state_now(game)
+
+        # NOTE: heuristic agent API may still want a "game state" object.
+        # If you later migrate it to snapshots, switch this to env.last_state.
+        st = game.state() if hasattr(game, "state") else game._state()  # type: ignore[attr-defined]
+
         rot, col = heuristic_agent.best_macro_action(st)
         if action_mode == "discrete":
             board_w = int(getattr(game, "w", 10))
@@ -139,20 +130,34 @@ def _build_watch_cfg(*, cfg: dict[str, Any], train_spec: Any, which: str) -> dic
     if w == "train":
         return cfg
 
-    # eval: make a shallow copy, patch env with the component-aware merge helper
     cfg_watch: dict[str, Any] = dict(cfg)
-
-    base_env = cfg.get("env", {}) or {}
-    if not isinstance(base_env, dict):
-        base_env = {}
 
     override = getattr(getattr(train_spec, "eval", None), "env_override", {}) or {}
     if not isinstance(override, dict):
         override = {}
 
     cfg_watch = merge_env_for_eval(cfg=cfg_watch, env_override=override)
-
     return cfg_watch
+
+
+def _engine_board_h(env: Any, fallback: int) -> int:
+    try:
+        g = getattr(env, "game", None)
+        if g is not None and hasattr(g, "visible_h"):
+            return int(g.visible_h())
+    except Exception:
+        pass
+    return int(fallback)
+
+
+def _engine_board_w(env: Any, fallback: int) -> int:
+    try:
+        g = getattr(env, "game", None)
+        if g is not None and hasattr(g, "board_w"):
+            return int(g.board_w())
+    except Exception:
+        pass
+    return int(fallback)
 
 
 def main() -> int:
@@ -169,13 +174,16 @@ def main() -> int:
     train_spec = parse_train_spec(cfg=cfg)
 
     # -----------------------------------------------------------------------------
-    # Build game + env (watch defaults to eval env semantics)
+    # Build env (watch defaults to eval env semantics)
     # -----------------------------------------------------------------------------
-    game = make_game_from_cfg(cfg)
-
     cfg_watch = _build_watch_cfg(cfg=cfg, train_spec=train_spec, which=str(args.env))
-    built = make_env_from_cfg(cfg=cfg_watch, game=game)
+
+    built = make_env_from_cfg(cfg=cfg_watch, seed=int(args.seed))
     env = built.env
+
+    game = getattr(env, "game", None)
+    if game is None:
+        raise RuntimeError("env must expose .game (rust engine wrapper) for watch UI")
 
     # -----------------------------------------------------------------------------
     # Select agent type
@@ -258,13 +266,15 @@ def main() -> int:
     obs, info = env.reset(seed=int(args.seed))
     window.reset_episode()
 
+    # IMPORTANT: for watch UI, always use engine snapshot (full grid)
+    state: Any = game.snapshot(include_grid=True, visible=False)
+
     pygame.init()
     fps_font = pygame.font.SysFont("consolas", 16)
 
     renderer = TetrisRenderer(
         cell=int(args.cell),
         show_grid_lines=bool(args.show_grid),
-        pieces=game.pieces,
         hud_height=0,
     )
 
@@ -298,8 +308,8 @@ def main() -> int:
     )
 
     screen, layout = renderer.init_window(
-        board_h=int(getattr(game, "h", 20)),
-        board_w=int(getattr(game, "w", 10)),
+        board_h=_engine_board_h(env, int(getattr(game, "h", 20))),
+        board_w=_engine_board_w(env, int(getattr(game, "w", 10))),
         hud_text=demo_hud_text,
         title="RL-Tetris | watch",
     )
@@ -310,10 +320,11 @@ def main() -> int:
         pygame.key.set_repeat(140, 35)
 
     # -----------------------------------------------------------------------------
-    # Manual cursor (for paused stepping)
+    # Manual cursor (paused placement)
     # -----------------------------------------------------------------------------
     cursor = ManualMacroCursor(game=game, env=env)
-    cursor.sync_from_active()
+    if isinstance(state, dict):
+        cursor.sync_from_snapshot(state)
 
     running = True
     paused = False
@@ -332,18 +343,16 @@ def main() -> int:
         print(f"[watch] reloaded ckpt={ckpt.name} (mtime={int(ckpt.stat().st_mtime)}) algo.type={algo_type}")
 
     def _advance(a: Any) -> None:
-        nonlocal obs, info, last_step_ms
+        nonlocal obs, info, last_step_ms, state
 
         obs2, r, terminated, truncated, info2 = env.step(a)
         obs = obs2
         info = info2
 
-        h = hud_from_info(info2)
+        # IMPORTANT: refresh from engine snapshot (full grid)
+        state = game.snapshot(include_grid=True, visible=False)
 
-        # Entropy wants a single joint action_id. Prefer adapter’s reconstruction (requested_*),
-        # otherwise compute it from the actual action passed to env.step(a).
-        action_id = h.action_id
-        action_dim = h.action_dim
+        h = hud_from_info(info2)
 
         window.push(
             step_reward=float(r),
@@ -352,8 +361,8 @@ def main() -> int:
             masked=int(h.masked_action),
             redrot=int(h.redundant_rotation),
             score_delta=float(h.delta_score),
-            action_id=action_id,
-            action_dim=action_dim,
+            action_id=h.action_id,
+            action_dim=h.action_dim,
             episode_done=bool(terminated or truncated),
         )
 
@@ -363,8 +372,12 @@ def main() -> int:
             info = info_r
             window.reset_episode()
 
+            # IMPORTANT: snapshot again after reset
+            state = game.snapshot(include_grid=True, visible=False)
+
         last_step_ms = pygame.time.get_ticks()
-        cursor.sync_from_active()
+        if isinstance(state, dict):
+            cursor.sync_from_snapshot(state)
 
     # -----------------------------------------------------------------------------
     # Main pygame loop
@@ -399,13 +412,20 @@ def main() -> int:
                 if event.key == pygame.K_p:
                     paused = not paused
                     if paused:
-                        cursor.sync_from_active()
+                        if isinstance(state, dict):
+                            cursor.sync_from_snapshot(state)
+                        cursor.recenter_for_pause()
                     continue
 
                 if event.key == pygame.K_r:
                     obs, info = env.reset()
                     window.reset_episode()
-                    cursor.sync_from_active()
+
+                    # IMPORTANT: snapshot after reset (full grid)
+                    state = game.snapshot(include_grid=True, visible=False)
+                    if isinstance(state, dict):
+                        cursor.sync_from_snapshot(state)
+
                     last_step_ms = pygame.time.get_ticks()
                     continue
 
@@ -471,18 +491,21 @@ def main() -> int:
         )
         hud_text = hud.format_text(snap)
 
-        state = _state_now(game)
-        state_vis = cursor.preview_state(state, enabled=bool(paused))
         env_info = env_info_for_renderer(info)
+
+        # IMPORTANT: ghost only when paused
+        ghost = cursor.ghost_for_render(True) if bool(paused) else None
 
         renderer.render(
             screen=screen,
-            state=state_vis,
+            state=state,
+            ghost=ghost,
             env_info=env_info,
             reward=float(ws.last_step_reward),
             done=bool(h.game_over),
             layout=layout,
             hud_text=hud_text,
+            engine=game,  # pass engine for UI-only masks (NEXT, active preview, etc.)
         )
 
         fps = float(clock.get_fps())

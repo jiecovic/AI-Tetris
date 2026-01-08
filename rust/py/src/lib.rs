@@ -3,6 +3,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // pyo3 macro-generated glue triggers this on Rust 2024
 
 mod engine;
+mod engine_dicts;
+mod engine_helpers;
 mod expert_policy;
 mod util;
 mod warmup_spec;
