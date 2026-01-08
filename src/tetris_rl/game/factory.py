@@ -72,10 +72,11 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
     if not isinstance(obj, dict):
         raise TypeError(f"game.warmup.spec must be None|WarmupSpec|dict, got {type(obj)!r}")
 
-    t = str(obj.get("type", "none")).strip().lower()
+    # spawn_buffer is now engine-internal; accept it in configs for back-compat but ignore it.
+    # (Do NOT forward to WarmupSpec constructors.)
+    _ = obj.get("spawn_buffer", None)
 
-    spawn_buffer = obj.get("spawn_buffer", None)
-    spawn_buffer_i = None if spawn_buffer is None else int(spawn_buffer)
+    t = str(obj.get("type", "none")).strip().lower()
 
     if t in {"none", "off", "disabled", "null"}:
         spec = WarmupSpec.none()
@@ -83,13 +84,13 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
     elif t == "fixed":
         rows = int(obj["rows"])
         holes = int(obj.get("holes", 1))
-        spec = WarmupSpec.fixed(rows, holes=holes, spawn_buffer=spawn_buffer_i)
+        spec = WarmupSpec.fixed(rows, holes=holes)
 
     elif t in {"uniform_rows", "uniform"}:
         min_rows = int(obj["min_rows"])
         max_rows = int(obj["max_rows"])
         holes = int(obj.get("holes", 1))
-        spec = WarmupSpec.uniform_rows(min_rows, max_rows, holes=holes, spawn_buffer=spawn_buffer_i)
+        spec = WarmupSpec.uniform_rows(min_rows, max_rows, holes=holes)
 
     elif t == "poisson":
         lam_raw = obj.get("lambda", obj.get("lambda_", None))
@@ -98,7 +99,7 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
         lam = float(lam_raw)
         cap = int(obj["cap"])
         holes = int(obj.get("holes", 1))
-        spec = WarmupSpec.poisson(lam, cap, holes=holes, spawn_buffer=spawn_buffer_i)
+        spec = WarmupSpec.poisson(lam, cap, holes=holes)
 
     elif t in {"base_plus_poisson", "base+poisson"}:
         base = int(obj["base"])
@@ -108,7 +109,7 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
         lam = float(lam_raw)
         cap = int(obj["cap"])
         holes = int(obj.get("holes", 1))
-        spec = WarmupSpec.base_plus_poisson(base, lam, cap, holes=holes, spawn_buffer=spawn_buffer_i)
+        spec = WarmupSpec.base_plus_poisson(base, lam, cap, holes=holes)
 
     else:
         raise ValueError(f"unknown warmup.type={t!r}")
@@ -121,6 +122,7 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
         spec = spec.with_uniform_holes(int(uh["min"]), int(uh["max"]))
 
     return spec
+
 
 
 def _parse_warmup_cfg(obj: Any) -> Tuple[float, Optional[Any]]:
