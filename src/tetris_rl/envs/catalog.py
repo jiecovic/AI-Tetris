@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/catalog.py
+# src/tetris_rl/env_bundles/catalog.py
 from __future__ import annotations
 
 from typing import Any, Mapping
@@ -12,10 +12,6 @@ from tetris_rl.envs.rewards.learned_ridge_delta import LearnedRidgeDeltaReward
 from tetris_rl.envs.rewards.shaped import ShapedMacroReward
 from tetris_rl.envs.rewards.sparse_reward import SparseReward
 from tetris_rl.envs.rewards.heuristic_delta_piecewise import HeuristicDeltaPiecewiseReward
-from tetris_rl.envs.utils.warmup_noise import (
-    InitRowsPoissonWarmup,
-    InitRowsUniformWarmup,
-)
 from tetris_rl.envs.rewards.heuristic_linear import HeuristicLinear
 
 
@@ -24,7 +20,6 @@ from tetris_rl.envs.rewards.heuristic_linear import HeuristicLinear
 # - easy to add new entries
 
 ENV_REGISTRY: Mapping[str, Any] = {
-    # matches YAML: env.type: macro
     "macro": MacroTetrisEnv,
 }
 
@@ -38,9 +33,4 @@ REWARD_REGISTRY: Mapping[str, Any] = {
     "learned_ridge": LearnedRidgeDeltaReward,
     "heuristic_linear": HeuristicLinear,
     "sparse_reward": SparseReward,
-}
-
-WARMUP_REGISTRY: Mapping[str, Any] = {
-    "init_rows_poisson": InitRowsPoissonWarmup,
-    "init_rows_uniform": InitRowsUniformWarmup,
 }

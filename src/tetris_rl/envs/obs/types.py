@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/obs/types.py
+# src/tetris_rl/env_bundles/obs/types.py
 from __future__ import annotations
 
 from typing import Literal

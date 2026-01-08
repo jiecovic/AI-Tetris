@@ -16,7 +16,7 @@ from tetris_rl.config.schema_types import (
 
 
 # -----------------------------------------------------------------------------
-# Spec dataclasses
+# Spec dataclasses (NEW-ONLY)
 # -----------------------------------------------------------------------------
 
 
@@ -42,38 +42,7 @@ class DataGenRunSpec:
 
 
 @dataclass(frozen=True)
-class DataGenGameSpec:
-    pieces: str = "classic7"
-    piece_rule: str = "k-bag"
-    # Action-space geometry is derived from assets (PieceSet.max_rotations()) and board_w at runtime.
-
-
-# ---------------------------
-# Warmup component (datagen)
-# ---------------------------
-
-@dataclass(frozen=True)
-class DataGenWarmupSpec:
-    """
-    Warmup policy applied after each reset.
-
-    This is a component spec that maps 1:1 to a WarmupFn via registry instantiation:
-      { type: ..., params: {...} }
-
-    Policy:
-      - STRICT: only these keys exist
-      - warmup is independent of "noise" interleave
-    """
-    type: str = "poisson_init_rows"
-    params: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class DataGenNoiseSpec:
-    """
-    Noise injected DURING episode generation (between labeled steps).
-    Warmup is not part of this anymore.
-    """
     enabled: bool = False
     interleave_prob: float = 0.0
     interleave_max_steps: int = 1
@@ -81,119 +50,77 @@ class DataGenNoiseSpec:
 
 @dataclass(frozen=True)
 class DataGenLabelsSpec:
-    """
-    Controls optional label recording.
-
-    Invariant:
-      record_rewardfit == True
-        -> legal_mask + phi + delta must ALL be recorded
-      record_rewardfit == False
-        -> none of them may be present
-    """
     record_rewardfit: bool = False
 
 
 @dataclass(frozen=True)
 class DataGenGenerationSpec:
     episode_max_steps: Optional[int] = None
-    warmup: Optional[DataGenWarmupSpec] = None
     noise: DataGenNoiseSpec = field(default_factory=DataGenNoiseSpec)
     labels: DataGenLabelsSpec = field(default_factory=DataGenLabelsSpec)
 
 
 # -----------------------------------------------------------------------------
-# Expert specs (typed; NO ad-hoc params parsing in factories)
+# Expert specs (NEW-ONLY)
 # -----------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class DataGenHeuristicWeightsSpec:
-    # Mirrors agents.heuristic_agent.HeuristicWeights defaults.
-    a_agg_height: float = -0.510066
-    b_lines: float = 0.760666
-    c_holes: float = -0.35663
-    d_bumpiness: float = -0.184483
-
-
-@dataclass(frozen=True)
-class DataGenHeuristicExpertParams:
-    # 0 = immediate only, 1 = 1-piece lookahead
-    lookahead: int = 1
-    # used only when lookahead=1
-    beam_width: int = 10
-    weights: DataGenHeuristicWeightsSpec = field(default_factory=DataGenHeuristicWeightsSpec)
+class DataGenRustExpertParams:
+    """
+    Rust heuristic policy params (codemy* family).
+    Kept flat in YAML under expert: ...
+    """
+    beam_from_depth: int = 0
+    beam_width: Optional[int] = None  # None => use Rust defaults
+    tail_weight: float = 0.5          # only meaningful for codemy2fast
 
 
 @dataclass(frozen=True)
 class DataGenExpertSpec:
     """
-    DataGen expert configuration.
-
-    Policy:
-      - expert_spec is the ONLY place where expert semantics are defined.
-      - factories are pure wiring; no coercion rules or fallback inference.
-
-    Supported types:
-      - "heuristic_agent" / "heuristic"
+    New-only:
+      expert:
+        type: codemy0|codemy1|codemy2|codemy2fast
+        beam_from_depth: 0
+        beam_width: 10
+        tail_weight: 0.5
     """
-
-    type: str = "heuristic_agent"
-    heuristic: DataGenHeuristicExpertParams = field(default_factory=DataGenHeuristicExpertParams)
+    type: str = "codemy1"
+    rust: DataGenRustExpertParams = field(default_factory=DataGenRustExpertParams)
 
 
 @dataclass(frozen=True)
 class DataGenSpec:
+    """
+    New-only datagen spec.
+
+    NOTE:
+      - Composition keys (specs/env/game) are handled by config.resolve and are NOT part of DataGenSpec.
+      - Datagen runtime may still consume cfg.env/cfg.game directly (resolved root), but this
+        typed spec is strictly the datagen-owned blocks below.
+    """
     dataset: DataGenDatasetSpec = field(default_factory=DataGenDatasetSpec)
     run: DataGenRunSpec = field(default_factory=DataGenRunSpec)
-    game: DataGenGameSpec = field(default_factory=DataGenGameSpec)
     generation: DataGenGenerationSpec = field(default_factory=DataGenGenerationSpec)
     expert: DataGenExpertSpec = field(default_factory=DataGenExpertSpec)
 
 
 # -----------------------------------------------------------------------------
-# Parser (STRICT, canonical-only)
+# Parser (STRICT at top level; allows composition keys)
 # -----------------------------------------------------------------------------
 
 
-def _parse_optional_component_spec(
-        *,
-        parent: Dict[str, Any],
-        key: str,
-        where: str,
-        default_type: str,
-) -> Optional[DataGenWarmupSpec]:
-    """
-    Parse optional component spec of the form:
-      key:
-        type: <str>
-        params: <mapping>
-
-    Returns None if key missing or explicitly null.
-    """
-    if key not in parent:
-        return None
-
-    obj_raw = parent.get(key, None)
-    if obj_raw is None:
-        return None
-
-    obj = require_mapping_strict(
-        get_mapping(parent, key, default={}, where=f"{where}.{key}"),
-        where=f"{where}.{key}",
-        allowed_keys={"type", "params"},
-    )
-
-    typ = get_str(obj, "type", default=default_type, where=f"{where}.{key}.type").strip().lower()
-    params = get_mapping(obj, "params", default={}, where=f"{where}.{key}.params")
-    # params can be any mapping; we keep it as raw dict to feed instantiate()
-    return DataGenWarmupSpec(type=str(typ), params=dict(params))
-
-
 def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
+    # After resolve_config(), datagen configs may contain:
+    #   - specs: { env: ... }
+    #   - env:   {...}
+    #   - game:  {...}
+    # These are composition/runtime wiring keys and are intentionally ignored here.
     root = require_mapping_strict(
         cfg,
         where="cfg",
-        allowed_keys={"dataset", "run", "game", "generation", "expert"},
+        allowed_keys={"dataset", "run", "generation", "expert", "specs", "env", "game"},
     )
 
     # ---------------------------
@@ -236,12 +163,7 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
         name=get_str(dataset_obj, "name", default=DataGenDatasetSpec.name, where="cfg.dataset.name"),
         out_root=get_str(dataset_obj, "out_root", default=DataGenDatasetSpec.out_root, where="cfg.dataset.out_root"),
         shards=shards,
-        compression=get_bool(
-            dataset_obj,
-            "compression",
-            default=DataGenDatasetSpec.compression,
-            where="cfg.dataset.compression",
-        ),
+        compression=get_bool(dataset_obj, "compression", default=DataGenDatasetSpec.compression, where="cfg.dataset.compression"),
     )
 
     # ---------------------------
@@ -255,10 +177,7 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
 
     run = DataGenRunSpec(
         seed=get_int(run_obj, "seed", default=DataGenRunSpec.seed, where="cfg.run.seed"),
-        num_workers=max(
-            1,
-            get_int(run_obj, "num_workers", default=DataGenRunSpec.num_workers, where="cfg.run.num_workers"),
-        ),
+        num_workers=max(1, get_int(run_obj, "num_workers", default=DataGenRunSpec.num_workers, where="cfg.run.num_workers")),
         progress_update_every_k=max(
             1,
             get_int(
@@ -271,26 +190,12 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
     )
 
     # ---------------------------
-    # game
-    # ---------------------------
-    game_obj = require_mapping_strict(
-        get_mapping(root, "game", default={}, where="cfg.game"),
-        where="cfg.game",
-        allowed_keys={"pieces", "piece_rule"},
-    )
-
-    game = DataGenGameSpec(
-        pieces=get_str(game_obj, "pieces", default=DataGenGameSpec.pieces, where="cfg.game.pieces"),
-        piece_rule=get_str(game_obj, "piece_rule", default=DataGenGameSpec.piece_rule, where="cfg.game.piece_rule"),
-    )
-
-    # ---------------------------
     # generation + noise + labels
     # ---------------------------
     gen_obj = require_mapping_strict(
         get_mapping(root, "generation", default={}, where="cfg.generation"),
         where="cfg.generation",
-        allowed_keys={"episode_max_steps", "warmup", "noise", "labels"},
+        allowed_keys={"episode_max_steps", "noise", "labels"},
     )
 
     episode_max_steps_raw = gen_obj.get("episode_max_steps", None)
@@ -299,13 +204,6 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
     else:
         v = int(get_int(gen_obj, "episode_max_steps", default=0, where="cfg.generation.episode_max_steps"))
         episode_max_steps = v if v > 0 else None
-
-    warmup = _parse_optional_component_spec(
-        parent=gen_obj,
-        key="warmup",
-        where="cfg.generation",
-        default_type=DataGenWarmupSpec.type,
-    )
 
     noise_obj = require_mapping_strict(
         get_mapping(gen_obj, "noise", default={}, where="cfg.generation.noise"),
@@ -316,12 +214,7 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
     noise = DataGenNoiseSpec(
         enabled=get_bool(noise_obj, "enabled", default=False, where="cfg.generation.noise.enabled"),
         interleave_prob=clamp_prob(
-            get_float(
-                noise_obj,
-                "interleave_prob",
-                default=DataGenNoiseSpec.interleave_prob,
-                where="cfg.generation.noise.interleave_prob",
-            )
+            get_float(noise_obj, "interleave_prob", default=DataGenNoiseSpec.interleave_prob, where="cfg.generation.noise.interleave_prob")
         ),
         interleave_max_steps=max(
             1,
@@ -346,96 +239,56 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
             "record_rewardfit",
             default=DataGenLabelsSpec.record_rewardfit,
             where="cfg.generation.labels.record_rewardfit",
-        )
+        ),
     )
 
     generation = DataGenGenerationSpec(
         episode_max_steps=episode_max_steps,
-        warmup=warmup,
         noise=noise,
         labels=labels,
     )
 
     # ---------------------------
-    # expert (typed)
+    # expert (NEW-ONLY flat rust)
     # ---------------------------
     expert_obj = require_mapping_strict(
         get_mapping(root, "expert", default={}, where="cfg.expert"),
         where="cfg.expert",
-        allowed_keys={"type", "heuristic"},
+        allowed_keys={"type", "beam_from_depth", "beam_width", "tail_weight"},
     )
 
     expert_type = get_str(expert_obj, "type", default=DataGenExpertSpec.type, where="cfg.expert.type").strip().lower()
-    heuristic_obj = require_mapping_strict(
-        get_mapping(expert_obj, "heuristic", default={}, where="cfg.expert.heuristic"),
-        where="cfg.expert.heuristic",
-        allowed_keys={"lookahead", "beam_width", "weights"},
+
+    beam_from_depth = get_int(
+        expert_obj,
+        "beam_from_depth",
+        default=DataGenRustExpertParams.beam_from_depth,
+        where="cfg.expert.beam_from_depth",
     )
 
-    weights_obj = require_mapping_strict(
-        get_mapping(heuristic_obj, "weights", default={}, where="cfg.expert.heuristic.weights"),
-        where="cfg.expert.heuristic.weights",
-        allowed_keys={"a_agg_height", "b_lines", "c_holes", "d_bumpiness"},
-    )
+    beam_width_raw = expert_obj.get("beam_width", None)
+    if beam_width_raw is None:
+        beam_width_r: Optional[int] = None
+    else:
+        beam_width_r = max(1, get_int(expert_obj, "beam_width", default=10, where="cfg.expert.beam_width"))
 
-    lookahead_raw = get_int(
-        heuristic_obj,
-        "lookahead",
-        default=DataGenHeuristicExpertParams.lookahead,
-        where="cfg.expert.heuristic.lookahead",
-    )
-    lookahead = 0 if lookahead_raw < 0 else (1 if lookahead_raw > 1 else int(lookahead_raw))
-
-    beam_width = max(
-        1,
-        get_int(
-            heuristic_obj,
-            "beam_width",
-            default=DataGenHeuristicExpertParams.beam_width,
-            where="cfg.expert.heuristic.beam_width",
-        ),
-    )
-
-    weights = DataGenHeuristicWeightsSpec(
-        a_agg_height=get_float(
-            weights_obj,
-            "a_agg_height",
-            default=DataGenHeuristicWeightsSpec.a_agg_height,
-            where="cfg.expert.heuristic.weights.a_agg_height",
-        ),
-        b_lines=get_float(
-            weights_obj,
-            "b_lines",
-            default=DataGenHeuristicWeightsSpec.b_lines,
-            where="cfg.expert.heuristic.weights.b_lines",
-        ),
-        c_holes=get_float(
-            weights_obj,
-            "c_holes",
-            default=DataGenHeuristicWeightsSpec.c_holes,
-            where="cfg.expert.heuristic.weights.c_holes",
-        ),
-        d_bumpiness=get_float(
-            weights_obj,
-            "d_bumpiness",
-            default=DataGenHeuristicWeightsSpec.d_bumpiness,
-            where="cfg.expert.heuristic.weights.d_bumpiness",
-        ),
-    )
+    tail_weight = float(get_float(expert_obj, "tail_weight", default=DataGenRustExpertParams.tail_weight, where="cfg.expert.tail_weight"))
 
     expert = DataGenExpertSpec(
         type=str(expert_type),
-        heuristic=DataGenHeuristicExpertParams(
-            lookahead=int(lookahead),
-            beam_width=int(beam_width),
-            weights=weights,
+        rust=DataGenRustExpertParams(
+            beam_from_depth=int(beam_from_depth),
+            beam_width=beam_width_r,
+            tail_weight=float(tail_weight),
         ),
     )
 
     return DataGenSpec(
         dataset=dataset,
         run=run,
-        game=game,
         generation=generation,
         expert=expert,
     )
+
+
+__all__ = ["DataGenSpec", "parse_datagen_spec"]

@@ -1,0 +1,13 @@
+[package]
+name = "tetris_rl_engine"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "tetris_rl_engine"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+numpy = "0.22"
+tetris_engine = { path = "../engine" }

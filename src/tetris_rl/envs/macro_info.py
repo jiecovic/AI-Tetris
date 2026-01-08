@@ -1,7 +1,7 @@
-# src/tetris_rl/envs/macro_info.py
+# src/tetris_rl/env_bundles/macro_info.py
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from tetris_rl.envs.api import TransitionFeatures
 
@@ -15,6 +15,16 @@ ENV_SIDEBAR_ROWS_ORDER = (
     "ΔBump",
     "Bumpy",
 )
+
+
+def _is_mapping(x: Any) -> bool:
+    return isinstance(x, Mapping)
+
+
+def _get_field(obj: Any, key: str, default: Any = None) -> Any:
+    if _is_mapping(obj):
+        return obj.get(key, default)  # type: ignore[call-arg]
+    return getattr(obj, key, default)
 
 
 def sidebar_env_rows(
@@ -53,14 +63,15 @@ def build_reset_info(
         action_mode: str,
         piece_rule: str,
 ) -> Dict[str, Any]:
+    # Works with both legacy State objects and Rust snapshot dicts.
     return {
-        "score": int(getattr(state, "score", 0)),
-        "lines": int(getattr(state, "lines", 0)),
-        "level": int(getattr(state, "level", 0)),
-        "active_kind": getattr(getattr(state, "active", None), "kind", None),
-        "next_kind": getattr(state, "next_kind", None),
-        "active_kind_idx": int(getattr(state, "active_kind_idx", 0)),
-        "next_kind_idx": int(getattr(state, "next_kind_idx", 0)),
+        "score": int(_get_field(state, "score", 0)),
+        "lines": int(_get_field(state, "lines", 0)),
+        "level": int(_get_field(state, "level", 0)),
+        "active_kind": _get_field(state, "active_kind", None),
+        "next_kind": _get_field(state, "next_kind", None),
+        "active_kind_idx": int(_get_field(state, "active_kind_idx", 0)),
+        "next_kind_idx": int(_get_field(state, "next_kind_idx", 0)),
         "episode_idx": int(episode_idx),
         "episode_step": int(episode_step),
         "action_mode": str(action_mode),
@@ -95,8 +106,6 @@ def build_transition_features(
         bumpiness_after: Optional[int],
         agg_height_after: Optional[int],
 ) -> TransitionFeatures:
-    # Keep this as a light “bridge” from env-local vars -> TransitionFeatures dataclass.
-    # It’s boring and explicit on purpose: the dataclass is your actual contract.
     return TransitionFeatures(
         cleared_lines=int(cleared),
         placed_cells_cleared=int(placed_cells_cleared),
@@ -164,16 +173,11 @@ def build_step_info_update(
         agg_height_after: Optional[int] = None,
         delta_agg_height: Optional[int] = None,
         sidebar_env: Optional[list[tuple[str, Any]]] = None,
-        # engine passthrough (optional)
         engine_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     sidebar_env = sidebar_env or []
     engine_info = engine_info or {}
 
-    # Canonical info contract:
-    #   info["tf"]   = per-step transition features (means/rates over step windows/budgets)
-    #   info["game"] = per-step KPIs (score/level/lines totals etc.)
-    #   info["ui"]   = watch-only payload (HUD/debug; not part of TB/eval contract)
     tf: Dict[str, Any] = {
         "cleared_lines": int(cleared),
         "placed_cells_cleared": int(placed_cells_cleared),
@@ -192,19 +196,19 @@ def build_step_info_update(
     }
 
     game: Dict[str, Any] = {
-        "score": int(getattr(state, "score", 0)),
-        "lines_total": int(getattr(state, "lines", 0)),
-        "level": int(getattr(state, "level", 0)),
+        "score": int(_get_field(state, "score", 0)),
+        "lines_total": int(_get_field(state, "lines", 0)),
+        "level": int(_get_field(state, "level", 0)),
     }
     if delta_score is not None:
         game["delta_score"] = float(delta_score)
 
     ui: Dict[str, Any] = {
         "sidebar_env": sidebar_env,
-        "active_kind": getattr(getattr(state, "active", None), "kind", None),
-        "next_kind": getattr(state, "next_kind", None),
-        "active_kind_idx": int(getattr(state, "active_kind_idx", 0)),
-        "next_kind_idx": int(getattr(state, "next_kind_idx", 0)),
+        "active_kind": _get_field(state, "active_kind", None),
+        "next_kind": _get_field(state, "next_kind", None),
+        "active_kind_idx": int(_get_field(state, "active_kind_idx", 0)),
+        "next_kind_idx": int(_get_field(state, "next_kind_idx", 0)),
         "action_mode": str(action_mode),
         "piece_rule": str(piece_rule),
         "episode_idx": int(episode_idx),
@@ -216,7 +220,6 @@ def build_step_info_update(
         "used_column": int(used_col),
         "masked_action": bool(masked_action),
         "mask_mismatch": bool(mask_mismatch),
-        # debug-only (not used by TB/eval)
         "illegal_reason": str(illegal_reason) if illegal_reason is not None else None,
         "illegal_action_policy": str(illegal_action_policy),
         "remapped": bool(remapped),
@@ -228,13 +231,9 @@ def build_step_info_update(
     if masked_action_count is not None:
         ui["masked_action_count"] = int(masked_action_count)
 
-    # Final info: engine passthrough + namespaced contract.
-    # We merge engine_info first, then overwrite with our contract fields (so contract wins).
     info: Dict[str, Any] = {}
     info.update(engine_info)
-
     info["tf"] = tf
     info["game"] = game
     info["ui"] = ui
-
     return info

@@ -7,7 +7,6 @@ from typing import Any, Optional, Tuple
 import numpy as np
 import pygame
 
-from tetris_rl.game.core.pieceset import PieceSet
 from tetris_rl.game.rendering.pygame.palette import Palette, Color
 from tetris_rl.game.rendering.pygame.surf import SurfaceCache
 
@@ -21,39 +20,169 @@ class GridRenderCfg:
     grid_line_width: int = 1
     hidden_line_width: int = 2
     ghost_alpha: int = 110  # 0..255
-    ghost_outline_width: int = 2
+
+    # UI-only "active piece preview" placement in spawn rows
+    active_spawn_y: int = 0
 
 
 CFG = GridRenderCfg()
 
 
 # -----------------------------------------------------------------------------
+# Small access helpers
+# -----------------------------------------------------------------------------
+def _get(state: Any, key: str, default: Any = None) -> Any:
+    if isinstance(state, dict):
+        return state.get(key, default)
+    return getattr(state, key, default)
+
+
+def _try_int(v: Any) -> Optional[int]:
+    try:
+        if v is None:
+            return None
+        return int(v)
+    except Exception:
+        return None
+
+
+def _try_engine_preview_mask(*, engine: Any | None, kind_id: int | None, rot: int = 0) -> Any | None:
+    """
+    UI-only: ask Rust engine (PyO3) for a 4x4 preview mask.
+
+    Expected API:
+      engine.kind_preview_mask(kind_id: int(1..7), rot: int=0) -> numpy uint8[4,4]
+    """
+    if engine is None or kind_id is None:
+        return None
+    try:
+        ki = int(kind_id)
+    except Exception:
+        return None
+    if ki < 1 or ki > 7:
+        return None
+    try:
+        return engine.kind_preview_mask(ki, rot=int(rot))
+    except Exception:
+        return None
+
+
+def _mask_nonzero_bbox(mask: np.ndarray) -> Optional[tuple[int, int, int, int]]:
+    """
+    Return (minx, miny, maxx, maxy) of nonzero cells in mask, or None if empty.
+    """
+    try:
+        ys, xs = (mask != 0).nonzero()
+    except Exception:
+        return None
+    if xs.size == 0:
+        return None
+    return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+
+
+def _mask_min_dx(mask: np.ndarray) -> int:
+    """
+    Engine-equivalent min_dx for bbox_left_to_anchor_x:
+      min_dx == min x-index among filled cells in the 4x4 mask.
+    """
+    bbox = _mask_nonzero_bbox(mask)
+    if bbox is None:
+        return 0
+    minx, _miny, _maxx, _maxy = bbox
+    return int(minx)
+
+
+def _mask_bbox_w(mask: np.ndarray) -> int:
+    bbox = _mask_nonzero_bbox(mask)
+    if bbox is None:
+        return 0
+    minx, _miny, maxx, _maxy = bbox
+    return int(maxx - minx + 1)
+
+
+def _draw_mask_cells_anchor_space(
+    *,
+    screen: pygame.Surface,
+    mask: np.ndarray,
+    origin: Tuple[int, int],
+    board_w: int,
+    board_h: int,
+    cell: int,
+    palette: Palette,
+    cache: SurfaceCache,
+    anchor_x: int,
+    anchor_y: int,
+    alpha: Optional[int] = None,
+) -> None:
+    """
+    Draw mask cells at board coords (anchor_x + xx, anchor_y + yy) for each nonzero (yy,xx).
+
+    NOTE: This treats mask indices as (dx,dy) offsets in engine's rotations() space.
+    """
+    ox, oy = origin
+
+    ghost_surf_cache: dict[int, pygame.Surface] = {}
+
+    for yy in range(int(mask.shape[0])):
+        for xx in range(int(mask.shape[1])):
+            try:
+                v = int(mask[yy, xx])
+            except Exception:
+                continue
+            if v <= 0:
+                continue
+
+            gx = int(anchor_x) + int(xx)
+            gy = int(anchor_y) + int(yy)
+
+            # Clip to board
+            if gx < 0 or gx >= int(board_w) or gy < 0 or gy >= int(board_h):
+                continue
+
+            color: Color = palette.color_for_piece_id(v)
+            rx = ox + gx * cell
+            ry = oy + gy * cell
+
+            if alpha is None:
+                screen.blit(cache.cell(size=cell, color=color), (rx, ry))
+            else:
+                key = int(v)
+                surf = ghost_surf_cache.get(key)
+                if surf is None:
+                    surf = pygame.Surface((cell, cell), pygame.SRCALPHA)
+                    r, g, b = int(color[0]), int(color[1]), int(color[2])
+                    surf.fill((r, g, b, int(alpha)))
+                    ghost_surf_cache[key] = surf
+                screen.blit(surf, (rx, ry))
+
+
+# -----------------------------------------------------------------------------
 # Public API
 # -----------------------------------------------------------------------------
 def draw_grid(
-        *,
-        screen: pygame.Surface,
-        grid: Any,
-        state: Optional[Any] = None,
-        ghost: Optional[dict[str, Any]] = None,
-        origin: Tuple[int, int],
-        margin: int,
-        cell: int,
-        show_grid_lines: bool,
-        palette: Palette,
-        pieces: PieceSet,
-        cache: SurfaceCache,
+    *,
+    screen: pygame.Surface,
+    grid: Any,
+    state: Optional[Any] = None,
+    ghost: Optional[dict[str, Any]] = None,
+    origin: Tuple[int, int],
+    margin: int,
+    cell: int,
+    show_grid_lines: bool,
+    palette: Palette,
+    cache: SurfaceCache,
+    engine: Any = None,  # Rust engine (PyO3), UI-only preview masks
+    show_active: bool = True,  # renderer-controlled
 ) -> None:
     """
-    Draw the locked board grid, then overlay the active piece from `state.active`.
-    Optionally render a "ghost" macro placement cursor (visual-only) when provided.
+    Draw the locked board grid. Optionally render:
+      - active piece preview (spawn rows, UI-only) when show_active=True
+      - ghost macro cursor (paused-only) when ghost != None
 
-    STRICT CONTRACT:
-      - `grid` is the LOCKED board only.
-      - Board cell encoding is "board_id":
-          0 = empty
-          1..K = kind_idx + 1
-      - No piece_id / legacy ids exist in the pipeline.
+    IMPORTANT:
+      - Engine action col is bbox-left (col_left), NOT anchor-x.
+      - We render consistently with engine by converting:
+            anchor_x = col_left - min_dx(mask)
     """
     arr = np.asarray(grid)
     if arr.ndim != 2:
@@ -65,7 +194,6 @@ def draw_grid(
             cell=cell,
             show_grid_lines=show_grid_lines,
             palette=palette,
-            pieces=pieces,
             cache=cache,
         )
         return
@@ -76,8 +204,8 @@ def draw_grid(
     # Draw locked board cells
     for y in range(h):
         for x in range(w):
-            board_id = int(arr[y, x])
-            color = _board_id_to_color(board_id=board_id, palette=palette, pieces=pieces)
+            piece_id = int(arr[y, x])
+            color = _piece_id_to_color(piece_id=piece_id, palette=palette)
             rx = ox + x * cell
             ry = oy + y * cell
             screen.blit(cache.cell(size=cell, color=color), (rx, ry))
@@ -89,27 +217,30 @@ def draw_grid(
                     width=int(CFG.grid_line_width),
                 )
 
-    # Optional ghost cursor (draw BEFORE active overlay so active remains readable)
+    # Active piece preview in spawn rows (unpaused)
+    if bool(show_active) and state is not None and engine is not None:
+        _draw_active_preview(
+            screen=screen,
+            state=state,
+            origin=origin,
+            board_w=w,
+            board_h=h,
+            cell=int(cell),
+            palette=palette,
+            cache=cache,
+            engine=engine,
+        )
+
+    # Ghost cursor (paused-only; no border/box)
     if ghost is not None:
         _draw_ghost_overlay(
             screen=screen,
             ghost=ghost,
             origin=origin,
+            board_w=w,
+            board_h=h,
             cell=int(cell),
             palette=palette,
-            pieces=pieces,
-            cache=cache,
-        )
-
-    # Overlay active piece (visual only)
-    if state is not None:
-        _draw_active_overlay(
-            screen=screen,
-            state=state,
-            origin=origin,
-            cell=cell,
-            palette=palette,
-            pieces=pieces,
             cache=cache,
         )
 
@@ -139,121 +270,135 @@ def draw_grid(
 
 
 # -----------------------------------------------------------------------------
-# Overlay helpers
+# Active preview (UI-only)
 # -----------------------------------------------------------------------------
-def _draw_active_overlay(
-        *,
-        screen: pygame.Surface,
-        state: Any,
-        origin: Tuple[int, int],
-        cell: int,
-        palette: Palette,
-        pieces: PieceSet,
-        cache: SurfaceCache,
+def _draw_active_preview(
+    *,
+    screen: pygame.Surface,
+    state: Any,
+    origin: Tuple[int, int],
+    board_w: int,
+    board_h: int,
+    cell: int,
+    palette: Palette,
+    cache: SurfaceCache,
+    engine: Any,
 ) -> None:
     """
-    Draw active piece mask at its (x,y) with its rotation.
-    Does not modify board grid.
+    Render a 4x4 preview mask for the ACTIVE piece in the spawn rows.
+
+    Snapshot provides active_kind_idx in 0..6 (obs semantics), so map -> 1..7 for engine mask API.
+
+    Placement matches engine geometry:
+      - Choose centered bbox-left:
+            col_left = (W - bbox_w)//2
+      - Convert to anchor-x:
+            anchor_x = col_left - min_dx(mask)
     """
-    ap = getattr(state, "active", None)
-    if ap is None:
+    kind_idx0 = _try_int(_get(state, "active_kind_idx", None))
+    if kind_idx0 is None:
         return
 
-    kind = getattr(ap, "kind", None)
-    rot = getattr(ap, "rot", None)
-    px = getattr(ap, "x", None)
-    py = getattr(ap, "y", None)
-    if kind is None or rot is None or px is None or py is None:
+    kind_id = int(kind_idx0) + 1
+    mask0 = _try_engine_preview_mask(engine=engine, kind_id=kind_id, rot=0)
+    if mask0 is None:
         return
 
-    kind_s = str(kind)
     try:
-        m = pieces.mask(kind_s, int(rot))
+        m = np.asarray(mask0)
     except Exception:
         return
+    if m.ndim != 2:
+        return
 
-    c = pieces.color_of(kind_s)
-    color = c if c is not None else palette.fallback_piece
+    bbox_w = _mask_bbox_w(m)
+    if bbox_w <= 0:
+        return
 
-    ox, oy = origin
-    mh, mw = int(m.shape[0]), int(m.shape[1])
+    col_left = int((int(board_w) - int(bbox_w)) // 2)
+    min_dx = _mask_min_dx(m)
+    anchor_x = int(col_left) - int(min_dx)
 
-    for yy in range(mh):
-        for xx in range(mw):
-            if int(m[yy, xx]) == 0:
-                continue
-            gx = int(px) + xx
-            gy = int(py) + yy
-            rx = ox + gx * cell
-            ry = oy + gy * cell
-            screen.blit(cache.cell(size=cell, color=color), (rx, ry))
+    anchor_y = int(CFG.active_spawn_y)
+
+    _draw_mask_cells_anchor_space(
+        screen=screen,
+        mask=m,
+        origin=origin,
+        board_w=int(board_w),
+        board_h=int(board_h),
+        cell=int(cell),
+        palette=palette,
+        cache=cache,
+        anchor_x=int(anchor_x),
+        anchor_y=int(anchor_y),
+        alpha=None,
+    )
 
 
+# -----------------------------------------------------------------------------
+# Ghost overlay (UI-only; no outline)
+# -----------------------------------------------------------------------------
 def _draw_ghost_overlay(
-        *,
-        screen: pygame.Surface,
-        ghost: dict[str, Any],
-        origin: Tuple[int, int],
-        cell: int,
-        palette: Palette,
-        pieces: PieceSet,
-        cache: SurfaceCache,
+    *,
+    screen: pygame.Surface,
+    ghost: dict[str, Any],
+    origin: Tuple[int, int],
+    board_w: int,
+    board_h: int,
+    cell: int,
+    palette: Palette,
+    cache: SurfaceCache,
 ) -> None:
     """
-    Draw a visual-only macro placement cursor given:
-      ghost["kind"] : piece kind str
-      ghost["rot"]  : rotation int (asset rotation id)
-      ghost["col"]  : bbox-left column int (env macro col)
-      ghost["py"]   : active piece y (engine y)
-      ghost["legal"]: Optional[bool] legality signal (if False -> outline warning)
+    Draw a visual-only macro placement cursor using an engine-provided 4x4 mask.
+
+    IMPORTANT:
+      ghost["col"] (or legacy ghost["x"]) is bbox-left (engine action col_left).
+      We convert to anchor-x for drawing:
+        anchor_x = col_left - min_dx(mask)
+
+    NO OUTLINE BOX is drawn (as requested).
     """
-    kind = str(ghost.get("kind", "?"))
-    rot = int(ghost.get("rot", 0))
-    col = int(ghost.get("col", 0))
-    py = int(ghost.get("py", 0))
-    legal = ghost.get("legal", None)
-
-    # We need to map bbox-left col to engine x. The PieceSet API doesn't expose that here,
-    # so we render the ghost at "engine x = col" as a conservative visual.
-    # If you want perfect alignment, expose cache.bbox_left_to_engine_x via env/render hook.
-    px = int(col)
-
-    try:
-        m = pieces.mask(kind, int(rot))
-    except Exception:
+    mask = ghost.get("mask", None)
+    if mask is None:
         return
 
-    base = pieces.color_of(kind)
-    color = base if base is not None else palette.fallback_piece
+    try:
+        m = np.asarray(mask)
+    except Exception:
+        return
+    if m.ndim != 2:
+        return
 
-    # Draw translucent cells by blitting alpha surfaces.
-    ox, oy = origin
-    mh, mw = int(m.shape[0]), int(m.shape[1])
+    col_left = ghost.get("col", ghost.get("x", 0))
+    try:
+        col_left = int(col_left)
+    except Exception:
+        col_left = 0
 
-    ghost_surf = pygame.Surface((cell, cell), pygame.SRCALPHA)
-    # derive RGBA from color tuple (r,g,b)
-    r, g, b = int(color[0]), int(color[1]), int(color[2])
-    ghost_surf.fill((r, g, b, int(CFG.ghost_alpha)))
+    py = ghost.get("y", 0)
+    try:
+        py = int(py)
+    except Exception:
+        py = 0
 
-    for yy in range(mh):
-        for xx in range(mw):
-            if int(m[yy, xx]) == 0:
-                continue
-            gx = px + xx
-            gy = py + yy
-            rx = ox + gx * cell
-            ry = oy + gy * cell
-            screen.blit(ghost_surf, (rx, ry))
+    min_dx = _mask_min_dx(m)
+    anchor_x = int(col_left) - int(min_dx)
+    anchor_y = int(py)
 
-    # Outline bbox area for readability (and to show illegality)
-    outline_color = palette.border if (legal is None or legal) else (240, 90, 90)
-    x0 = ox + px * cell
-    y0 = oy + py * cell
-    pygame.draw.rect(
-        screen,
-        outline_color,
-        pygame.Rect(x0, y0, mw * cell, mh * cell),
-        width=int(CFG.ghost_outline_width),
+    _draw_mask_cells_anchor_space(
+        screen=screen,
+        mask=m,
+        origin=origin,
+        board_w=int(board_w),
+        board_h=int(board_h),
+        cell=int(cell),
+        palette=palette,
+        cache=cache,
+        anchor_x=int(anchor_x),
+        anchor_y=int(anchor_y),
+        alpha=int(CFG.ghost_alpha),
     )
 
 
@@ -261,16 +406,15 @@ def _draw_ghost_overlay(
 # Fallback path for weird grid inputs
 # -----------------------------------------------------------------------------
 def _draw_grid_fallback(
-        *,
-        screen: pygame.Surface,
-        grid: Any,
-        origin: Tuple[int, int],
-        margin: int,
-        cell: int,
-        show_grid_lines: bool,
-        palette: Palette,
-        pieces: PieceSet,
-        cache: SurfaceCache,
+    *,
+    screen: pygame.Surface,
+    grid: Any,
+    origin: Tuple[int, int],
+    margin: int,
+    cell: int,
+    show_grid_lines: bool,
+    palette: Palette,
+    cache: SurfaceCache,
 ) -> None:
     ox, oy = origin
     h = len(grid)
@@ -279,8 +423,8 @@ def _draw_grid_fallback(
     for y in range(h):
         row = grid[y]
         for x in range(w):
-            board_id = int(row[x])
-            color = _board_id_to_color(board_id=board_id, palette=palette, pieces=pieces)
+            piece_id = int(row[x])
+            color = _piece_id_to_color(piece_id=piece_id, palette=palette)
             rx = ox + x * cell
             ry = oy + y * cell
             screen.blit(cache.cell(size=cell, color=color), (rx, ry))
@@ -318,20 +462,7 @@ def _draw_grid_fallback(
 # -----------------------------------------------------------------------------
 # Color mapping
 # -----------------------------------------------------------------------------
-def _board_id_to_color(*, board_id: int, palette: Palette, pieces: PieceSet) -> Color:
-    """
-    board_id encoding:
-      0      -> empty
-      1..K   -> kind_idx+1  (kind_idx = board_id-1)
-    """
-    if int(board_id) <= 0:
+def _piece_id_to_color(*, piece_id: int, palette: Palette) -> Color:
+    if int(piece_id) <= 0:
         return palette.empty
-
-    kinds = pieces.kinds()
-    idx = int(board_id) - 1
-    if idx < 0 or idx >= len(kinds):
-        return palette.fallback_piece
-
-    kind = kinds[idx]
-    c = pieces.color_of(kind)
-    return c if c is not None else palette.fallback_piece
+    return palette.color_for_piece_id(int(piece_id))

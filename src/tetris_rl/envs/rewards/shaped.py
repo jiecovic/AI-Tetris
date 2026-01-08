@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/shaped.py
+# src/tetris_rl/env_bundles/rewards/shaped.py
 from __future__ import annotations
 
 from dataclasses import dataclass

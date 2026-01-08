@@ -1,51 +1,82 @@
 # src/tetris_rl/datagen/expert_factory.py
 from __future__ import annotations
 
-from tetris_rl.agents.heuristic_agent import HeuristicAgent, HeuristicWeights
+from dataclasses import dataclass
+from typing import Any, Optional
+
 from tetris_rl.config.datagen_spec import DataGenExpertSpec
-from tetris_rl.game.core.game import TetrisGame
 
 
-def make_expert_from_spec(
-        *,
-        game: TetrisGame,
-        expert_spec: DataGenExpertSpec,
-) -> HeuristicAgent:
+@dataclass(frozen=True)
+class RustExpertBundle:
     """
-    Typed factory for DataGen experts.
+    Small wrapper around the Rust binding expert.
 
-    Policy:
-      - Pure wiring only (no geometry / asset conventions here).
-      - All action-space geometry is derived from the game assets themselves.
+    We keep this as a tiny "bundle" so datagen code can:
+      - pass around a single object
+      - keep the Rust binding import localized
+      - extend later (e.g. expose name/knobs) without touching call sites
     """
-    expert_type = str(expert_spec.type).strip().lower()
-    if expert_type not in {"heuristic_agent", "heuristic"}:
-        raise ValueError(f"unknown datagen expert.type: {expert_type!r}")
-
-    hp = expert_spec.heuristic
-
-    lookahead = int(hp.lookahead)
-    if lookahead not in (0, 1):
-        raise ValueError(f"expert.heuristic.lookahead must be 0 or 1, got {lookahead}")
-
-    beam_width = int(hp.beam_width)
-    if beam_width <= 0:
-        raise ValueError(f"expert.heuristic.beam_width must be > 0, got {beam_width}")
-
-    w = hp.weights
-    weights = HeuristicWeights(
-        a_agg_height=float(w.a_agg_height),
-        b_lines=float(w.b_lines),
-        c_holes=float(w.c_holes),
-        d_bumpiness=float(w.d_bumpiness),
-    )
-
-    return HeuristicAgent(
-        game=game,
-        weights=weights,
-        lookahead=lookahead,
-        beam_width=beam_width,
-    )
+    policy: Any  # tetris_rl_engine.ExpertPolicy
 
 
-__all__ = ["make_expert_from_spec"]
+def _opt_int(x: Any) -> Optional[int]:
+    if x is None:
+        return None
+    return int(x)
+
+
+def _opt_float(x: Any) -> Optional[float]:
+    if x is None:
+        return None
+    return float(x)
+
+
+def make_expert_from_spec(*, expert_spec: DataGenExpertSpec) -> RustExpertBundle:
+    """
+    Build a Rust ExpertPolicy from DataGenExpertSpec.
+
+    Supported expert.type:
+      - "codemy0"
+      - "codemy1"
+      - "codemy2"
+      - "codemy2fast"
+
+    Notes:
+      - This factory is intentionally thin: config -> Rust binding call.
+      - Any "defaults" should live in the config schema, not here.
+    """
+    from tetris_rl_engine import ExpertPolicy  # local import keeps optional dep tight
+
+    t = str(expert_spec.type).strip().lower()
+
+    # ---------------------------
+    # codemy0/1/2 share knobs
+    # ---------------------------
+    beam_width = _opt_int(getattr(expert_spec, "beam_width", None))
+    beam_from_depth = int(_opt_int(getattr(expert_spec, "beam_from_depth", None)) or 0)
+
+    if t == "codemy0":
+        return RustExpertBundle(
+            policy=ExpertPolicy.codemy0(beam_width=beam_width, beam_from_depth=beam_from_depth)
+        )
+    if t == "codemy1":
+        return RustExpertBundle(
+            policy=ExpertPolicy.codemy1(beam_width=beam_width, beam_from_depth=beam_from_depth)
+        )
+    if t == "codemy2":
+        return RustExpertBundle(
+            policy=ExpertPolicy.codemy2(beam_width=beam_width, beam_from_depth=beam_from_depth)
+        )
+
+    # ---------------------------
+    # codemy2fast has its own knob
+    # ---------------------------
+    if t == "codemy2fast":
+        tail_weight = float(_opt_float(getattr(expert_spec, "tail_weight", None)) or 0.5)
+        return RustExpertBundle(policy=ExpertPolicy.codemy2fast(tail_weight=tail_weight))
+
+    raise ValueError(f"unknown datagen expert.type: {t!r}")
+
+
+__all__ = ["RustExpertBundle", "make_expert_from_spec"]

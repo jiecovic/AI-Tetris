@@ -4,8 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from tetris_rl.config.datagen_spec import parse_datagen_spec
-from tetris_rl.config.snapshot import load_yaml
+from tetris_rl.config.loader import load_config
 from tetris_rl.datagen.runner import run_datagen
 from tetris_rl.utils.logging import setup_logger
 from tetris_rl.utils.paths import relpath, repo_root as find_repo_root
@@ -31,13 +30,6 @@ def main() -> int:
         return 2
 
     try:
-        cfg = load_yaml(cfg_path)
-        spec = parse_datagen_spec(cfg=cfg)
-    except Exception:
-        logger.exception("[datagen] failed to parse config: %s", str(cfg_path))
-        return 3
-
-    try:
         repo = Path(args.repo_root).resolve() if str(args.repo_root).strip() else find_repo_root()
     except Exception:
         logger.exception("[datagen] failed to resolve repo root")
@@ -45,6 +37,15 @@ def main() -> int:
 
     logger.info("[datagen] repo_root=%s", str(repo))
     logger.info("[datagen] config=%s", relpath(cfg_path, base=repo))
+
+    # NEW-ONLY: load + resolve specs.* (esp specs.env -> {env, game})
+    try:
+        loaded = load_config(path=cfg_path, domain="datagen")
+        spec = loaded.spec
+        cfg = loaded.cfg
+    except Exception:
+        logger.exception("[datagen] failed to load/resolve/parse config: %s", str(cfg_path))
+        return 3
 
     # Helpful summary
     try:
@@ -65,11 +66,11 @@ def main() -> int:
         pass
 
     try:
-        out_dir = run_datagen(
-            spec=spec,
-            repo_root=repo,
-            logger=logger,
-        )
+        out_dir = run_datagen(spec=spec, cfg=cfg, repo_root=repo, logger=logger)
+    except KeyboardInterrupt:
+        logger.warning("[datagen] interrupted (Ctrl+C)")
+        import os
+        os._exit(130)  # guaranteed immediate exit (avoids mp/queue teardown hangs on Windows)
     except Exception:
         logger.exception("[datagen] generation failed")
         return 5

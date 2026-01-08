@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/lines.py
+# src/tetris_rl/env_bundles/rewards/lines.py
 from __future__ import annotations
 
 from typing import Any, Dict

@@ -7,12 +7,9 @@ run:
   n_envs: 16
   vec: dummy
 
-game:
-  pieces: classic7
-  piece_rule: uniform
 
 # point to sub-configs (paths are strings)
 specs:
-  env: configs/envs/macro_discrete_warmup.yaml
+  env: configs/env_bundles/macro_discrete_warmup.yaml
   model: configs/models/cnn1.yaml
   train: configs/trains/ppo_bc_eval.yaml

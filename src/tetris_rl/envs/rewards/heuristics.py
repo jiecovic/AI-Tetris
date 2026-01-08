@@ -1,4 +1,4 @@
-# src/tetris_rl/envs/rewards/heuristics.py
+# src/tetris_rl/env_bundles/rewards/heuristics.py
 
 """
 Heuristic reward shaping based on a linear Tetris board evaluation function.

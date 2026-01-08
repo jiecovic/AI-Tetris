@@ -1,19 +1,15 @@
-# src/tetris_rl/envs/macro_env.py
+# src/tetris_rl/env_bundles/macro_env.py
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple, cast
 
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
 from tetris_rl.envs.api import RewardFn, WarmupFn
-from tetris_rl.envs.illegal_action import (
-    IllegalActionPolicy,
-    pick_closest_legal_action_id,
-    pick_random_legal_action_id,
-)
-from tetris_rl.envs.macro_actions import ActionMode, MacroActionMixin
+from tetris_rl.envs.invalid_action import InvalidActionPolicy
+from tetris_rl.envs.macro_actions import ActionMode
 from tetris_rl.envs.macro_info import (
     build_reset_info,
     build_step_info_update,
@@ -25,35 +21,29 @@ from tetris_rl.envs.obs.macro_state import (
     build_macro_obs_space,
     encode_macro_obs,
 )
-from tetris_rl.game.core.macro_legality import discrete_action_mask, macro_illegal_reason_bbox_left
-from tetris_rl.game.core.macro_step import decode_discrete_action_id
-from tetris_rl.game.core.metrics import BoardSnapshotMetrics, board_snapshot_metrics_from_board
-from tetris_rl.game.core.placement_cache import StaticPlacementCache
-from tetris_rl.game.core.types import State
-from tetris_rl.game.core.macro_step import encode_discrete_action_id
 
 
-class MacroTetrisEnv(MacroActionMixin, gym.Env):
+class MacroTetrisEnv(gym.Env):
     """
-    Macro placement environment.
+    Macro placement environment backed by the Rust engine (PyO3).
 
-    North Star:
-      - Emits canonical *raw* Dict observations (no tokenization).
-      - Tokenization/embedding lives on the policy/model side.
-      - Warmup is an injected module (WarmupFn) instead of env init knobs.
+    SSOT:
+      - Validity: engine.step_action_id() return value.
+      - Mask: MaskablePPO action_masks() + optional mismatch debug.
+      - Action encoding/decoding: engine.encode_action_id / engine.decode_action_id.
     """
 
     metadata = {"render_modes": []}
 
     def __init__(
-            self,
-            *,
-            game: Any,
-            reward_fn: RewardFn,
-            max_steps: Optional[int] = None,
-            action_mode: ActionMode = "discrete",
-            illegal_action_policy: IllegalActionPolicy = "noop",
-            warmup: WarmupFn | None = None,
+        self,
+        *,
+        game: Any,  # PyO3 TetrisEngine
+        reward_fn: RewardFn,
+        max_steps: Optional[int] = None,
+        action_mode: ActionMode = "discrete",
+        invalid_action_policy: InvalidActionPolicy = "noop",
+        warmup: WarmupFn | None = None,
     ) -> None:
         super().__init__()
         self.game = game
@@ -61,148 +51,128 @@ class MacroTetrisEnv(MacroActionMixin, gym.Env):
         self.max_steps = int(max_steps) if max_steps is not None else None
         self.action_mode = action_mode
 
-        self.illegal_action_policy = str(illegal_action_policy).strip().lower()
-        if self.illegal_action_policy not in {"noop", "terminate", "closest_legal", "random_legal"}:
-            raise ValueError(f"unknown illegal_action_policy: {illegal_action_policy!r}")
+        self.invalid_action_policy = str(invalid_action_policy).strip().lower()
+        if self.invalid_action_policy not in {"noop", "terminate"}:
+            raise ValueError(f"unknown invalid_action_policy: {invalid_action_policy!r}")
 
         self._warmup: WarmupFn | None = warmup
 
-        # Board geometry (raw obs). Prefer visible_h if present; else fall back to game.h.
-        self.h = int(getattr(game, "visible_h", getattr(game, "h", 20)))
-        self.w = int(getattr(game, "w", 10))
+        # Geometry from engine (SSOT).
+        self.h = int(self.game.visible_h())
+        self.w = int(self.game.board_w())
+        self.max_rots = int(self.game.max_rots())
+        self.action_dim = int(self.game.action_dim())
 
-        pieces = getattr(self.game, "pieces", None)
-        board = getattr(self.game, "board", None)
-        active = getattr(self.game, "active", None)
-        if pieces is None:
-            raise RuntimeError("MacroTetrisEnv requires game.pieces (PieceSet)")
-        if board is None:
-            raise RuntimeError("MacroTetrisEnv requires game.board (Board)")
-        if active is None:
-            raise RuntimeError("MacroTetrisEnv requires game.active (ActivePiece)")
-
-        try:
-            self.K = int(len(list(pieces.kinds())))
-        except Exception as e:
-            raise RuntimeError("MacroTetrisEnv cannot determine num_kinds (K) from game.pieces.kinds()") from e
-        if self.K <= 0:
-            raise RuntimeError("MacroTetrisEnv invalid num_kinds K<=0")
+        # K: classic 7. (If you later generalize pieces, expose num_kinds from Rust.)
+        self.K = 7
 
         self._obs_spec = MacroObsSpec(board_h=int(self.h), board_w=int(self.w), num_kinds=int(self.K))
         self.observation_space = build_macro_obs_space(spec=self._obs_spec)
 
-        # Action-space geometry is derived from assets (single source of truth).
-        if not hasattr(pieces, "max_rotations"):
-            raise RuntimeError("MacroTetrisEnv requires PieceSet.max_rotations() derived from YAML rotations")
-        self.max_rots = int(pieces.max_rotations())
-        if self.max_rots <= 0:
-            raise RuntimeError(f"invalid max_rots derived from assets: {self.max_rots}")
-
         if self.action_mode == "discrete":
-            self.action_space = spaces.Discrete(self.max_rots * self.w)
+            self.action_space = spaces.Discrete(int(self.action_dim))
         elif self.action_mode == "multidiscrete":
-            self.action_space = spaces.MultiDiscrete([self.max_rots, self.w])
+            self.action_space = spaces.MultiDiscrete([int(self.max_rots), int(self.w)])
         else:
             raise ValueError(f"unknown action_mode: {self.action_mode!r}")
 
         self._steps = 0
-        self._last_state: State | None = None
         self._episode_idx = 0
-        self._prev_board_metrics: BoardSnapshotMetrics | None = None
 
-        self._legal_cache = StaticPlacementCache.build(
-            pieces=pieces,
-            board_w=int(self.w),
-        )
+        self._last_state: Dict[str, Any] | None = None
+        self._prev_feat: Optional[Tuple[int, int, int, int]] = None
 
     # ---------------------------------------------------------------------
     # obs
     # ---------------------------------------------------------------------
 
-    def _obs_from_state(self, st: State) -> Dict[str, Any]:
-        return encode_macro_obs(
-            game=self.game,
-            state=st,
-            spec=self._obs_spec,
-        )
+    def _obs_from_state(self, st: Dict[str, Any]) -> Dict[str, Any]:
+        return encode_macro_obs(game=None, state=st, spec=self._obs_spec)
 
     # ---------------------------------------------------------------------
     # helpers
     # ---------------------------------------------------------------------
 
     def _piece_rule_name(self) -> str:
-        pr = getattr(self.game, "_piece_rule", None)
-        if pr is None:
-            pr = getattr(self.game, "piece_rule", None)
-        if pr is None:
-            return "?"
-        return getattr(pr.__class__, "__name__", "?")
-
-    def _board_metrics(self) -> BoardSnapshotMetrics | None:
-        b = getattr(self.game, "board", None)
-        if b is None:
-            return None
+        # Preferred: call into engine if available.
         try:
-            return board_snapshot_metrics_from_board(b)
+            return str(self.game.piece_rule())
         except Exception:
-            return None
+            # Fallback: snapshot key (if present), else "unknown"
+            st = self._last_state
+            return str(st.get("piece_rule", "unknown")) if st else "unknown"
 
-    def _num_rots_for_kind(self, kind: Any) -> int:
-        pieces = getattr(self.game, "pieces", None)
-        if pieces is None:
-            return 1
+    def _action_mask_bool(self) -> np.ndarray:
+        m_u8 = np.asarray(self.game.action_mask(), dtype=np.uint8)
+        # (ACTION_DIM,) where 1=valid, 0=invalid
+        return (m_u8.astype(np.uint8, copy=False) != 0).reshape(-1)
+
+    def _mask_stats_for_action_id(self, action_id: int) -> tuple[bool, int, int]:
+        mask = self._action_mask_bool()
+        aid = int(action_id)
+        masked = bool(aid < 0 or aid >= mask.size or (not bool(mask[aid])))
+        masked_count = int((~mask).sum())
+        return masked, masked_count, int(mask.size)
+
+    def _episode_seed_from_np_random(self) -> int:
+        return int(self.np_random.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
+
+    def _warmup_spec_for_reset(self) -> Any:
+        if self._warmup is None:
+            return None
+        return self._warmup(game=self.game, rng=self.np_random)  # type: ignore[misc]
+
+    def _snapshot(self) -> Dict[str, Any]:
+        # Current binding supports snapshot(include_grid=True, visible=True)
         try:
-            return int(pieces.num_rotations(kind))
-        except Exception:
+            return cast(Dict[str, Any], self.game.snapshot(include_grid=True, visible=True))
+        except TypeError:
+            return cast(Dict[str, Any], self.game.snapshot(include_grid=True))
+
+    def _step_features(self) -> Dict[str, Any]:
+        # New binding: no visible arg (always visible grid)
+        try:
+            return cast(Dict[str, Any], self.game.step_features(prev=self._prev_feat))
+        except TypeError:
+            # Backward compat if older binding still has visible=
+            return cast(Dict[str, Any], self.game.step_features(prev=self._prev_feat, visible=True))
+
+    def _requested_rot_col_and_action_id(self, action: Any) -> tuple[int, int, int]:
+        """
+        Returns (requested_rot, requested_col, requested_action_id), using engine SSOT.
+        """
+        if self.action_mode == "discrete":
+            requested_action_id = int(action)
+            # SSOT decode (for logging/features)
             try:
-                return int(pieces.get(kind).num_rotations())
+                rot, col = self.game.decode_action_id(int(requested_action_id))
+                return int(rot), int(col), int(requested_action_id)
             except Exception:
-                return 1
+                # Out-of-range etc. -> keep sentinel rot/col
+                return -1, -1, int(requested_action_id)
 
-    def _legal_mask_joint_discrete(self, *, kind: str, py: int) -> np.ndarray:
-        """
-        Compute the joint (max_rots * board_w) legality mask from board+active state.
+        # multidiscrete: action provides (rot, col)
+        if isinstance(action, (tuple, list)) and len(action) == 2:
+            rot, col = action
+            requested_rot = int(rot)
+            requested_col = int(col)
+        else:
+            arr = np.asarray(action).reshape(-1)
+            if arr.size != 2:
+                raise TypeError(f"invalid action for action_mode='multidiscrete': {action!r}")
+            requested_rot = int(arr[0])
+            requested_col = int(arr[1])
 
-        IMPORTANT: Valid even when action_mode='multidiscrete' (we just don't expose it
-        via sb3-contrib action_masks()).
-        """
-        return (
-            discrete_action_mask(
-                board=self.game.board,
-                pieces=self.game.pieces,
-                kind=str(kind),
-                py=int(py),
-                cache=self._legal_cache,
-            )
-            .astype(bool, copy=False)
-            .reshape(-1)
-        )
+        # SSOT encode
+        requested_action_id = int(self.game.encode_action_id(int(requested_rot), int(requested_col)))
+        return int(requested_rot), int(requested_col), int(requested_action_id)
 
-    def _illegal_reason_strict(self, *, kind: str, rot: int, col: int, py: int) -> Optional[str]:
-        return macro_illegal_reason_bbox_left(
-            board=self.game.board,
-            pieces=self.game.pieces,
-            cache=self._legal_cache,
-            kind=str(kind),
-            rot=int(rot),
-            py=int(py),
-            bbox_left_col=int(col),
-        )
+    # ---------------------------------------------------------------------
+    # sb3-contrib MaskablePPO hook
+    # ---------------------------------------------------------------------
 
-    def _maybe_warmup_after_reset(self) -> None:
-        w = self._warmup
-        if w is None:
-            return
-
-        # Warmup mutates game state directly (board/grid). Must not record samples.
-        w(game=self.game, rng=self.np_random)  # type: ignore[arg-type]
-
-        # Sync cached pointers after warmup mutated the game.
-        try:
-            self._last_state = self.game._state()  # type: ignore[attr-defined]
-        except Exception:
-            self._last_state = self.game._state() if hasattr(self.game, "_state") else self._last_state
-        self._prev_board_metrics = self._board_metrics()
+    def action_masks(self) -> np.ndarray:
+        return self._action_mask_bool()
 
     # ---------------------------------------------------------------------
     # gym API
@@ -212,30 +182,29 @@ class MacroTetrisEnv(MacroActionMixin, gym.Env):
         super().reset(seed=seed)
         self._steps = 0
         self._episode_idx += 1
+        self._prev_feat = None
 
-        try:
-            self.game.set_rng(self.np_random)  # type: ignore[attr-defined]
-        except Exception:
-            pass
+        ep_seed = int(seed) if seed is not None else self._episode_seed_from_np_random()
+        warmup_spec = self._warmup_spec_for_reset()
 
-        st = self.game.reset()
+        self.game.reset(seed=int(ep_seed), warmup=warmup_spec)
+
+        st = self._snapshot()
         self._last_state = st
-        self._prev_board_metrics = self._board_metrics()
 
-        self._maybe_warmup_after_reset()
-
-        st2 = self._last_state if self._last_state is not None else st
-        obs = self._obs_from_state(st2)
+        obs = self._obs_from_state(st)
 
         info = build_reset_info(
-            state=st2,
+            state=st,
             episode_idx=int(self._episode_idx),
             episode_step=int(self._steps),
             action_mode=str(self.action_mode),
             piece_rule=self._piece_rule_name(),
         )
-        info["illegal_action_policy"] = str(self.illegal_action_policy)
+        # NOTE: macro_info still uses illegal_* keys for now.
+        info["illegal_action_policy"] = str(self.invalid_action_policy)
         info["warmup"] = None if self._warmup is None else getattr(self._warmup.__class__, "__name__", "warmup")
+        info["episode_seed"] = int(ep_seed)
         return obs, info
 
     def step(self, action: Any):
@@ -244,179 +213,110 @@ class MacroTetrisEnv(MacroActionMixin, gym.Env):
         if prev_state is None:
             raise RuntimeError("step() called before reset()")
 
-        prev_metrics = self._prev_board_metrics
+        requested_rot, requested_col, requested_action_id = self._requested_rot_col_and_action_id(action)
 
-        act = self._decode_action(action)
-        placed_kind = getattr(getattr(prev_state, "active", None), "kind", "?")
-        py = int(getattr(getattr(prev_state, "active", None), "y", 0))
-
-        requested_rot = int(act.rot)
-        requested_col = int(act.col)
-
-        requested_action_id: Optional[int] = None
-
-        if self.action_mode == "discrete":
-            requested_action_id = int(action)
-        else:
-            requested_action_id = encode_discrete_action_id(
-                rot=requested_rot,
-                col=requested_col,
-                board_w=int(self.w),
-            )
-
-
-        # Mask stats (only meaningful for sb3-contrib MaskablePPO in discrete mode)
-        masked_action = False
-        action_dim: Optional[int] = None
-        masked_action_count: Optional[int] = None
-        stats = self.discrete_mask_stats(requested_rot=requested_rot, requested_col=requested_col)
-        if stats is not None:
-            masked_action = bool(stats.masked_action)
-            masked_action_count = stats.masked_action_count
-            action_dim = int(stats.action_dim)
-
-        n_rots = max(1, int(self._num_rots_for_kind(placed_kind)))
-        redundant_rotation = bool(self.is_redundant_rotation(requested_rot=requested_rot, n_rots_for_kind=n_rots))
-
-        # One truth: strict legality drives illegal_action + illegal_reason.
-        info_engine: Any = {}
-        illegal_reason = self._illegal_reason_strict(
-            kind=str(placed_kind),
-            rot=int(requested_rot),
-            col=int(requested_col),
-            py=int(py),
+        masked_action, masked_action_count, action_dim = self._mask_stats_for_action_id(requested_action_id)
+        mask = self._action_mask_bool()
+        requested_mask_invalid = bool(
+            requested_action_id < 0
+            or requested_action_id >= int(mask.size)
+            or (not bool(mask[int(requested_action_id)]))
         )
-        illegal_action = bool(illegal_reason is not None)
 
+        used_action_id = int(requested_action_id)
+
+        terminated = False
+        truncated = False
+        cleared = 0
+
+        # SSOT: invalid_action comes from engine if we stepped; otherwise policy.
+        invalid_action = False
+
+        if requested_mask_invalid:
+            if self.invalid_action_policy == "terminate":
+                terminated = True
+                cleared = 0
+                invalid_action = True
+            else:
+                # noop
+                terminated = False
+                cleared = 0
+                invalid_action = True
+        else:
+            terminated, cleared, invalid_action_engine = self.game.step_action_id(int(used_action_id))
+            invalid_action = bool(invalid_action_engine)
+
+        # Mask mismatch debug (discrete only)
         mask_mismatch = False
         if self.action_mode == "discrete":
-            mask_mismatch = bool(masked_action) != bool(illegal_action)
+            mask_mismatch = bool(masked_action) != bool(invalid_action)
 
-        remapped = False
-        remap_policy: Optional[str] = None
+        if self.max_steps is not None and self._steps >= self.max_steps and not bool(terminated):
+            truncated = True
 
-        applied = False
-        used_rot = int(requested_rot)
-        used_col = int(requested_col)
-        cleared_lines = 0
-        game_over = False
-        st: State = prev_state
+        st = self._snapshot()
+        self._last_state = st
 
-        if not illegal_action:
-            used_rot, used_col, applied = self._apply_rotation_and_column(rot=requested_rot, col=requested_col)
-            if not bool(applied):
-                illegal_action = True
-                illegal_reason = illegal_reason or "collision"
+        sf = self._step_features()
+        cur = cast(Dict[str, Any], sf.get("cur", {}))
+        delta = cast(Dict[str, Any], sf.get("delta", {}))
 
-        if illegal_action:
-            remap_policy = str(self.illegal_action_policy)
+        holes_after = int(cur.get("holes", 0)) if cur else None
+        max_height_after = int(cur.get("max_h", 0)) if cur else None
+        bumpiness_after = int(cur.get("bump", 0)) if cur else None
+        agg_height_after = int(cur.get("agg_h", 0)) if cur else None
 
-            if self.illegal_action_policy == "terminate":
-                st = prev_state
-                cleared_lines = 0
-                game_over = True
-                applied = False
-            elif self.illegal_action_policy == "noop":
-                st = prev_state
-                cleared_lines = 0
-                game_over = False
-                applied = False
-            else:
-                mask = self._legal_mask_joint_discrete(kind=str(placed_kind), py=int(py))
+        delta_holes = int(delta.get("d_holes", 0)) if delta else None
+        delta_max_height = int(delta.get("d_max_h", 0)) if delta else None
+        delta_bumpiness = int(delta.get("d_bump", 0)) if delta else None
+        delta_agg_height = int(delta.get("d_agg_h", 0)) if delta else None
 
-                if self.illegal_action_policy == "random_legal":
-                    aid2 = pick_random_legal_action_id(mask, rng=self.np_random)  # type: ignore[arg-type]
-                else:
-                    aid2 = pick_closest_legal_action_id(
-                        mask,
-                        requested_rot=int(requested_rot),
-                        requested_col=int(requested_col),
-                        board_w=int(self.w),
-                        max_rots=int(self.max_rots),
-                    )
+        if cur:
+            self._prev_feat = (
+                int(cur.get("max_h", 0)),
+                int(cur.get("agg_h", 0)),
+                int(cur.get("holes", 0)),
+                int(cur.get("bump", 0)),
+            )
 
-                if aid2 is None:
-                    st = prev_state
-                    cleared_lines = 0
-                    game_over = True
-                    applied = False
-                else:
-                    remapped = True
-                    r2, c2 = decode_discrete_action_id(action_id=int(aid2), board_w=int(self.w))
-                    used_rot, used_col, applied = self._apply_rotation_and_column(rot=int(r2), col=int(c2))
-                    if not bool(applied):
-                        st = prev_state
-                        cleared_lines = 0
-                        game_over = True
-                        applied = False
-                    else:
-                        st, cleared_lines, game_over, info_engine = self.game.step("hard_drop")
-        else:
-            st, cleared_lines, game_over, info_engine = self.game.step("hard_drop")
-
-        # engine-derived: how many placed cells vanished
         placed_cells_cleared = 0
         placed_all_cells_cleared = False
-        if isinstance(info_engine, dict):
-            try:
-                placed_cells_cleared = int(info_engine.get("placed_cells_cleared", 0))
-            except Exception:
-                placed_cells_cleared = 0
-            placed_all_cells_cleared = bool(info_engine.get("placed_all_cells_cleared", False))
 
-        # metrics + deltas
-        cur_metrics = self._board_metrics()
-
-        holes_after: Optional[int] = None
-        max_height_after: Optional[int] = None
-        bumpiness_after: Optional[int] = None
-        agg_height_after: Optional[int] = None
-
-        delta_holes: Optional[int] = None
-        delta_max_height: Optional[int] = None
-        delta_bumpiness: Optional[int] = None
-        delta_agg_height: Optional[int] = None
-
-        if cur_metrics is not None:
-            holes_after = int(cur_metrics.holes)
-            max_height_after = int(cur_metrics.max_height)
-            bumpiness_after = int(cur_metrics.bumpiness)
-            agg_height_after = int(cur_metrics.agg_height)
-
-        if prev_metrics is not None and cur_metrics is not None:
-            delta_holes = int(cur_metrics.holes - prev_metrics.holes)
-            delta_max_height = int(cur_metrics.max_height - prev_metrics.max_height)
-            delta_bumpiness = int(cur_metrics.bumpiness - prev_metrics.bumpiness)
-            delta_agg_height = int(cur_metrics.agg_height - prev_metrics.agg_height)
-
-        self._prev_board_metrics = cur_metrics
-
-        cleared = int(cleared_lines)
-        terminated = bool(game_over)
-        truncated = bool(self.max_steps is not None and self._steps >= self.max_steps and not terminated)
-
-        # env-only: delta_score
-        prev_score = float(getattr(prev_state, "score", 0.0))
-        next_score = float(getattr(st, "score", 0.0))
+        prev_score = float(prev_state.get("score", 0.0))
+        next_score = float(st.get("score", 0.0))
         delta_score = float(next_score - prev_score)
 
+        # SSOT decode for used action id (if valid range)
+        try:
+            used_rot, used_col = self.game.decode_action_id(int(used_action_id))
+            used_rot = int(used_rot)
+            used_col = int(used_col)
+        except Exception:
+            used_rot, used_col = int(requested_rot), int(requested_col)
+
+        placed_kind = str(prev_state.get("active_kind", "?"))
+
+        # applied iff we actually stepped and engine said it was valid
+        applied = bool((not requested_mask_invalid) and (not invalid_action))
+
         features = build_transition_features(
-            cleared=cleared,
+            cleared=int(cleared),
             placed_cells_cleared=int(placed_cells_cleared),
             placed_all_cells_cleared=bool(placed_all_cells_cleared),
-            terminated=terminated,
+            terminated=bool(terminated),
             placed_kind=str(placed_kind),
             requested_rot=int(requested_rot),
             requested_col=int(requested_col),
             used_rot=int(used_rot),
             used_col=int(used_col),
             applied=bool(applied),
-            illegal_action=bool(illegal_action),
-            illegal_reason=illegal_reason,
-            remapped=bool(remapped),
-            remap_policy=remap_policy,
+            # NOTE: macro_info still uses illegal_* naming.
+            illegal_action=bool(invalid_action),
+            illegal_reason=None,
+            remapped=False,
+            remap_policy=None,
             masked_action=bool(masked_action),
-            redundant_rotation=bool(redundant_rotation),
+            redundant_rotation=False,
             delta_holes=delta_holes,
             delta_max_height=delta_max_height,
             delta_bumpiness=delta_bumpiness,
@@ -428,8 +328,8 @@ class MacroTetrisEnv(MacroActionMixin, gym.Env):
         )
 
         sidebar_env = sidebar_env_rows(
-            illegal_action=bool(illegal_action),
-            redundant_rotation=bool(redundant_rotation),
+            illegal_action=bool(invalid_action),
+            redundant_rotation=False,
             placed_cells_cleared=int(placed_cells_cleared),
             placed_all_cells_cleared=bool(placed_all_cells_cleared),
             delta_holes=delta_holes,
@@ -439,19 +339,17 @@ class MacroTetrisEnv(MacroActionMixin, gym.Env):
         )
 
         info = build_step_info_update(
-            # env truth
-            illegal_action=bool(illegal_action),
-            illegal_reason=illegal_reason,
-            illegal_action_policy=str(self.illegal_action_policy),
-            remapped=bool(remapped),
-            remap_policy=remap_policy,
+            illegal_action=bool(invalid_action),
+            illegal_reason=None,
+            illegal_action_policy=str(self.invalid_action_policy),
+            remapped=False,
+            remap_policy=None,
             applied=bool(applied),
             mask_mismatch=bool(mask_mismatch),
             game_over=bool(terminated),
             delta_score=float(delta_score),
-            # state/presentation
             state=st,
-            cleared=cleared,
+            cleared=int(cleared),
             placed_cells_cleared=int(placed_cells_cleared),
             placed_all_cells_cleared=bool(placed_all_cells_cleared),
             action_mode=str(self.action_mode),
@@ -461,9 +359,9 @@ class MacroTetrisEnv(MacroActionMixin, gym.Env):
             used_rot=int(used_rot),
             used_col=int(used_col),
             masked_action=bool(masked_action),
-            redundant_rotation=bool(redundant_rotation),
-            action_dim=action_dim,
-            masked_action_count=masked_action_count,
+            redundant_rotation=False,
+            action_dim=int(action_dim),
+            masked_action_count=int(masked_action_count),
             episode_idx=int(self._episode_idx),
             episode_step=int(self._steps),
             piece_rule=self._piece_rule_name(),
@@ -476,8 +374,7 @@ class MacroTetrisEnv(MacroActionMixin, gym.Env):
             agg_height_after=agg_height_after,
             delta_agg_height=delta_agg_height,
             sidebar_env=sidebar_env,
-            # engine passthrough
-            engine_info=info_engine if isinstance(info_engine, dict) else None,
+            engine_info={},
         )
 
         shaped = float(
@@ -490,12 +387,11 @@ class MacroTetrisEnv(MacroActionMixin, gym.Env):
             )
         )
 
-        self._last_state = st
         obs = self._obs_from_state(st)
-        return obs, shaped, terminated, truncated, info
+        return obs, shaped, bool(terminated), bool(truncated), info
 
     @property
-    def last_state(self) -> State:
+    def last_state(self) -> Dict[str, Any]:
         st = self._last_state
         if st is None:
             raise RuntimeError("MacroTetrisEnv.last_state accessed before reset()")

@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping, Type, TypeVar, cast
 
+from tetris_rl.config.env_spec import parse_env_spec
 from tetris_rl.config.schema_types import (
     get_mapping,
     get_str,
@@ -11,8 +12,9 @@ from tetris_rl.config.schema_types import (
     require_mapping_strict,
 )
 from tetris_rl.config.snapshot import load_yaml
-from tetris_rl.utils.paths import repo_root as find_repo_root
 from tetris_rl.utils.logging import setup_logger
+from tetris_rl.utils.paths import repo_root as find_repo_root, resolve_repo_or_cfg_path
+
 
 LOG = setup_logger(name="tetris_rl.config.resolve", use_rich=True, level="info")
 
@@ -76,25 +78,12 @@ def _dc_from_mapping(dc: Type[T], obj: Any, *, where: str) -> T:
 
 
 def _hydrate_tagged_params(
-        *,
-        type_value: Any,
-        params_value: Any,
-        params_registry: Mapping[str, Type[Any]],
-        where: str,
+    *,
+    type_value: Any,
+    params_value: Any,
+    params_registry: Mapping[str, Type[Any]],
+    where: str,
 ) -> Any:
-    """
-    Build the correct params dataclass for a tagged-union section.
-
-      section:
-        type: <tag>
-        params: {...}
-
-    -> params_registry[tag](**params)
-
-    Notes:
-    - params may be missing/None => treated as {}
-    - if params already is instance of expected dataclass => returned as-is
-    """
     tag = str(type_value).strip().lower()
     if not tag:
         raise ValueError(f"{where}.type must be a non-empty string")
@@ -118,31 +107,31 @@ def _hydrate_tagged_params(
         raise TypeError(f"{where}.params: failed to build {params_cls.__name__} from {m!r}: {e}") from e
 
 
-def _normalize_col_collapse_backcompat(params: Any) -> Any:
+# =============================================================================
+# Central config patching
+# =============================================================================
+
+def deep_merge(base: Any, patch: Any) -> Any:
     """
-    Back-compat for ColumnCollapseParams:
-      - allow YAML to pass `pooling: ...` (older configs)
-      - map it to `pool` if `pool` is left default / not explicitly set
+    Public deep-merge helper for applying config patches (train.eval.env_override, etc.).
+
+    Rules:
+      - mapping + mapping => recursively merge keys
+      - otherwise => patch replaces base
+      - patch=None => replaces base with None (used to disable warmup etc.)
     """
-    # Avoid importing dataclass type here; duck-type the fields.
-    try:
-        pooling = getattr(params, "pooling", None)
-        pool = getattr(params, "pool", None)
-        if pooling and isinstance(pooling, str):
-            p = str(pooling).strip().lower()
-            if p in {"avg", "max", "avgmax"}:
-                # If user still has pooling, prefer it unless pool was explicitly changed.
-                # Dataclasses are frozen; rebuild with updated pool.
-                # Safe: ColumnCollapseParams ctor signature matches these names.
-                if pool == "avg":  # default in our params class
-                    return type(params)(**{**params.__dict__, "pool": p, "pooling": pooling})
-    except Exception:
-        pass
-    return params
+    if patch is None:
+        return None
+    if isinstance(base, dict) and isinstance(patch, dict):
+        out: dict[str, Any] = dict(base)
+        for k, v in patch.items():
+            out[k] = deep_merge(out.get(k, None), v)
+        return out
+    return patch
 
 
 # =============================================================================
-# Model feature_extractor hydration (single place, all spec modules)
+# Model feature_extractor hydration (single place)
 # =============================================================================
 
 def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
@@ -150,10 +139,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
     Mutates cfg in-place:
       cfg.model.feature_extractor becomes "SB3 features_extractor_kwargs"
       where all typed sub-sections are dataclass instances.
-
-    This is what prevents:
-      AttributeError: 'dict' object has no attribute 'type'
-    inside the feature extractor builders.
     """
     model = root.get("model")
     if model is None:
@@ -219,7 +204,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         if not stem_type or stem_type == "none":
             fe["stem"] = None
         else:
-            # only type='cnn' has structured params
             if stem_type == "cnn":
                 params = stem_m.get("params", None)
                 if params is None:
@@ -230,10 +214,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
                     params,
                     where="cfg.model.feature_extractor.stem.params",
                 )
-            else:
-                # fixed preset stem should have params omitted/None
-                # if user supplied params, let StemConfig(**...) raise (strict)
-                pass
 
             fe["stem"] = _dc_from_mapping(
                 StemConfig,
@@ -254,13 +234,11 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         raise ValueError("cfg.model.feature_extractor.encoder.type must be 'token' or 'spatial'")
 
     if enc_type == "token":
-        # ===== tokenizer (required) =====
         tok = enc_m.get("tokenizer")
         if tok is None:
             raise KeyError("cfg.model.feature_extractor.encoder.tokenizer missing for token encoder")
         tok_m = _ensure_mapping(tok, where="cfg.model.feature_extractor.encoder.tokenizer")
 
-        # layout tagged union
         layout = tok_m.get("layout")
         if layout is None:
             raise KeyError("cfg.model.feature_extractor.encoder.tokenizer.layout missing")
@@ -275,7 +253,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         )
         layout_dc = LayoutConfig(type=cast(Any, str(layout_type).strip().lower()), params=layout_params)
 
-        # board_embedding tagged union
         be = tok_m.get("board_embedding")
         if be is None:
             raise KeyError("cfg.model.feature_extractor.encoder.tokenizer.board_embedding missing")
@@ -290,7 +267,6 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         )
         be_dc = BoardEmbeddingConfig(type=cast(Any, str(be_type).strip().lower()), params=be_params)
 
-        # build TokenizerSpec (top-level typed)
         tok_spec = TokenizerSpec(
             d_model=int(tok_m.get("d_model")),
             layout=layout_dc,
@@ -299,10 +275,8 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
             add_next_token=bool(tok_m.get("add_next_token", False)),
             share_kind_embedding=bool(tok_m.get("share_kind_embedding", True)),
         )
-
         enc_m["tokenizer"] = tok_spec
 
-        # ===== mixer tagged union (required) =====
         mix = enc_m.get("mixer")
         if mix is None:
             raise KeyError("cfg.model.feature_extractor.encoder.mixer missing for token encoder")
@@ -319,11 +293,9 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         )
         enc_m["mixer"] = MixerConfig(type=cast(Any, mix_type), params=mix_params)
 
-        # spatial_head must be absent
         enc_m.pop("spatial_head", None)
 
     else:
-        # ===== spatial encoder =====
         sh = enc_m.get("spatial_head")
         if sh is None:
             raise KeyError("cfg.model.feature_extractor.encoder.spatial_head missing for spatial encoder")
@@ -332,10 +304,9 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
         sh_type = str(sh_m.get("type", "")).strip().lower()
         sh_params_raw = sh_m.get("params", None)
 
-        # Pattern "B": features_dim is NOT inside params anymore; it is passed separately.
         sh_features_dim_raw = sh_m.get("features_dim", None)
         if sh_features_dim_raw is None:
-            raise KeyError("cfg.model.feature_extractor.encoder.spatial_head.features_dim missing (pattern B)")
+            raise KeyError("cfg.model.feature_extractor.encoder.spatial_head.features_dim missing")
 
         sh_params = _hydrate_tagged_params(
             type_value=sh_type,
@@ -344,16 +315,12 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
             where="cfg.model.feature_extractor.encoder.spatial_head",
         )
 
-        # Back-compat fixups for col_collapse configs:
-        sh_params = _normalize_col_collapse_backcompat(sh_params)
-
         enc_m["spatial_head"] = SpatialHeadConfig(
             type=cast(Any, sh_type),
             features_dim=int(sh_features_dim_raw),
             params=sh_params,
         )
 
-        # tokenizer/mixer must be absent
         enc_m.pop("tokenizer", None)
         enc_m.pop("mixer", None)
 
@@ -368,20 +335,14 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
     else:
         aug_m = _ensure_mapping(aug, where="cfg.model.feature_extractor.feature_augmenter")
         aug_type_raw = aug_m.get("type", None)
-
         aug_type = "" if aug_type_raw is None else str(aug_type_raw).strip().lower()
 
-        # Treat null/none/empty as "disabled"
         if aug_type in {"", "none", "null"}:
             if aug_m.get("params", None) not in (None, {}):
-                LOG.warning(
-                    "feature_augmenter disabled (type=%r) but params were provided; ignoring params.",
-                    aug_type_raw,
-                )
+                raise ValueError("feature_augmenter disabled but params were provided")
             fe["feature_augmenter"] = None
         else:
             aug_params_raw = aug_m.get("params", None)
-
             aug_params = _hydrate_tagged_params(
                 type_value=aug_type,
                 params_value=aug_params_raw,
@@ -398,6 +359,10 @@ def _hydrate_model_feature_extractor_config(*, root: dict[str, Any]) -> None:
 # Public entry
 # =============================================================================
 
+# src/tetris_rl/config/resolve.py
+
+from tetris_rl.config.env_spec import parse_env_spec  # add import
+
 def resolve_config(*, cfg: dict[str, Any], cfg_path: Path) -> dict[str, Any]:
     root = require_mapping(cfg, where="cfg")
     specs = get_mapping(root, "specs", default=None, where="cfg.specs")
@@ -413,22 +378,30 @@ def resolve_config(*, cfg: dict[str, Any], cfg_path: Path) -> dict[str, Any]:
             if not raw:
                 return
 
-            p = _resolve_path(raw=raw, cfg_path=cfg_path, repo=repo)
+            p = resolve_repo_or_cfg_path(raw=raw, repo=repo, cfg_path=cfg_path)
             if not p.is_file():
                 raise FileNotFoundError(f"specs.{key} path not found: {p}")
 
             loaded_any = load_yaml(p)
             loaded = require_mapping_strict(loaded_any, where=f"specs.{key} ({p})")
-            root[key] = _unwrap_single_root(loaded=loaded, key=key, where=f"specs.{key} ({p})")
+
+            if key == "env":
+                # SPECIAL: env bundle must contain BOTH env + game
+                bundle = parse_env_spec(obj=loaded, where=f"specs.env ({p})")
+                root["env"] = bundle.env
+                root["game"] = bundle.game
+            else:
+                # train/model: allow wrapped-or-bare
+                root[key] = _unwrap_single_root(loaded=loaded, key=key, where=f"specs.{key} ({p})")
 
         _load_spec("train")
         _load_spec("env")
         _load_spec("model")
 
-    # Always hydrate model.feature_extractor if present
+    # (keep whatever else you do afterwards)
     _hydrate_model_feature_extractor_config(root=root)
-
     return root
 
 
-__all__ = ["resolve_config"]
+
+__all__ = ["resolve_config", "deep_merge"]

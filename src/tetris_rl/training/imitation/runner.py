@@ -117,14 +117,14 @@ def _estimate_epoch_batches(*, ds: ShardDataset, train_sids: list[int], batch_si
 
 
 def run_imitation(
-        *,
-        cfg: Dict[str, Any],
-        model: Any,
-        train_spec: TrainSpec,
-        run_spec: RunSpec,
-        run_dir: Path,
-        repo: Optional[Path] = None,
-        logger: Any = None,
+    *,
+    cfg: Dict[str, Any],
+    model: Any,
+    train_spec: TrainSpec,
+    run_spec: RunSpec,
+    run_dir: Path,
+    repo: Optional[Path] = None,
+    logger: Any = None,
 ) -> Dict[str, Any]:
     repo_p = Path(repo) if repo is not None else repo_root()
 
@@ -165,7 +165,7 @@ def run_imitation(
     split = split_shards_modulo(
         shard_ids=shard_ids,
         base_seed=int(run_spec.seed),
-        eval_mod=50,
+        eval_mod=200,
         eval_mod_offset=0,
         seed_offset=12345,
     )
@@ -180,7 +180,7 @@ def run_imitation(
         tick_unit="samples",
         latest_every=int(train_spec.checkpoints.latest_every),
         eval_every=int(train_spec.eval.eval_every),
-        log_every=50,  # refresh supervised metrics often
+        log_every=50,
     )
 
     latest_core = LatestCheckpointCore(
@@ -201,7 +201,7 @@ def run_imitation(
             base_seed=int(run_spec.seed),
             table_header_every=10,
             progress_unit=str(sched.tick_unit),
-            verbose=1,  # eval@... bar at position=1 inside core
+            verbose=1,
         ),
         cfg=cfg,
         emit=(lambda s: logger.info(s)) if logger is not None else None,
@@ -250,24 +250,14 @@ def run_imitation(
         return None
 
     def _maybe_tick_cores(*, phase: str) -> None:
-        """
-        Tick checkpointing + eval cores.
-
-        We attach offline BC validation (dataset eval split) to the *same* tick
-        as the env-based evaluation, so it shows up in the eval table row and
-        lands in eval_history.jsonl for the same progress_step.
-        """
         counter = _tick_counter(state, sched.tick_unit)
 
         latest_core.maybe_tick(progress_step=int(counter), model=model)
 
         def _extra_metrics() -> Dict[str, Any]:
-            # No eval split => no extra metrics.
             if not eval_sids:
                 return {}
 
-            # Deterministic offline validation: no shard shuffle and no within-shard shuffle.
-            # We still provide a stable seed in case you later add a max_samples cap or other RNG knobs.
             val_seed = seed32_from(base_seed=int(run_spec.seed), stream_id=0xBCE11 + int(counter))
 
             val_iter = iter_bc_batches_from_dataset(
@@ -277,7 +267,7 @@ def run_imitation(
                 base_seed=int(val_seed),
                 shuffle_shards=False,
                 shuffle_within_shard=False,
-                max_samples=0,  # full eval split
+                max_samples=0,
                 drop_last=False,
                 crop_top_rows=int(crop_top_rows),
                 progress_cb=None,
@@ -290,27 +280,15 @@ def run_imitation(
                 max_samples=0,
             )
 
-            # Ensure the keys are namespaced for the eval table & history.
             out: Dict[str, Any] = {}
             if isinstance(val_stats, dict):
                 for k, v in val_stats.items():
-                    # bc_eval_stream currently returns flat keys like "bc_val_loss", ...
                     if not isinstance(k, str):
                         continue
                     kk = k
                     if kk.startswith("bc_val_"):
-                        kk = "bc_val/" + kk[len("bc_val_"):]
+                        kk = "bc_val/" + kk[len("bc_val_") :]
                     out[kk] = v
-
-            # Optional: also push them to logger immediately (EvalCheckpointCore will also record eval/bc_val/* via log_scalar if wired).
-            if logger is not None:
-                try:
-                    for k, v in out.items():
-                        if isinstance(k, str) and isinstance(v, (int, float)):
-                            logger.record(f"imitation/{k}", float(v))
-                except Exception:
-                    pass
-
             return out
 
         eval_core.maybe_tick(
@@ -320,23 +298,28 @@ def run_imitation(
             extra_metrics_fn=_extra_metrics if eval_sids else None,
         )
 
+    # Pre-compute how many samples exist in train split (for sample-total bar).
+    counts: dict[int, int] = {int(r.shard_id): int(r.num_samples) for r in ds.shards}
+    train_total_samples_full = sum(int(counts.get(int(sid), 0)) for sid in train_sids)
+
     for e in range(max(1, int(im.epochs))):
         epoch_seed = seed32_from(base_seed=int(run_spec.seed), stream_id=1009 * (e + 1))
-        est_batches = _estimate_epoch_batches(
-            ds=ds,
-            train_sids=[int(x) for x in train_sids],
-            batch_size=int(im.batch_size),
-            max_samples=int(im.max_samples),
-        )
+
+        # If user caps max_samples, reflect it in the bar total.
+        if int(im.max_samples) > 0:
+            epoch_total_samples = min(int(im.max_samples), int(train_total_samples_full))
+        else:
+            epoch_total_samples = int(train_total_samples_full)
+        epoch_total_samples_or_none = int(epoch_total_samples) if int(epoch_total_samples) > 0 else None
 
         with tqdm(
-                total=int(est_batches) if int(est_batches) > 0 else None,
-                desc=f"bc epoch {int(e + 1)}/{int(im.epochs)}",
-                unit="batch",
-                leave=False,
-                dynamic_ncols=True,
-                position=0,
-                mininterval=0.1,
+            total=epoch_total_samples_or_none,
+            desc=f"bc epoch {int(e + 1)}/{int(im.epochs)}",
+            unit="samp",
+            leave=False,
+            dynamic_ncols=True,
+            position=0,
+            mininterval=0.1,
         ) as epoch_bar, tqdm(
             total=int(len(train_sids)),
             desc="shards",
@@ -374,17 +357,17 @@ def run_imitation(
                         continue
 
                     try:
-                        epoch_bar.update(1)
-                    except Exception:
-                        pass
-
-                    try:
                         act = b.get("action")
                         n = int(getattr(act, "shape", [0])[0])
                     except Exception:
                         n = 0
+
                     if n > 0:
                         state = ImitationRunState(samples_seen=int(state.samples_seen + n), updates=int(state.updates))
+                        try:
+                            epoch_bar.update(int(n))  # <-- samples, not batches
+                        except Exception:
+                            pass
 
                     yield b
 
@@ -411,14 +394,6 @@ def run_imitation(
                         epoch_bar.refresh()
                 except Exception:
                     pass
-
-                if logger is not None:
-                    try:
-                        for k, v in stats.items():
-                            if isinstance(k, str) and isinstance(v, (int, float)):
-                                logger.record(f"imitation/{k}", float(v))
-                    except Exception:
-                        pass
 
                 _maybe_tick_cores(phase="imitation")
 

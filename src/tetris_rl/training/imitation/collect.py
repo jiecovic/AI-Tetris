@@ -10,7 +10,6 @@ from tetris_rl.datagen.schema import (
     NPZ_ACTION,
     NPZ_ACTIVE_KIND,
     NPZ_GRID,
-    NPZ_LEGAL_MASK,
     NPZ_NEXT_KIND,
 )
 from tetris_rl.datagen.shard_reader import ShardDataset
@@ -24,18 +23,13 @@ class SplitShards:
 
 
 def split_shards_modulo(
-        *,
-        shard_ids: Sequence[int],
-        base_seed: int,
-        eval_mod: int,
-        eval_mod_offset: int,
-        seed_offset: int,
+    *,
+    shard_ids: Sequence[int],
+    base_seed: int,
+    eval_mod: int,
+    eval_mod_offset: int,
+    seed_offset: int,
 ) -> SplitShards:
-    """
-    Deterministic shard split with optional seed shift.
-
-    eval iff (shard_id % eval_mod) == ((eval_mod_offset + seed32_from(base_seed, seed_offset)) % eval_mod)
-    """
     ids = [int(x) for x in shard_ids]
     ids.sort()
 
@@ -52,7 +46,21 @@ def split_shards_modulo(
         else:
             tr.append(int(sid))
 
+    # --- fallback: guarantee eval shards when shards exist ---
+    if ids and not ev:
+        if len(ids) == 1:
+            # one-shard dataset: keep train-only semantics, but allow offline eval to run
+            ev = [ids[0]]
+            tr = [ids[0]]
+        else:
+            # move 1 deterministic shard from train -> eval
+            j = seed32_from(base_seed=base_seed, stream_id=0xE11A) % len(tr)
+            ev.append(tr.pop(j))
+            ev.sort()
+            tr.sort()
+
     return SplitShards(train=tr, eval=ev)
+
 
 
 def _maybe_shuffle(rng: np.random.Generator, xs: List[int], enabled: bool) -> List[int]:
@@ -64,11 +72,11 @@ def _maybe_shuffle(rng: np.random.Generator, xs: List[int], enabled: bool) -> Li
 
 
 def _iter_indices(
-        *,
-        n: int,
-        rng: np.random.Generator,
-        shuffle: bool,
-        max_take: int,
+    *,
+    n: int,
+    rng: np.random.Generator,
+    shuffle: bool,
+    max_take: int,
 ) -> np.ndarray:
     idx = np.arange(int(n), dtype=np.int64)
     if shuffle and n > 1:
@@ -108,29 +116,31 @@ def _crop_visible_grid(grid: np.ndarray, *, crop_top_rows: int) -> np.ndarray:
 
 
 def iter_bc_batches_from_dataset(
-        *,
-        ds: ShardDataset,
-        shard_ids: Sequence[int],
-        batch_size: int,
-        base_seed: int,
-        shuffle_shards: bool,
-        shuffle_within_shard: bool,
-        max_samples: int,
-        drop_last: bool,
-        crop_top_rows: int = 0,
-        progress_cb: Any = None,
-        on_shard: Optional[Callable[[int], None]] = None,
+    *,
+    ds: ShardDataset,
+    shard_ids: Sequence[int],
+    batch_size: int,
+    base_seed: int,
+    shuffle_shards: bool,
+    shuffle_within_shard: bool,
+    max_samples: int,
+    drop_last: bool,
+    crop_top_rows: int = 0,
+    progress_cb: Any = None,
+    on_shard: Optional[Callable[[int], None]] = None,
 ) -> Iterator[Dict[str, np.ndarray]]:
     """
     Yield BC batches from datagen shards.
 
-    Output keys:
+    Output keys (BC-only):
       - grid:        (B,H,W) uint8
       - active_kind: (B,)    uint8
       - next_kind:   (B,)    uint8
-      - action:      (B,)    int64
-    Optional:
-      - legal_mask:  (B,A)   bool
+      - action:      (B,)    uint8
+
+    NOTE:
+      Torch conversion (e.g. action -> torch.long for CE loss) happens downstream
+      in the training pipeline, not here.
 
     crop_top_rows:
       If >0, removes that many rows from the TOP of each stored grid sample,
@@ -147,7 +157,6 @@ def iter_bc_batches_from_dataset(
     sids = [int(x) for x in shard_ids]
     sids.sort()
 
-    # global RNG for shard ordering
     rng_global = np.random.default_rng(int(seed32_from(base_seed=int(base_seed), stream_id=0xBCA11)))
     sids = _maybe_shuffle(rng_global, sids, bool(shuffle_shards))
 
@@ -161,13 +170,11 @@ def iter_bc_batches_from_dataset(
         NPZ_ACTIVE_KIND: [],
         NPZ_NEXT_KIND: [],
         NPZ_ACTION: [],
-        NPZ_LEGAL_MASK: [],  # may remain empty always
     }
-    pending_has_mask = False
     pending_n = 0
 
     def _flush() -> Optional[Dict[str, np.ndarray]]:
-        nonlocal pending_n, pending_has_mask
+        nonlocal pending_n
         if pending_n <= 0:
             return None
         b = int(pending_n)
@@ -181,17 +188,11 @@ def iter_bc_batches_from_dataset(
             "grid": np.asarray(grid, dtype=np.uint8),
             "active_kind": np.asarray(ak, dtype=np.uint8).reshape(-1),
             "next_kind": np.asarray(nk, dtype=np.uint8).reshape(-1),
-            "action": np.asarray(act, dtype=np.int64).reshape(-1),
+            "action": np.asarray(act, dtype=np.uint8).reshape(-1),
         }
 
-        if pending_has_mask and pending[NPZ_LEGAL_MASK]:
-            lm = np.concatenate(pending[NPZ_LEGAL_MASK], axis=0)[:b]
-            out["legal_mask"] = np.asarray(lm, dtype=bool)
-
-        # reset buffers
         for k in list(pending.keys()):
             pending[k].clear()
-        pending_has_mask = False
         pending_n = 0
         return out
 
@@ -209,45 +210,28 @@ def iter_bc_batches_from_dataset(
 
         ak = np.asarray(arrays[NPZ_ACTIVE_KIND], dtype=np.uint8).reshape(-1)
         nk = np.asarray(arrays[NPZ_NEXT_KIND], dtype=np.uint8).reshape(-1)
-        act = np.asarray(arrays[NPZ_ACTION], dtype=np.int64).reshape(-1)
+        act = np.asarray(arrays[NPZ_ACTION], dtype=np.uint8).reshape(-1)
 
         n = int(act.shape[0])
         if n <= 0:
             continue
 
-        # per-shard RNG
         shard_seed = seed32_from(base_seed=int(base_seed), stream_id=int(sid))
         rng = np.random.default_rng(int(shard_seed))
 
         max_take_local = int(remaining) if remaining is not None else 0
-
         idx = _iter_indices(n=n, rng=rng, shuffle=bool(shuffle_within_shard), max_take=max_take_local)
 
-        # optional mask
-        lm = None
-        if NPZ_LEGAL_MASK in arrays:
-            try:
-                tmp = np.asarray(arrays[NPZ_LEGAL_MASK], dtype=bool)
-                if tmp.ndim == 2 and int(tmp.shape[0]) == n:
-                    lm = tmp
-            except Exception:
-                lm = None
-
-        # stream into pending buffer
         for j in idx:
             if remaining is not None and remaining <= 0:
                 break
 
             jj = int(j)
 
-            pending[NPZ_GRID].append(grid[jj: jj + 1])
-            pending[NPZ_ACTIVE_KIND].append(ak[jj: jj + 1])
-            pending[NPZ_NEXT_KIND].append(nk[jj: jj + 1])
-            pending[NPZ_ACTION].append(act[jj: jj + 1])
-
-            if lm is not None:
-                pending_has_mask = True
-                pending[NPZ_LEGAL_MASK].append(lm[jj: jj + 1])
+            pending[NPZ_GRID].append(grid[jj : jj + 1])
+            pending[NPZ_ACTIVE_KIND].append(ak[jj : jj + 1])
+            pending[NPZ_NEXT_KIND].append(nk[jj : jj + 1])
+            pending[NPZ_ACTION].append(act[jj : jj + 1])
 
             pending_n += 1
             if remaining is not None:
