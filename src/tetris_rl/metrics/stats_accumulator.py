@@ -96,9 +96,6 @@ class StatsAccumulator:
         self._sum_invalid_action = 0.0
         self._cnt_invalid_action = 0
 
-        self._sum_redundant_rotation = 0.0
-        self._cnt_redundant_rotation = 0
-
         self._sum_game_over = 0.0
         self._cnt_game_over = 0
 
@@ -216,11 +213,6 @@ class StatsAccumulator:
             self._sum_invalid_action += 1.0 if b else 0.0
             self._cnt_invalid_action += 1
 
-        b = _as_bool(tf.get("redundant_rotation"))
-        if b is not None:
-            self._sum_redundant_rotation += 1.0 if b else 0.0
-            self._cnt_redundant_rotation += 1
-
         b = _as_bool(tf.get("game_over"))
         if b is not None:
             self._sum_game_over += 1.0 if b else 0.0
@@ -307,10 +299,6 @@ class StatsAccumulator:
         r = self._rate(self._sum_invalid_action, self._cnt_invalid_action)
         if r is not None:
             out["tf/invalid_action_rate"] = r
-
-        r = self._rate(self._sum_redundant_rotation, self._cnt_redundant_rotation)
-        if r is not None:
-            out["tf/redundant_rotation_rate"] = r
 
         r = self._rate(self._sum_game_over, self._cnt_game_over)
         if r is not None:

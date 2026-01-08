@@ -386,7 +386,6 @@ def main() -> int:
             cleared_lines=int(h2.cleared_lines),
             illegal=int(h2.invalid_action),
             masked=int(h2.masked_action),
-            redrot=int(h2.redundant_rotation),
             score_delta=float(h2.delta_score),
             action_id=h2.action_id,
             action_dim=h2.action_dim,

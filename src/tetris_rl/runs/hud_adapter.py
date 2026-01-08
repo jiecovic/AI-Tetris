@@ -14,7 +14,6 @@ class HudStep:
     invalid_action: bool
 
     masked_action: bool
-    redundant_rotation: bool
 
     # entropy/hist input: requested joint id and its dimension
     action_id: Optional[int]
@@ -94,7 +93,6 @@ def from_info(info: Any) -> HudStep:
             game_over=_safe_bool(tf.get("game_over", False)),
             invalid_action=_safe_bool(tf.get("invalid_action", False)),
             masked_action=_safe_bool(ui.get("masked_action", False)),
-            redundant_rotation=_safe_bool(tf.get("redundant_rotation", False)),
             action_id=action_id,
             action_dim=action_dim,
             action_mode=_safe_str(ui.get("action_mode", "?"), "?"),
@@ -111,7 +109,6 @@ def from_info(info: Any) -> HudStep:
         game_over=_safe_bool(d.get("game_over", False)),
         invalid_action=False,
         masked_action=False,
-        redundant_rotation=False,
         action_id=None,
         action_dim=None,
         action_mode=_safe_str(d.get("action_mode", "?"), "?"),

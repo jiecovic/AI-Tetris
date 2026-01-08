@@ -18,7 +18,6 @@ class StepWindowSummary:
 
     # debug signals (kept for now; may or may not be shown in HUD)
     sum_masked: int
-    sum_redrot: int
 
     avg_score_delta: float
     avg_episode_len: float
@@ -61,7 +60,6 @@ class StepWindow:
         self._illegal: Deque[int] = deque()
 
         self._masked: Deque[int] = deque()
-        self._redrot: Deque[int] = deque()
         self._score_delta: Deque[float] = deque()
 
         # Requested-action tracking (for entropy); action_id is joint id (rot*w + col).
@@ -79,7 +77,6 @@ class StepWindow:
         self._lines.clear()
         self._illegal.clear()
         self._masked.clear()
-        self._redrot.clear()
         self._score_delta.clear()
         self._action_id.clear()
         self._action_dim = None
@@ -102,7 +99,6 @@ class StepWindow:
             cleared_lines: int,
             illegal: int,
             masked: int,
-            redrot: int,
             score_delta: float = 0.0,
             action_id: Optional[int] = None,
             action_dim: Optional[int] = None,
@@ -132,7 +128,6 @@ class StepWindow:
         self._illegal.append(1 if int(illegal) != 0 else 0)
 
         self._masked.append(1 if int(masked) != 0 else 0)
-        self._redrot.append(1 if int(redrot) != 0 else 0)
         self._score_delta.append(float(score_delta))
 
         if action_dim is not None:
@@ -156,7 +151,6 @@ class StepWindow:
             self._lines.popleft()
             self._illegal.popleft()
             self._masked.popleft()
-            self._redrot.popleft()
             self._score_delta.popleft()
             self._action_id.popleft()
 
@@ -213,7 +207,6 @@ class StepWindow:
                 sum_lines=0,
                 avg_illegal=0.0,
                 sum_masked=0,
-                sum_redrot=0,
                 avg_score_delta=0.0,
                 avg_episode_len=float(avg_ep),
                 action_entropy=float(ent),
@@ -234,7 +227,6 @@ class StepWindow:
             sum_lines=int(sum(self._lines)),
             avg_illegal=float(avg_illegal),
             sum_masked=int(sum(self._masked)),
-            sum_redrot=int(sum(self._redrot)),
             avg_score_delta=float(s_sd / denom),
             avg_episode_len=float(avg_ep),
             action_entropy=float(ent),

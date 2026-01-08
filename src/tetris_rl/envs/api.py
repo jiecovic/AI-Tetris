@@ -32,8 +32,6 @@ class TransitionFeatures:
     Mask/debug-only signals (mainly for MaskablePPO / sanity checks):
       - masked_action: whether the requested joint Discrete(rot×col) action was masked out as illegal.
                        Under “one truth”, this should agree with invalid_action in discrete mode.
-      - redundant_rotation: requested_rot >= num_rotations(kind) (asset-level invalid rotation).
-                            This is a *subset* of strict illegality; useful to separate causes.
 
     Optional shaping/diagnostics:
       - delta_holes / delta_max_height / delta_bumpiness / delta_agg_height: board metric deltas vs previous step.
