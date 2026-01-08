@@ -16,7 +16,7 @@ train:
         type: null                 # or params.enabled: false
 
   imitation:
-    enabled: true                  # enable imitation (behavior cloning) phase
+    enabled: false                  # enable imitation (behavior cloning) phase
     dataset_dir: datasets/bc/heuristic_uniform_noise_depth1  # path to offline dataset
     epochs: 1                       # number of epochs over dataset
     batch_size: 512                 # batch size for BC updates
