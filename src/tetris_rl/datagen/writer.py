@@ -97,8 +97,17 @@ def init_manifest(
     )
 
 
-def write_manifest(*, dataset_dir: Path, manifest: DatasetManifest) -> Path:
+def write_manifest(*, dataset_dir: Path, manifest: DatasetManifest, overwrite: bool = False) -> Path:
+    """
+    Write manifest.json atomically.
+
+    Safety: by default, refuses to overwrite an existing manifest.json.
+    Callers that intentionally update the manifest must pass overwrite=True.
+    """
     path = Path(dataset_dir) / "manifest.json"
+    if path.exists() and not bool(overwrite):
+        raise FileExistsError(f"refusing to overwrite existing manifest.json: {path}")
+
     payload = json.dumps(
         manifest,
         default=_json_default,
@@ -163,7 +172,7 @@ def append_shard_to_manifest(*, dataset_dir: Path, shard: ShardInfo) -> Path:
     m_dict["shards"] = out
 
     updated = DatasetManifest(**m_dict)
-    return write_manifest(dataset_dir=ds, manifest=updated)
+    return write_manifest(dataset_dir=ds, manifest=updated, overwrite=True)
 
 
 # -----------------------------------------------------------------------------
