@@ -141,7 +141,6 @@ class EvalCheckpointCore:
             "[eval] cols: "
             f"{self._t_col_name()}=progress  phase=caller(rl|imitation)  upd=best updates  steps=eval budget used  ep=episodes finished in budget  "
             "rwd/s=return_mean/steps_mean  ep_len=steps_mean (done=go or trunc)  ill%=invalid_action_rate  "
-            "bc_val_*=optional offline validation metrics (if wired by caller)"
         )
         self.emit("")
 
