@@ -13,17 +13,54 @@ The codebase is intentionally flexible and YAML-driven, allowing rapid experimen
 
 ### 🧠 Learning approaches
 
-* **Pure RL (model-free)** using Stable-Baselines3 (PPO / Maskable PPO / DQN)
-* **Behavior Cloning / Policy Distillation**
+This project combines **heuristic planning**, **imitation learning**, and **reinforcement learning** for Tetris.
 
-  * From a heuristic Tetris agent with:
+#### Heuristic expert (Codemy-style)
 
-    * depth-0 (greedy)
-    * depth-1 lookahead
-  * Inspired by:
+A hand-crafted expert inspired by *The Near-Perfect Tetris Bot* (CodemyRoad) is used as a starting point.
 
-    * *The Near Perfect Tetris Bot* (CodemyRoad)
-* Planned: **RL fine-tuning of BC agents** (annealing, hybrid training)
+The expert uses a **fixed linear heuristic value function** over global board features (e.g. holes, aggregate height, bumpiness) and performs **one-step lookahead**:
+
+* all legal placements of the current tetromino are simulated
+* the resulting boards are scored by the heuristic
+* the best placement is selected
+
+This corresponds to **depth-1 evaluation / horizon-1 control** and works extremely well under the **7-bag tetromino generator**, but degrades under **uniform random tetromino sampling**, where future variance is much higher.
+
+---
+
+#### Extended stochastic lookahead (same heuristic)
+
+Without changing or re-optimizing the heuristic score function, the expert is extended to **deeper evaluation under uncertainty**:
+
+* for each candidate placement of the current tetromino,
+* the **expected heuristic score after the next tetromino** is computed,
+* assuming a **uniform distribution over the 7 tetromino types (1/7 each)**.
+
+This yields **depth-2 evaluation with horizon-1 control**: only the current action is chosen, but future randomness is explicitly accounted for.
+
+Despite using the *same heuristic*, this extension produces **near-perfect play under uniform tetromino sampling**, at the cost of very high computational expense.
+
+---
+
+#### Behavior cloning & distillation
+
+Because the stochastic lookahead expert is too slow, its decisions are **behavior-cloned** into a fast neural policy.
+
+The resulting agent:
+
+* runs at **feed-forward network speed**,
+* observes only the **current board**, **current tetromino**, and **next tetromino**,
+* retains the performance of the depth-2 expert.
+
+This yields a **near-perfect Tetris agent for uniformly random tetromino sequences**, without online search or lookahead.
+
+---
+
+#### Reinforcement learning
+
+The project also supports **pure model-free RL** (PPO, Maskable PPO, DQN) and is set up for future **BC → RL fine-tuning** experiments, enabling systematic comparison between planning-based experts and learned policies.
+
 
 ### 🧱 Models & representations
 
