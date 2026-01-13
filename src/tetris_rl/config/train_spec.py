@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from tetris_rl.config.schema_types import (
     get_bool,
@@ -89,6 +89,14 @@ class RLAlgoSpec:
 class RLSpec:
     enabled: bool = True
     total_timesteps: int = 200_000
+
+    # Resume training from a previous run folder.
+    # Semantics:
+    #   - if set to "experiments/cnn_run_013", we load:
+    #       experiments/cnn_run_013/checkpoints/latest.zip
+    #   - if empty or missing => start fresh
+    resume: Optional[str] = None
+
     algo: RLAlgoSpec = field(default_factory=RLAlgoSpec)
 
 
@@ -108,7 +116,7 @@ def parse_train_spec(*, cfg: Dict[str, Any]) -> TrainSpec:
         checkpoints: { latest_every }
         eval:        { mode, steps, eval_every, deterministic, seed_offset, num_envs, env_override }
         imitation:   { enabled, dataset_dir, epochs, batch_size, learning_rate, max_grad_norm, shuffle, max_samples, ... }
-        rl:          { enabled, total_timesteps, algo: { type, params } }
+        rl:          { enabled, total_timesteps, resume, algo: { type, params } }
     """
     root = require_mapping(cfg, where="cfg")
     train = require_mapping_strict(root.get("train", None), where="cfg.train")
@@ -221,6 +229,9 @@ def parse_train_spec(*, cfg: Dict[str, Any]) -> TrainSpec:
         get_int(rl_obj, "total_timesteps", default=RLSpec.total_timesteps, where="cfg.train.rl.total_timesteps"),
     )
 
+    resume_raw = get_str(rl_obj, "resume", default="", where="cfg.train.rl.resume").strip()
+    resume: Optional[str] = resume_raw if resume_raw else None
+
     algo_obj = require_mapping(rl_obj.get("algo", None), where="cfg.train.rl.algo")
     algo_type = get_str(algo_obj, "type", default=RLAlgoSpec.type, where="cfg.train.rl.algo.type").strip().lower()
     if algo_type not in {"ppo", "maskable_ppo", "dqn"}:
@@ -232,6 +243,7 @@ def parse_train_spec(*, cfg: Dict[str, Any]) -> TrainSpec:
     rl = RLSpec(
         enabled=get_bool(rl_obj, "enabled", default=RLSpec.enabled, where="cfg.train.rl.enabled"),
         total_timesteps=int(total_timesteps),
+        resume=resume,
         algo=RLAlgoSpec(type=str(algo_type), params=dict(algo_params)),
     )
 

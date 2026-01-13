@@ -75,6 +75,23 @@ def _build_eval_cfg(*, cfg: Dict[str, Any], train: Any) -> Dict[str, Any]:
     return merged
 
 
+def _resolve_resume_checkpoint(*, resume: str) -> Path:
+    """
+    Resolve a resume target.
+
+    Project semantics:
+      - If `resume` points to a run directory, resume from:
+          <resume>/checkpoints/latest.zip
+      - If `resume` points directly to a .zip file, use it as-is.
+    """
+    p = Path(resume)
+    if p.suffix.lower() == ".zip":
+        return p
+
+    # Treat as run dir (as requested: cnn_run_013 -> always checkpoints/latest.zip)
+    return p / "checkpoints" / "latest.zip"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", type=str, default="configs/mlp.yaml")
@@ -105,16 +122,69 @@ def main() -> int:
     built = make_vec_env_from_cfg(cfg=cfg, run_spec=run)
     logger.info(f"[timing] vec env built: {time.perf_counter() - t0:.2f}s")
 
+    # ==============================================================
+    # Model (fresh or resume)
+    # ==============================================================
     t0 = time.perf_counter()
-    logger.info("[timing] building model...")
-    model = make_model_from_cfg(
-        cfg=cfg,
-        train_spec=train,
-        run_spec=run,
-        vec_env=built.vec_env,
-        tensorboard_log=paths.tb_dir,
-    )
-    logger.info(f"[timing] model built: {time.perf_counter() - t0:.2f}s")
+    resume_target = getattr(getattr(train, "rl", None), "resume", None)
+    is_resume = bool(resume_target and str(resume_target).strip())
+
+    if is_resume:
+        resume_ckpt = _resolve_resume_checkpoint(resume=str(resume_target).strip())
+        logger.info(f"[resume] target={resume_target!r}")
+        logger.info(f"[resume] ckpt={resume_ckpt.resolve() if resume_ckpt.exists() else resume_ckpt}")
+
+        if not resume_ckpt.exists():
+            raise FileNotFoundError(
+                f"resume checkpoint not found: {resume_ckpt} "
+                f"(from train.rl.resume={resume_target!r})"
+            )
+
+        algo_type = str(train.rl.algo.type).strip().lower()
+        device = str(run.device).strip() or "auto"
+
+        logger.info("[timing] loading model from checkpoint...")
+        if algo_type == "maskable_ppo":
+            from sb3_contrib.ppo_mask import MaskablePPO
+
+            model = MaskablePPO.load(
+                path=str(resume_ckpt),
+                env=built.vec_env,
+                device=device,
+            )
+            model._tetris_algo_type = "maskable_ppo"
+        elif algo_type == "ppo":
+            from stable_baselines3 import PPO
+
+            model = PPO.load(
+                path=str(resume_ckpt),
+                env=built.vec_env,
+                device=device,
+            )
+            model._tetris_algo_type = "ppo"
+        elif algo_type == "dqn":
+            from stable_baselines3 import DQN
+
+            model = DQN.load(
+                path=str(resume_ckpt),
+                env=built.vec_env,
+                device=device,
+            )
+            model._tetris_algo_type = "dqn"
+        else:
+            raise ValueError(f"unsupported algo type for resume: {algo_type!r}")
+
+        logger.info(f"[timing] model loaded: {time.perf_counter() - t0:.2f}s")
+    else:
+        logger.info("[timing] building model...")
+        model = make_model_from_cfg(
+            cfg=cfg,
+            train_spec=train,
+            run_spec=run,
+            vec_env=built.vec_env,
+            tensorboard_log=paths.tb_dir,
+        )
+        logger.info(f"[timing] model built: {time.perf_counter() - t0:.2f}s")
 
     logger.info(f"[train] run_dir={paths.run_dir.resolve()}")
     logger.info(f"[train] tb_dir={(paths.tb_dir.resolve() if paths.tb_dir is not None else None)}")
@@ -148,7 +218,7 @@ def main() -> int:
 
     log_runtime_info(logger=logger)
 
-    # algo tag set by model_factory
+    # algo tag set by model_factory (or by resume loader above)
     algo_type = str(getattr(model, "_tetris_algo_type", "")).strip().lower()
 
     # Only PPO-like algos have PPO params to log
@@ -228,6 +298,7 @@ def main() -> int:
             total_timesteps=int(train.rl.total_timesteps),
             callback=cb_list,
             progress_bar=True,
+            reset_num_timesteps=not is_resume,
         )
         model.save(str(paths.ckpt_dir / "final.zip"))
     else:
