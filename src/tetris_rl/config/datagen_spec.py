@@ -49,15 +49,9 @@ class DataGenNoiseSpec:
 
 
 @dataclass(frozen=True)
-class DataGenLabelsSpec:
-    record_rewardfit: bool = False
-
-
-@dataclass(frozen=True)
 class DataGenGenerationSpec:
     episode_max_steps: Optional[int] = None
     noise: DataGenNoiseSpec = field(default_factory=DataGenNoiseSpec)
-    labels: DataGenLabelsSpec = field(default_factory=DataGenLabelsSpec)
 
 
 # -----------------------------------------------------------------------------
@@ -190,12 +184,12 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
     )
 
     # ---------------------------
-    # generation + noise + labels
+    # generation + noise
     # ---------------------------
     gen_obj = require_mapping_strict(
         get_mapping(root, "generation", default={}, where="cfg.generation"),
         where="cfg.generation",
-        allowed_keys={"episode_max_steps", "noise", "labels"},
+        allowed_keys={"episode_max_steps", "noise"},
     )
 
     episode_max_steps_raw = gen_obj.get("episode_max_steps", None)
@@ -227,25 +221,9 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
         ),
     )
 
-    labels_obj = require_mapping_strict(
-        get_mapping(gen_obj, "labels", default={}, where="cfg.generation.labels"),
-        where="cfg.generation.labels",
-        allowed_keys={"record_rewardfit"},
-    )
-
-    labels = DataGenLabelsSpec(
-        record_rewardfit=get_bool(
-            labels_obj,
-            "record_rewardfit",
-            default=DataGenLabelsSpec.record_rewardfit,
-            where="cfg.generation.labels.record_rewardfit",
-        ),
-    )
-
     generation = DataGenGenerationSpec(
         episode_max_steps=episode_max_steps,
         noise=noise,
-        labels=labels,
     )
 
     # ---------------------------

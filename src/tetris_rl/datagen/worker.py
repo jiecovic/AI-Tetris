@@ -78,9 +78,6 @@ def worker_generate_shards(
       - next_kind:   uint8  (N,)
       - action:      uint8  (N,)
     """
-    if bool(spec.generation.labels.record_rewardfit):
-        raise RuntimeError("record_rewardfit=true is disabled for the BC-only datagen path.")
-
     out_dir = Path(dataset_dir)
     shards_dir = out_dir / "shards"
     shards_dir.mkdir(parents=True, exist_ok=True)

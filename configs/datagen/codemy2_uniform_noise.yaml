@@ -41,9 +41,6 @@ generation:
     interleave_prob: 0.0
     interleave_max_steps: 1
 
-  labels:
-    record_rewardfit: false
-
 
 # ------------------------------------------------------------------
 # Expert
