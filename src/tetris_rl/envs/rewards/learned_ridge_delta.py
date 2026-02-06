@@ -29,18 +29,18 @@ class LearnedRidgeDeltaReward(RewardFn):
     """
 
     # === Learned coefficients (SIGNED) ===
-    w_placed_cells_cleared: float = +1.774651
+    w_lines_cleared: float = +1.774651
     w_delta_holes: float = -0.477397
     w_delta_max_height: float = -0.067596
     w_delta_bumpiness: float = -0.106060
 
     # Learned bias (SIGNED)
     # bias: float = +1.160576
-    bias: float = 0.5
+    bias: float = 0.0
 
     # Penalties (POSITIVE magnitudes)
-    illegal_penalty: float = 10.0
-    terminal_penalty: float = 10.0
+    illegal_penalty: float = 5.0
+    terminal_penalty: float = 5.0
 
     def __call__(
             self,
@@ -63,7 +63,7 @@ class LearnedRidgeDeltaReward(RewardFn):
             return float(r)
 
         # placed cells cleared (missing -> 0)
-        pcc = int(getattr(features, "placed_cells_cleared", 0) or 0)
+        pcc = int(getattr(features, "cleared_lines", 0) or 0)
 
         # deltas (missing -> 0.0)
         dh = float(getattr(features, "delta_holes", 0) or 0)
@@ -71,7 +71,7 @@ class LearnedRidgeDeltaReward(RewardFn):
         db = float(getattr(features, "delta_bumpiness", 0) or 0)
 
         # learned linear reward (all signs live in weights)
-        r += float(self.w_placed_cells_cleared) * float(pcc)
+        r += float(self.w_lines_cleared) * float(pcc)
         r += float(self.w_delta_holes) * float(dh)
         r += float(self.w_delta_max_height) * float(dmh)
         r += float(self.w_delta_bumpiness) * float(db)

@@ -13,6 +13,8 @@ from tetris_rl.envs.rewards.shaped import ShapedMacroReward
 from tetris_rl.envs.rewards.sparse_reward import SparseReward
 from tetris_rl.envs.rewards.heuristic_delta_piecewise import HeuristicDeltaPiecewiseReward
 from tetris_rl.envs.rewards.heuristic_linear import HeuristicLinear
+from tetris_rl.envs.rewards.heuristic_expert_shaping import HeuristicExpertShaping
+from tetris_rl.envs.rewards.heuristic_phi_window import HeuristicPhiWindowReward
 
 
 # - imports + plain dicts only
@@ -33,4 +35,6 @@ REWARD_REGISTRY: Mapping[str, Any] = {
     "learned_ridge": LearnedRidgeDeltaReward,
     "heuristic_linear": HeuristicLinear,
     "sparse_reward": SparseReward,
+    "heuristic_expert": HeuristicExpertShaping,
+    "heuristic_window": HeuristicPhiWindowReward,
 }

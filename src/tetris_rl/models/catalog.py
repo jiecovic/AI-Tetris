@@ -16,6 +16,14 @@ from typing import Any, Mapping
 from tetris_rl.models.spatial.preprocessor import BinarySpatialPreprocessor
 from tetris_rl.models.spatial.stems.cnn_stem import CNNStem
 from tetris_rl.models.spatial.stems.conv3x3_32_32_64 import Conv3x3_32_32_64Stem
+from tetris_rl.models.spatial.stems.conv1x3_32x4_64_5l import Conv1x3_32x4_64_5LStem
+from tetris_rl.models.spatial.stems.conv3x3_32_32_64_64_128_5l import Conv3x3_32_32_64_64_128_5LStem
+from tetris_rl.models.spatial.stems.conv3x3_32_32_64_row1_col2_128 import (
+    Conv3x3_32_32_64Row1Col2_128Stem,
+)
+from tetris_rl.models.spatial.stems.conv3x3_32_32_64_row1_col3_128 import (
+    Conv3x3_32_32_64Row1Col3_128Stem,
+)
 
 from tetris_rl.models.mixers.mlp_mixer import MLPMixer
 from tetris_rl.models.mixers.transformer_mixer import TransformerMixer
@@ -45,7 +53,12 @@ SPATIAL_PREPROCESSOR_REGISTRY: Mapping[str, Any] = {
 STEM_REGISTRY: Mapping[str, Any] = {
     "cnn": CNNStem,  # generic configurable family
     "conv3x3_32_32_64": Conv3x3_32_32_64Stem,  # fixed, report-exact stem
+    "conv1x3_32x4_64_5l": Conv1x3_32x4_64_5LStem,
+    "conv3x3_32_32_64_64_128_5l": Conv3x3_32_32_64_64_128_5LStem,
+    "conv3x3_32_32_64_row1_col2_128": Conv3x3_32_32_64Row1Col2_128Stem,
+    "conv3x3_32_32_64_row1_col3_128": Conv3x3_32_32_64Row1Col3_128Stem,
 }
+
 
 # ---------------------------------------------------------------------
 # Token mixers

@@ -101,11 +101,48 @@ def deep(ctx: ProfileContext) -> list[nn.Module]:
         _drop(p),
     ]
 
+def deep_l5(ctx: ProfileContext) -> list[nn.Module]:
+    D = int(ctx.d_model)
+    p = float(ctx.dropout)
+
+    c = max(1, D // 8)
+
+    c1 = c
+    c2 = min(D, 2 * c1)
+    c3 = min(D, 2 * c2)
+    c4 = min(D, 2 * c3)
+
+    return [
+        nn.Conv1d(ctx.in_ch, c1, kernel_size=3, stride=1, padding=0, bias=True),
+        nn.ReLU(inplace=False),
+        _drop(p),
+
+        nn.Conv1d(c1, c2, kernel_size=3, stride=1, padding=0, bias=True),
+        nn.ReLU(inplace=False),
+        _drop(p),
+
+        nn.Conv1d(c2, c3, kernel_size=3, stride=1, padding=0, bias=True),
+        nn.ReLU(inplace=False),
+        _drop(p),
+
+        nn.Conv1d(c3, c4, kernel_size=3, stride=1, padding=0, bias=True),
+        nn.ReLU(inplace=False),
+        _drop(p),
+
+        nn.Conv1d(c4, D, kernel_size=3, stride=1, padding=0, bias=True),
+        nn.ReLU(inplace=False),
+        _drop(p),
+    ]
+
+
+
+
 
 CONV1D_PRESETS: Dict[str, ProfileFn] = {
     "tiny": tiny,
     "base": base,
     "deep": deep,
+    "deep_l5": deep_l5,
 }
 
 

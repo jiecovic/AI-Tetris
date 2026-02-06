@@ -36,14 +36,14 @@ class MacroTetrisEnv(gym.Env):
     metadata = {"render_modes": []}
 
     def __init__(
-        self,
-        *,
-        game: Any,  # PyO3 TetrisEngine
-        reward_fn: RewardFn,
-        max_steps: Optional[int] = None,
-        action_mode: ActionMode = "discrete",
-        invalid_action_policy: InvalidActionPolicy = "noop",
-        warmup: WarmupFn | None = None,
+            self,
+            *,
+            game: Any,  # PyO3 TetrisEngine
+            reward_fn: RewardFn,
+            max_steps: Optional[int] = None,
+            action_mode: ActionMode = "discrete",
+            invalid_action_policy: InvalidActionPolicy = "noop",
+            warmup: WarmupFn | None = None,
     ) -> None:
         super().__init__()
         self.game = game
@@ -303,6 +303,7 @@ class MacroTetrisEnv(gym.Env):
             requested_col=int(requested_col),
             used_rot=int(used_rot),
             used_col=int(used_col),
+            used_action_id=int(used_action_id),
             applied=bool(applied),
             invalid_action=bool(invalid_action),
             invalid_action_policy=None,
@@ -356,8 +357,12 @@ class MacroTetrisEnv(gym.Env):
             agg_height_after=agg_height_after,
             delta_agg_height=delta_agg_height,
             sidebar_env=sidebar_env,
-            engine_info={},
+            engine_info={
+            },
         )
+
+        info_for_reward = dict(info)
+        info_for_reward["engine_info"] = {"game": self.game}
 
         shaped = float(
             self.reward_fn(
@@ -365,7 +370,7 @@ class MacroTetrisEnv(gym.Env):
                 action=action,
                 next_state=st,
                 features=features,
-                info=info,
+                info=info_for_reward,
             )
         )
 

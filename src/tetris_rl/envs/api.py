@@ -52,6 +52,7 @@ class TransitionFeatures:
     requested_column: int
     used_rotation: int
     used_column: int
+    used_action_id: int
 
     applied: bool
     invalid_action: bool

@@ -2,11 +2,11 @@ env:
   type: macro                 # MacroTetrisEnv (raw Dict obs only)
   params:
     action_mode: discrete     # discrete | multidiscrete
-    max_steps: 10_000          # null disables truncation
+    max_steps: 500          # null disables truncation
     invalid_action_policy: noop   # noop | terminate | closest_legal | random_legal
 
   reward:
-    type: learned_ridge
+    type: heuristic_window
     params: { }
 
 game:

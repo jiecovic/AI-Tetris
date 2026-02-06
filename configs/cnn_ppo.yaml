@@ -4,12 +4,12 @@ run:
   out_root: experiments
   tensorboard: true
   device: cuda
-  n_envs: 16
-  vec: dummy
+  n_envs: 32
+  vec: subproc
 
 
 # point to sub-configs (paths are strings)
 specs:
   env: configs/env_bundles/macro_discrete_warmup.yaml
-  model: configs/models/cnn1.yaml
+  model: configs/models/cnn3.yaml
   train: configs/trains/ppo_bc_eval.yaml

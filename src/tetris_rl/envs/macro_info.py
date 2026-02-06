@@ -76,6 +76,7 @@ def build_transition_features(
     requested_col: int,
     used_rot: int,
     used_col: int,
+    used_action_id: int,
     applied: bool,
     invalid_action: bool,
     invalid_action_policy: Optional[str],
@@ -97,6 +98,7 @@ def build_transition_features(
         requested_column=int(requested_col),
         used_rotation=int(used_rot),
         used_column=int(used_col),
+        used_action_id=int(used_action_id),
         applied=bool(applied),
         invalid_action=bool(invalid_action),
         invalid_action_policy=str(invalid_action_policy) if invalid_action_policy is not None else None,
@@ -207,7 +209,7 @@ def build_step_info_update(
         ui["masked_action_count"] = int(masked_action_count)
 
     info: Dict[str, Any] = {}
-    info.update(engine_info)
+    info["engine_info"] = dict(engine_info)
     info["tf"] = tf
     info["game"] = game
     info["ui"] = ui
