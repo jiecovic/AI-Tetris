@@ -7,7 +7,7 @@ from pydantic import Field, field_validator
 from tetris_rl.config.base import ConfigBase
 
 
-class RewardSpec(ConfigBase):
+class RewardConfig(ConfigBase):
     type: str
     params: Dict[str, Any] = Field(default_factory=dict)
 
@@ -20,7 +20,7 @@ class RewardSpec(ConfigBase):
 class EnvConfig(ConfigBase):
     type: str
     params: Dict[str, Any] = Field(default_factory=dict)
-    reward: RewardSpec
+    reward: RewardConfig
 
     @field_validator("type", mode="before")
     @classmethod
@@ -28,5 +28,4 @@ class EnvConfig(ConfigBase):
         return str(v).strip().lower()
 
 
-__all__ = ["EnvConfig", "RewardSpec"]
-
+__all__ = ["EnvConfig", "RewardConfig"]

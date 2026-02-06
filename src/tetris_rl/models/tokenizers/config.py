@@ -128,7 +128,7 @@ class BoardEmbeddingConfig(ConfigBase):
 # ---------------------------------------------------------------------
 
 
-class TokenizerSpec(ConfigBase):
+class TokenizerConfig(ConfigBase):
     d_model: int = Field(ge=1)
     layout: LayoutConfig
     board_embedding: BoardEmbeddingConfig
@@ -150,8 +150,7 @@ __all__ = [
     "Conv1DEmbedParams",
     "LayoutConfig",
     "BoardEmbeddingConfig",
-    "TokenizerSpec",
+    "TokenizerConfig",
     "TOKENIZER_LAYOUT_PARAMS_REGISTRY",
     "TOKENIZER_BOARD_EMBED_PARAMS_REGISTRY",
 ]
-

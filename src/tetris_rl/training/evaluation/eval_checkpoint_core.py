@@ -11,8 +11,8 @@ try:
 except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
-from tetris_rl.config.run_spec import RunSpec
-from tetris_rl.config.train_spec import TrainEvalSpec, TrainSpec
+from tetris_rl.runs.config import RunConfig
+from tetris_rl.training.config import TrainEvalConfig, TrainConfig
 from tetris_rl.runs.checkpoint_manager import CheckpointManager, CheckpointPaths
 from tetris_rl.training.evaluation import evaluate_model
 from tetris_rl.training.evaluation.progress_ticker import ProgressTicker
@@ -50,10 +50,10 @@ def _mode_allows_phase(mode: str, phase: str) -> bool:
 class EvalCheckpointCoreSpec:
     checkpoint_dir: Path
     eval_every: int
-    train_spec: TrainSpec
-    run_spec: RunSpec
+    train_cfg: TrainConfig
+    run_cfg: RunConfig
 
-    eval: TrainEvalSpec = field(default_factory=TrainEvalSpec)
+    eval: TrainEvalConfig = field(default_factory=TrainEvalConfig)
 
     # injected by wiring code (cli/train.py)
     base_seed: int = 0
@@ -322,8 +322,8 @@ class EvalCheckpointCore:
             metrics = evaluate_model(
                 model=model,
                 cfg=self.cfg,  # wiring only
-                train_spec=self.spec.train_spec,
-                run_spec=self.spec.run_spec,
+                train_cfg=self.spec.train_cfg,
+                run_cfg=self.spec.run_cfg,
                 eval_steps=eval_steps,
                 deterministic=deterministic,
                 seed_base=seed_base,
@@ -353,7 +353,7 @@ class EvalCheckpointCore:
         # Gate intermediate eval by config mode, but do NOT print mode in the table (it's static config).
         mode = str(self.spec.eval.mode).strip().lower()
         if mode not in {"off", "rl", "imitation", "both"}:
-            raise ValueError(f"TrainEvalSpec.mode must be off|rl|imitation|both (got {self.spec.eval.mode!r})")
+            raise ValueError(f"TrainEvalConfig.mode must be off|rl|imitation|both (got {self.spec.eval.mode!r})")
 
         if not _mode_allows_phase(mode, str(phase)):
             return False

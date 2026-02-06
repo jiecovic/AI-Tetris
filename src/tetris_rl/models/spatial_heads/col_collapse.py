@@ -67,7 +67,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from tetris_rl.config.model.spatial_head_spec import ColumnCollapseParams
+from tetris_rl.models.spatial_heads.config import ColumnCollapseParams
 from tetris_rl.models.api import Specials, SpatialFeatures
 from tetris_rl.models.layers.activations import make_activation
 from tetris_rl.models.spatial_heads.base import BaseSpatialHead

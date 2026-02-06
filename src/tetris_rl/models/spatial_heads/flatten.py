@@ -15,7 +15,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from tetris_rl.config.model.spatial_head_spec import FlattenParams
+from tetris_rl.models.spatial_heads.config import FlattenParams
 from tetris_rl.models.api import Specials, SpatialFeatures
 from tetris_rl.models.spatial_heads.base import BaseSpatialHead
 

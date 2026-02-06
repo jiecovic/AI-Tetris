@@ -7,8 +7,8 @@ from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, cast
 import numpy as np
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv
 
-from tetris_rl.config.run_spec import RunSpec
-from tetris_rl.config.train_spec import TrainSpec
+from tetris_rl.runs.config import RunConfig
+from tetris_rl.training.config import TrainConfig
 from tetris_rl.metrics import StatsAccumulator, StatsAccumulatorConfig
 from tetris_rl.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.utils.config_merge import merge_cfg_for_eval
@@ -100,8 +100,8 @@ class _SlotState:
 def _build_eval_vec_env(
     *,
     cfg: Dict[str, Any],
-    train_spec: TrainSpec,
-    run_spec: RunSpec,
+    train_cfg: TrainConfig,
+    run_cfg: RunConfig,
 ) -> Tuple[VecEnv, Any]:
     """
     Build a fresh eval VecEnv.
@@ -111,17 +111,17 @@ def _build_eval_vec_env(
       - uses run.n_envs (single knob)
       - forces vec="dummy"
     """
-    eval_run: RunSpec = run_spec.model_copy(update={"vec": "dummy"})
+    eval_run: RunConfig = run_cfg.model_copy(update={"vec": "dummy"})
 
     env_override: Any
     try:
-        env_override = getattr(train_spec.eval, "env_override", {}) or {}
+        env_override = getattr(train_cfg.eval, "env_override", {}) or {}
     except Exception:
         env_override = {}
 
     cfg_eval = merge_cfg_for_eval(cfg=cfg, env_override=env_override)
 
-    built = make_vec_env_from_cfg(cfg=cfg_eval, run_spec=eval_run)
+    built = make_vec_env_from_cfg(cfg=cfg_eval, run_cfg=eval_run)
     return built.vec_env, built  # keep built alive for any held refs
 
 
@@ -129,8 +129,8 @@ def evaluate_model(
         *,
         model: Any,
         cfg: Dict[str, Any],
-        train_spec: TrainSpec,
-        run_spec: RunSpec,
+        train_cfg: TrainConfig,
+        run_cfg: RunConfig,
         eval_steps: int,
         deterministic: bool,
         seed_base: int,
@@ -156,7 +156,7 @@ def evaluate_model(
     algo_type = _effective_algo_type_from_model(model)
     want_masking = algo_type == "maskable_ppo"
 
-    vec_env, _built = _build_eval_vec_env(cfg=cfg, train_spec=train_spec, run_spec=run_spec)
+    vec_env, _built = _build_eval_vec_env(cfg=cfg, train_cfg=train_cfg, run_cfg=run_cfg)
     obs = vec_env.reset()
 
     # Infer n_envs from the built VecEnv.

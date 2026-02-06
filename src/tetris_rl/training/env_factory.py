@@ -9,7 +9,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 
-from tetris_rl.config.run_spec import RunSpec
+from tetris_rl.runs.config import RunConfig
 from tetris_rl.envs.factory import make_env_from_cfg
 
 
@@ -24,11 +24,11 @@ def _spawn_env_seeds(base_seed: int, n_envs: int) -> list[int]:
     return [int(c.generate_state(1, dtype=np.uint32)[0]) for c in children]
 
 
-def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_spec: RunSpec) -> BuiltVecEnv:
+def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_cfg: RunConfig) -> BuiltVecEnv:
     """
     Build VecEnv using:
       - raw cfg for env wiring (cfg.env + cfg.game)
-      - RunSpec for runtime wiring (seed, n_envs, vec backend)
+      - RunConfig for runtime wiring (seed, n_envs, vec backend)
 
     IMPORTANT (Rust engine + Windows spawn):
       - Do not construct/hold a PyO3 engine in the parent.
@@ -38,9 +38,9 @@ def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_spec: RunSpec) -> BuiltVec
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
     root = cfg
 
-    base_seed = int(run_spec.seed)
-    n_envs = max(1, int(run_spec.n_envs))
-    vec_kind = str(run_spec.vec).strip().lower()
+    base_seed = int(run_cfg.seed)
+    n_envs = max(1, int(run_cfg.n_envs))
+    vec_kind = str(run_cfg.vec).strip().lower()
 
     set_random_seed(int(base_seed))
     env_seeds = _spawn_env_seeds(int(base_seed), int(n_envs))
@@ -67,7 +67,7 @@ def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_spec: RunSpec) -> BuiltVec
     elif vec_kind == "dummy":
         vec_env = DummyVecEnv(env_fns)
     else:
-        raise ValueError(f"run_spec.vec must be 'subproc' or 'dummy' (got {run_spec.vec!r})")
+        raise ValueError(f"run_cfg.vec must be 'subproc' or 'dummy' (got {run_cfg.vec!r})")
 
     return BuiltVecEnv(vec_env=vec_env)
 

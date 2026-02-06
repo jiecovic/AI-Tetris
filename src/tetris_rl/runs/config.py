@@ -10,11 +10,11 @@ from tetris_rl.config.base import ConfigBase
 VecKind = Literal["subproc", "dummy"]
 
 
-class RunSpec(ConfigBase):
+class RunConfig(ConfigBase):
     """
-    RunSpec owns ALL run-time wiring + filesystem/logging semantics.
+    RunConfig owns ALL run-time wiring + filesystem/logging semantics.
 
-    This is intentionally NOT "training semantics" (those live in TrainSpec).
+    This is intentionally NOT "training semantics" (those live in TrainConfig).
     """
 
     name: str = "run"
@@ -55,5 +55,4 @@ class RunSpec(ConfigBase):
         return str(v).strip().lower()
 
 
-__all__ = ["RunSpec", "VecKind"]
-
+__all__ = ["RunConfig", "VecKind"]

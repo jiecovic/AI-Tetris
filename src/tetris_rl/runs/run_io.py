@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from tetris_rl.config.run_spec import RunSpec
+from tetris_rl.runs.config import RunConfig
 
 
 def choose_config_path(run_dir: Path) -> Path:
@@ -86,18 +86,18 @@ class RunPaths:
     latest_ckpt: Path
 
 
-def make_run_paths(*, run_spec: RunSpec) -> RunPaths:
+def make_run_paths(*, run_cfg: RunConfig) -> RunPaths:
     """
-    Determine run output locations from RunSpec (wiring only).
+    Determine run output locations from RunConfig (wiring only).
 
     Responsibilities:
-      - TrainSpec/DataGenSpec own training/datagen semantics.
-      - RunSpec owns runtime wiring + filesystem/logging.
+      - TrainConfig/DataGenConfig own training/datagen semantics.
+      - RunConfig owns runtime wiring + filesystem/logging.
       - No other module reads cfg.run directly.
     """
-    run_dir = _pick_run_dir(Path(run_spec.out_root), str(run_spec.name))
+    run_dir = _pick_run_dir(Path(run_cfg.out_root), str(run_cfg.name))
     ckpt_dir = run_dir / "checkpoints"
-    tb_dir = (run_dir / "tb") if bool(run_spec.tensorboard) else None
+    tb_dir = (run_dir / "tb") if bool(run_cfg.tensorboard) else None
     latest_ckpt = ckpt_dir / "latest.zip"
 
     return RunPaths(

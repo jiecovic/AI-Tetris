@@ -5,16 +5,16 @@ from typing import Any, Dict, Optional, Union, Annotated, Literal
 from pydantic import Field
 
 from tetris_rl.config.base import ConfigBase
-from tetris_rl.config.model.feature_augmenter_spec import FeatureAugmenterConfig
-from tetris_rl.config.model.mixer_spec import MixerConfig
-from tetris_rl.config.model.spatial_head_spec import SpatialHeadConfig
-from tetris_rl.config.model.spatial_spec import SpatialPreprocessorConfig, StemConfig
-from tetris_rl.config.model.tokenizer_spec import TokenizerSpec
+from tetris_rl.models.feature_augmenters.config import FeatureAugmenterConfig
+from tetris_rl.models.mixers.config import MixerConfig
+from tetris_rl.models.spatial_heads.config import SpatialHeadConfig
+from tetris_rl.models.spatial.config import SpatialPreprocessorConfig, StemConfig
+from tetris_rl.models.tokenizers.config import TokenizerConfig
 
 
 class TokenEncoderConfig(ConfigBase):
     type: Literal["token"] = "token"
-    tokenizer: TokenizerSpec
+    tokenizer: TokenizerConfig
     mixer: MixerConfig
 
 

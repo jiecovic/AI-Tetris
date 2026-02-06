@@ -16,7 +16,7 @@ Learned attention pooling over spatial positions (token-free):
 import torch
 from torch import nn
 
-from tetris_rl.config.model.spatial_head_spec import AttentionPoolParams
+from tetris_rl.models.spatial_heads.config import AttentionPoolParams
 from tetris_rl.models.api import Specials, SpatialFeatures
 from tetris_rl.models.layers.activations import make_activation
 from tetris_rl.models.spatial_heads.base import BaseSpatialHead

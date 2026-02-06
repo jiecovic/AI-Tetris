@@ -9,7 +9,7 @@ from tetris_rl.config.base import ConfigBase
 TrainEvalMode = Literal["off", "rl", "imitation", "both"]
 
 
-class TrainCheckpointsSpec(ConfigBase):
+class TrainCheckpointsConfig(ConfigBase):
     """
     Checkpoint cadence for training.
 
@@ -20,7 +20,7 @@ class TrainCheckpointsSpec(ConfigBase):
     latest_every: int = Field(default=200_000, ge=1)
 
 
-class TrainEvalSpec(ConfigBase):
+class TrainEvalConfig(ConfigBase):
     """
     Training-time evaluation semantics.
 
@@ -45,7 +45,7 @@ class TrainEvalSpec(ConfigBase):
         return str(v).strip().lower()
 
 
-class ImitationSpec(ConfigBase):
+class ImitationConfig(ConfigBase):
     enabled: bool = False
 
     # offline dataset (required when enabled)
@@ -66,13 +66,13 @@ class ImitationSpec(ConfigBase):
     archive_dir: str = "checkpoints/imitation"
 
     @model_validator(mode="after")
-    def _validate_dataset_dir(self) -> "ImitationSpec":
+    def _validate_dataset_dir(self) -> "ImitationConfig":
         if self.enabled and not str(self.dataset_dir).strip():
             raise ValueError("train.imitation.enabled=true requires train.imitation.dataset_dir to be set")
         return self
 
 
-class RLAlgoSpec(ConfigBase):
+class RLAlgoConfig(ConfigBase):
     type: Literal["ppo", "maskable_ppo", "dqn"] = "ppo"
     params: Dict[str, Any] = Field(default_factory=dict)
 
@@ -82,14 +82,14 @@ class RLAlgoSpec(ConfigBase):
         return str(v).strip().lower()
 
 
-class RLSpec(ConfigBase):
+class RLConfig(ConfigBase):
     enabled: bool = True
     total_timesteps: int = Field(default=200_000, ge=0)
 
     # Resume training from a previous run folder.
     resume: Optional[str] = None
 
-    algo: RLAlgoSpec = Field(default_factory=RLAlgoSpec)
+    algo: RLAlgoConfig = Field(default_factory=RLAlgoConfig)
 
     @field_validator("resume", mode="before")
     @classmethod
@@ -100,20 +100,19 @@ class RLSpec(ConfigBase):
         return s if s else None
 
 
-class TrainSpec(ConfigBase):
-    checkpoints: TrainCheckpointsSpec = Field(default_factory=TrainCheckpointsSpec)
-    eval: TrainEvalSpec = Field(default_factory=TrainEvalSpec)
-    imitation: ImitationSpec = Field(default_factory=ImitationSpec)
-    rl: RLSpec = Field(default_factory=RLSpec)
+class TrainConfig(ConfigBase):
+    checkpoints: TrainCheckpointsConfig = Field(default_factory=TrainCheckpointsConfig)
+    eval: TrainEvalConfig = Field(default_factory=TrainEvalConfig)
+    imitation: ImitationConfig = Field(default_factory=ImitationConfig)
+    rl: RLConfig = Field(default_factory=RLConfig)
 
 
 __all__ = [
-    "TrainSpec",
-    "TrainCheckpointsSpec",
-    "TrainEvalSpec",
-    "ImitationSpec",
-    "RLSpec",
-    "RLAlgoSpec",
+    "TrainConfig",
+    "TrainCheckpointsConfig",
+    "TrainEvalConfig",
+    "ImitationConfig",
+    "RLConfig",
+    "RLAlgoConfig",
     "TrainEvalMode",
 ]
-

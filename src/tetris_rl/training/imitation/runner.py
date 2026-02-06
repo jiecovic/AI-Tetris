@@ -8,8 +8,8 @@ from typing import Any, Dict, Optional, Tuple
 
 from tqdm.rich import tqdm  # <-- rich tqdm (NOT tqdm.auto)
 
-from tetris_rl.config.run_spec import RunSpec
-from tetris_rl.config.train_spec import TrainSpec
+from tetris_rl.runs.config import RunConfig
+from tetris_rl.training.config import TrainConfig
 from tetris_rl.datagen.shard_reader import ShardDataset
 from tetris_rl.runs.checkpoint_manager import CheckpointManager, CheckpointPaths
 from tetris_rl.training.evaluation.eval_checkpoint_core import EvalCheckpointCore, EvalCheckpointCoreSpec
@@ -120,15 +120,15 @@ def run_imitation(
     *,
     cfg: Dict[str, Any],
     model: Any,
-    train_spec: TrainSpec,
-    run_spec: RunSpec,
+    train_cfg: TrainConfig,
+    run_cfg: RunConfig,
     run_dir: Path,
     repo: Optional[Path] = None,
     logger: Any = None,
 ) -> Dict[str, Any]:
     repo_p = Path(repo) if repo is not None else repo_root()
 
-    im = train_spec.imitation
+    im = train_cfg.imitation
     if not bool(im.enabled):
         if logger is not None:
             try:
@@ -164,7 +164,7 @@ def run_imitation(
     shard_ids = [int(s.shard_id) for s in ds.shards]
     split = split_shards_modulo(
         shard_ids=shard_ids,
-        base_seed=int(run_spec.seed),
+        base_seed=int(run_cfg.seed),
         eval_mod=200,
         eval_mod_offset=0,
         seed_offset=12345,
@@ -178,8 +178,8 @@ def run_imitation(
 
     sched = ImitationScheduleSpec(
         tick_unit="samples",
-        latest_every=int(train_spec.checkpoints.latest_every),
-        eval_every=int(train_spec.eval.eval_every),
+        latest_every=int(train_cfg.checkpoints.latest_every),
+        eval_every=int(train_cfg.eval.eval_every),
         log_every=50,
     )
 
@@ -196,10 +196,10 @@ def run_imitation(
         spec=EvalCheckpointCoreSpec(
             checkpoint_dir=Path(manager.paths.checkpoint_dir),
             eval_every=int(sched.eval_every),
-            train_spec=train_spec,
-            run_spec=run_spec,
-            eval=train_spec.eval,
-            base_seed=int(run_spec.seed),
+            train_cfg=train_cfg,
+            run_cfg=run_cfg,
+            eval=train_cfg.eval,
+            base_seed=int(run_cfg.seed),
             table_header_every=10,
             progress_unit=str(sched.tick_unit),
             verbose=1,
@@ -213,7 +213,7 @@ def run_imitation(
     eval_core.init(progress_step=0)
 
     state = ImitationRunState(samples_seen=0, updates=0)
-    device = str(run_spec.device).strip() if str(run_spec.device).strip() else "cpu"
+    device = str(run_cfg.device).strip() if str(run_cfg.device).strip() else "cpu"
 
     if logger is not None:
         try:
@@ -232,7 +232,7 @@ def run_imitation(
                 str(sched.tick_unit),
                 int(sched.eval_every),
                 str(sched.tick_unit),
-                str(train_spec.eval.mode),
+                str(train_cfg.eval.mode),
             )
         except Exception:
             pass
@@ -259,7 +259,7 @@ def run_imitation(
             if not eval_sids:
                 return {}
 
-            val_seed = seed32_from(base_seed=int(run_spec.seed), stream_id=0xBCE11 + int(counter))
+            val_seed = seed32_from(base_seed=int(run_cfg.seed), stream_id=0xBCE11 + int(counter))
 
             val_iter = iter_bc_batches_from_dataset(
                 ds=ds,
@@ -304,7 +304,7 @@ def run_imitation(
     train_total_samples_full = sum(int(counts.get(int(sid), 0)) for sid in train_sids)
 
     for e in range(max(1, int(im.epochs))):
-        epoch_seed = seed32_from(base_seed=int(run_spec.seed), stream_id=1009 * (e + 1))
+        epoch_seed = seed32_from(base_seed=int(run_cfg.seed), stream_id=1009 * (e + 1))
 
         # If user caps max_samples, reflect it in the bar total.
         if int(im.max_samples) > 0:

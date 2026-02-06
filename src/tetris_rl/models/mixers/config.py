@@ -103,4 +103,3 @@ __all__ = [
     "MixerConfig",
     "MIXER_PARAMS_REGISTRY",
 ]
-

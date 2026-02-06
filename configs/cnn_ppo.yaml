@@ -2,7 +2,7 @@
 defaults:
   - hydra: default
   - env_bundles: macro_discrete_warmup
-  - models: cnn3
+  - models: cnn1
   - trains: ppo_bc_eval
   - _self_
 
@@ -14,5 +14,5 @@ run:
   out_root: experiments
   tensorboard: true
   device: cuda
-  n_envs: 32
+  n_envs: 12
   vec: subproc

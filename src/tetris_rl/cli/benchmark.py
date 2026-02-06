@@ -13,7 +13,7 @@ try:
 except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
-from tetris_rl.config.io import load_train_config, to_plain_dict
+from tetris_rl.config.io import load_experiment_config, to_plain_dict
 from tetris_rl.envs.factory import make_env_from_cfg
 from tetris_rl.runs.action_source import (
     as_action_pair,
@@ -25,7 +25,7 @@ from tetris_rl.runs.checkpoint_manifest import resolve_checkpoint_from_manifest
 from tetris_rl.runs.checkpoint_poll import CheckpointPoller
 from tetris_rl.runs.hud_adapter import from_info as hud_from_info
 from tetris_rl.runs.run_io import choose_config_path
-from tetris_rl.training.model_io import load_model_from_spec, warn_if_maskable_with_multidiscrete
+from tetris_rl.training.model_io import load_model_from_train_config, warn_if_maskable_with_multidiscrete
 from tetris_rl.utils.config_merge import merge_cfg_for_eval
 from tetris_rl.utils.paths import repo_root, resolve_run_dir
 
@@ -94,12 +94,12 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def _build_eval_cfg(*, cfg: dict[str, Any], train_spec: Any, which_env: str) -> dict[str, Any]:
+def _build_eval_cfg(*, cfg: dict[str, Any], train_cfg: Any, which_env: str) -> dict[str, Any]:
     w = str(which_env).strip().lower()
     if w == "train":
         return cfg
     cfg_eval: dict[str, Any] = dict(cfg)
-    override = getattr(getattr(train_spec, "eval", None), "env_override", {}) or {}
+    override = getattr(getattr(train_cfg, "eval", None), "env_override", {}) or {}
     if not isinstance(override, dict):
         override = {}
     return merge_cfg_for_eval(cfg=cfg_eval, env_override=override)
@@ -272,11 +272,11 @@ def main() -> int:
     run_dir = resolve_run_dir(repo, str(args.run))
 
     cfg_path = choose_config_path(run_dir)
-    train_cfg = load_train_config(cfg_path)
-    cfg = to_plain_dict(train_cfg)
-    train_spec = train_cfg.train
+    exp_cfg = load_experiment_config(cfg_path)
+    cfg = to_plain_dict(exp_cfg)
+    train_cfg = exp_cfg.train
 
-    cfg_bench = _build_eval_cfg(cfg=cfg, train_spec=train_spec, which_env=str(args.env))
+    cfg_bench = _build_eval_cfg(cfg=cfg, train_cfg=train_cfg, which_env=str(args.env))
 
     if args.piece_rule is not None:
         cfg_bench = dict(cfg_bench)
@@ -294,7 +294,7 @@ def main() -> int:
     if game is None:
         raise RuntimeError("env must expose .game (rust engine wrapper) for benchmark")
 
-    algo_type = str(train_spec.rl.algo.type).strip().lower()
+    algo_type = str(train_cfg.rl.algo.type).strip().lower()
 
     expert_policy: Optional[Any] = None
     if bool(args.heuristic_agent):
@@ -305,12 +305,12 @@ def main() -> int:
 
     model = None
     if (not bool(args.heuristic_agent)) and (not bool(args.random_action)):
-        loaded = load_model_from_spec(train_spec=train_spec, ckpt=ckpt, device=str(args.device))
+        loaded = load_model_from_train_config(train_cfg=train_cfg, ckpt=ckpt, device=str(args.device))
         model = loaded.model
         algo_type = loaded.algo_type
         ckpt = loaded.ckpt
         if algo_type == "maskable_ppo":
-            warn_if_maskable_with_multidiscrete(train_spec=train_spec, env=env)
+            warn_if_maskable_with_multidiscrete(train_cfg=train_cfg, env=env)
 
     agent_name = "rust_expert" if bool(args.heuristic_agent) else ("random" if bool(args.random_action) else algo_type)
     if bool(args.heuristic_agent):
@@ -330,7 +330,7 @@ def main() -> int:
     poller = CheckpointPoller(
         run_dir=run_dir,
         which=str(args.which),
-        train_spec=train_spec,
+        train_cfg=train_cfg,
         device=str(args.device),
         reload_every_s=float(args.reload),
     )

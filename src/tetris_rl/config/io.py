@@ -6,7 +6,7 @@ from typing import Any, Mapping
 from omegaconf import DictConfig, OmegaConf
 from pydantic import BaseModel
 
-from tetris_rl.config.root import DataGenConfig, TrainConfig
+from tetris_rl.config.root import DataGenConfig, ExperimentConfig
 
 
 def _strip_hydra_key(data: dict[str, Any]) -> dict[str, Any]:
@@ -37,12 +37,12 @@ def load_yaml(path: Path) -> dict[str, Any]:
     return _strip_hydra_key(data)
 
 
-def load_train_config(path: Path) -> TrainConfig:
-    return TrainConfig.model_validate(load_yaml(path))
+def load_experiment_config(path: Path) -> ExperimentConfig:
+    return ExperimentConfig.model_validate(load_yaml(path))
 
 
 def load_datagen_config(path: Path) -> DataGenConfig:
     return DataGenConfig.model_validate(load_yaml(path))
 
 
-__all__ = ["to_plain_dict", "load_yaml", "load_train_config", "load_datagen_config"]
+__all__ = ["to_plain_dict", "load_yaml", "load_experiment_config", "load_datagen_config"]

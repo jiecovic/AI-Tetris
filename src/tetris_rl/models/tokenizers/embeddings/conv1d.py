@@ -40,7 +40,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from tetris_rl.config.model.tokenizer_spec import Conv1DEmbedParams, PaddingMode
+from tetris_rl.models.tokenizers.config import Conv1DEmbedParams, PaddingMode
 
 StripeKind = Literal["row", "col"]
 

@@ -9,7 +9,7 @@ from tetris_rl.config.base import ConfigBase
 PieceRule = Literal["uniform", "bag7"]
 
 
-class WarmupSpec(ConfigBase):
+class WarmupTypeConfig(ConfigBase):
     type: str
     params: Dict[str, Any] = Field(default_factory=dict)
 
@@ -21,10 +21,10 @@ class WarmupSpec(ConfigBase):
 
 class WarmupConfig(ConfigBase):
     prob: float = Field(default=1.0, ge=0.0, le=1.0)
-    spec: Optional[WarmupSpec] = None
+    spec: Optional[WarmupTypeConfig] = None
 
 
-class GameSpec(ConfigBase):
+class GameConfig(ConfigBase):
     """
     Game-level config (engine-facing).
 
@@ -44,5 +44,4 @@ class GameSpec(ConfigBase):
         return str(v).strip().lower()
 
 
-__all__ = ["GameSpec", "WarmupConfig", "WarmupSpec", "PieceRule"]
-
+__all__ = ["GameConfig", "WarmupConfig", "WarmupTypeConfig", "PieceRule"]

@@ -7,33 +7,33 @@ from pydantic import Field, field_validator, model_validator
 from tetris_rl.config.base import ConfigBase
 
 
-class DataGenShardsSpec(ConfigBase):
+class DataGenShardsConfig(ConfigBase):
     shard_steps: int = Field(default=50_000, ge=1)
     num_shards: int = Field(default=1, ge=1)
 
 
-class DataGenDatasetSpec(ConfigBase):
+class DataGenDatasetConfig(ConfigBase):
     name: str = "bc_dataset"
     out_root: str = "datasets/bc"
-    shards: DataGenShardsSpec = Field(default_factory=DataGenShardsSpec)
+    shards: DataGenShardsConfig = Field(default_factory=DataGenShardsConfig)
     compression: bool = False
 
 
-class DataGenRunSpec(ConfigBase):
+class DataGenRunConfig(ConfigBase):
     seed: int = 0
     num_workers: int = Field(default=1, ge=1)
     progress_update_every_k: int = Field(default=2000, ge=1)
 
 
-class DataGenNoiseSpec(ConfigBase):
+class DataGenNoiseConfig(ConfigBase):
     enabled: bool = False
     interleave_prob: float = Field(default=0.0, ge=0.0, le=1.0)
     interleave_max_steps: int = Field(default=1, ge=1)
 
 
-class DataGenGenerationSpec(ConfigBase):
+class DataGenGenerationConfig(ConfigBase):
     episode_max_steps: Optional[int] = None
-    noise: DataGenNoiseSpec = Field(default_factory=DataGenNoiseSpec)
+    noise: DataGenNoiseConfig = Field(default_factory=DataGenNoiseConfig)
 
     @field_validator("episode_max_steps", mode="before")
     @classmethod
@@ -61,7 +61,7 @@ class DataGenExpertParams(ConfigBase):
         return None if n <= 0 else n
 
 
-class DataGenExpertSpec(ConfigBase):
+class DataGenExpertConfig(ConfigBase):
     """
     Example:
       expert:
@@ -81,18 +81,18 @@ class DataGenExpertSpec(ConfigBase):
         return str(v).strip().lower()
 
     @model_validator(mode="after")
-    def _validate_type(self) -> "DataGenExpertSpec":
+    def _validate_type(self) -> "DataGenExpertConfig":
         if self.type not in {"codemy0", "codemy1", "codemy2", "codemy2fast"}:
             raise ValueError(f"expert.type must be codemy0|codemy1|codemy2|codemy2fast, got {self.type!r}")
         return self
 
 
-class DataGenSpec(ConfigBase):
-    dataset: DataGenDatasetSpec = Field(default_factory=DataGenDatasetSpec)
-    run: DataGenRunSpec = Field(default_factory=DataGenRunSpec)
-    generation: DataGenGenerationSpec = Field(default_factory=DataGenGenerationSpec)
-    expert: DataGenExpertSpec = Field(default_factory=DataGenExpertSpec)
-
-
-__all__ = ["DataGenSpec"]
-
+__all__ = [
+    "DataGenShardsConfig",
+    "DataGenDatasetConfig",
+    "DataGenRunConfig",
+    "DataGenNoiseConfig",
+    "DataGenGenerationConfig",
+    "DataGenExpertParams",
+    "DataGenExpertConfig",
+]

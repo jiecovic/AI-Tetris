@@ -63,11 +63,10 @@ class ColumnCollapseParams(SpatialHeadParamsBase):
     """
 
     # --- collapse over height (H) to get per-column vectors ---
-    collapse: CollapseKind = "linear"  # paper says "a layer"; default to learned linear collapse
-    linear_collapse_per_channel: bool = True  # if True: weights per (C,H); else shared over channels
+    collapse: CollapseKind = "linear"  # default to learned linear collapse
+    linear_collapse_per_channel: bool = True  # per-channel weights vs shared
 
     # --- 1D conv stack over columns (width axis W) ---
-    # paper: conv3-128, conv1-128, conv3-128
     conv_channels: tuple[int, ...] = (128, 128, 128)
     conv_kernel_sizes: tuple[int, ...] = (3, 1, 3)
 
@@ -78,17 +77,13 @@ class ColumnCollapseParams(SpatialHeadParamsBase):
     dropout: float = 0.25
 
     # pooling over columns after conv stack
-    pool: Pool1D = "avg"  # paper doesn't specify; avg is a standard default
+    pool: Pool1D = "avg"
 
     # --- FC stack after pooling ---
-    # paper: FC-128, FC-512, then task head
     fc_hidden: tuple[int, ...] = (128, 512)
-
-    # apply activation+dropout after the last FC (the 512 layer)
-    # paper has a task head after 512, so there is a nonlinearity before that head.
     post_fc_activation: bool = True
 
-    # --- optional discrete piece metadata (one-hot, concatenated before FC stack) ---
+    # --- optional discrete piece metadata ---
     include_active_onehot: bool = False
     include_next_onehot: bool = False
 

@@ -1,26 +1,26 @@
 from __future__ import annotations
 
 from tetris_rl.config.base import ConfigBase
-from tetris_rl.config.datagen_spec import (
-    DataGenDatasetSpec,
-    DataGenExpertSpec,
-    DataGenGenerationSpec,
-    DataGenRunSpec,
+from tetris_rl.datagen.config import (
+    DataGenDatasetConfig,
+    DataGenExpertConfig,
+    DataGenGenerationConfig,
+    DataGenRunConfig,
 )
-from tetris_rl.config.env_spec import EnvConfig
-from tetris_rl.config.game_spec import GameSpec
-from tetris_rl.config.model_spec import ModelConfig
-from tetris_rl.config.run_spec import RunSpec
-from tetris_rl.config.train_spec import TrainSpec
+from tetris_rl.envs.config import EnvConfig
+from tetris_rl.game.config import GameConfig
+from tetris_rl.models.config import ModelConfig
+from tetris_rl.runs.config import RunConfig
+from tetris_rl.training.config import TrainConfig
 
 
-class TrainConfig(ConfigBase):
+class ExperimentConfig(ConfigBase):
     log_level: str = "info"
-    run: RunSpec
+    run: RunConfig
     env: EnvConfig
-    game: GameSpec
+    game: GameConfig
     model: ModelConfig
-    train: TrainSpec
+    train: TrainConfig
 
 
 class DataGenConfig(ConfigBase):
@@ -28,11 +28,11 @@ class DataGenConfig(ConfigBase):
     repo_root: str = ""
     use_rich: bool = True
     env: EnvConfig
-    game: GameSpec
-    dataset: DataGenDatasetSpec
-    run: DataGenRunSpec
-    generation: DataGenGenerationSpec
-    expert: DataGenExpertSpec
+    game: GameConfig
+    dataset: DataGenDatasetConfig
+    run: DataGenRunConfig
+    generation: DataGenGenerationConfig
+    expert: DataGenExpertConfig
 
 
-__all__ = ["TrainConfig", "DataGenConfig"]
+__all__ = ["ExperimentConfig", "DataGenConfig"]

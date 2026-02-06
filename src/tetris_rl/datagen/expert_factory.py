@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from tetris_rl.config.datagen_spec import DataGenExpertSpec
+from tetris_rl.datagen.config import DataGenExpertConfig
 
 
 @dataclass(frozen=True)
@@ -32,9 +32,9 @@ def _opt_float(x: Any) -> Optional[float]:
     return float(x)
 
 
-def make_expert_from_spec(*, expert_spec: DataGenExpertSpec) -> RustExpertBundle:
+def make_expert_from_config(*, expert_cfg: DataGenExpertConfig) -> RustExpertBundle:
     """
-    Build a Rust ExpertPolicy from DataGenExpertSpec.
+    Build a Rust ExpertPolicy from DataGenExpertConfig.
 
     Supported expert.type:
       - "codemy0"
@@ -48,12 +48,12 @@ def make_expert_from_spec(*, expert_spec: DataGenExpertSpec) -> RustExpertBundle
     """
     from tetris_rl_engine import ExpertPolicy  # local import keeps optional dep tight
 
-    t = str(expert_spec.type).strip().lower()
+    t = str(expert_cfg.type).strip().lower()
 
     # ---------------------------
     # codemy0/1/2 share knobs
     # ---------------------------
-    params = getattr(expert_spec, "params", None)
+    params = getattr(expert_cfg, "params", None)
     beam_width = _opt_int(getattr(params, "beam_width", None))
     beam_from_depth = int(_opt_int(getattr(params, "beam_from_depth", None)) or 0)
 
@@ -80,4 +80,4 @@ def make_expert_from_spec(*, expert_spec: DataGenExpertSpec) -> RustExpertBundle
     raise ValueError(f"unknown datagen expert.type: {t!r}")
 
 
-__all__ = ["RustExpertBundle", "make_expert_from_spec"]
+__all__ = ["RustExpertBundle", "make_expert_from_config"]

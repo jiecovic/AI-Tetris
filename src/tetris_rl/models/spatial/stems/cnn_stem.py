@@ -23,7 +23,7 @@ from typing import Sequence
 from torch import nn
 
 from tetris_rl.models.api import SpatialFeatures, SpatialSpec
-from tetris_rl.config.model.spatial_spec import CNNStemParams
+from tetris_rl.models.spatial.config import CNNStemParams
 from tetris_rl.models.layers.activations import make_activation
 
 

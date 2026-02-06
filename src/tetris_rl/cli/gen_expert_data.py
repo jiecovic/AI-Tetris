@@ -8,8 +8,8 @@ from hydra import compose, initialize, initialize_config_dir
 from omegaconf import DictConfig
 
 from tetris_rl.config.io import to_plain_dict
-from tetris_rl.config.datagen_spec import DataGenSpec
 from tetris_rl.config.root import DataGenConfig
+from tetris_rl.datagen.plan import DataGenPlan
 from tetris_rl.datagen.runner import run_datagen
 from tetris_rl.utils.logging import setup_logger
 from tetris_rl.utils.paths import repo_root as find_repo_root
@@ -105,7 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception:
         pass
 
-    spec = DataGenSpec(
+    plan = DataGenPlan(
         dataset=data_cfg.dataset,
         run=data_cfg.run,
         generation=data_cfg.generation,
@@ -113,7 +113,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     try:
-        out_dir = run_datagen(spec=spec, cfg=cfg_dict, repo_root=repo, logger=logger)
+        out_dir = run_datagen(plan=plan, cfg=cfg_dict, repo_root=repo, logger=logger)
     except KeyboardInterrupt:
         logger.warning("[datagen] interrupted (Ctrl+C)")
         import os

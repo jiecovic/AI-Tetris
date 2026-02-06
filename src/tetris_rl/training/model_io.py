@@ -6,7 +6,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-from tetris_rl.config.train_spec import TrainSpec
+from tetris_rl.training.config import TrainConfig
 
 
 @dataclass(frozen=True)
@@ -51,7 +51,7 @@ def _raise_maskable_load_hint(err: Exception) -> None:
             "MaskablePPO load failed because the checkpoint does not use a maskable policy.\n"
             "\n"
             "This usually happens when training fell back to standard PPO at runtime\n"
-            "(e.g. maskable_ppo + multidiscrete -> PPO), but your TrainSpec still says\n"
+            "(e.g. maskable_ppo + multidiscrete -> PPO), but your TrainConfig still says\n"
             "train.rl.algo.type='maskable_ppo'.\n"
             "\n"
             "Fix options:\n"
@@ -96,9 +96,9 @@ def _try_load_dqn(*, ckpt: Path, device: str) -> LoadedModel:
     return LoadedModel(model=model, algo_type="dqn", ckpt=ckpt)
 
 
-def load_model_from_spec(*, train_spec: TrainSpec, ckpt: Path, device: str = "auto") -> LoadedModel:
+def load_model_from_train_config(*, train_cfg: TrainConfig, ckpt: Path, device: str = "auto") -> LoadedModel:
     """
-    Load a trained model checkpoint according to TrainSpec.rl.algo.type.
+    Load a trained model checkpoint according to TrainConfig.rl.algo.type.
 
     Supported:
       - ppo
@@ -112,7 +112,7 @@ def load_model_from_spec(*, train_spec: TrainSpec, ckpt: Path, device: str = "au
         We detect the common policy mismatch and fall back to PPO loading with a
         clear diagnostic.
     """
-    algo_type = str(train_spec.rl.algo.type).strip().lower()
+    algo_type = str(train_cfg.rl.algo.type).strip().lower()
     ckpt = Path(ckpt)
 
     if algo_type == "ppo":
@@ -155,16 +155,16 @@ def load_model_from_spec(*, train_spec: TrainSpec, ckpt: Path, device: str = "au
     )
 
 
-def warn_if_maskable_with_multidiscrete(*, train_spec: TrainSpec, env: Any) -> None:
+def warn_if_maskable_with_multidiscrete(*, train_cfg: TrainConfig, env: Any) -> None:
     """
     Informational warning: action masking in this project is implemented for a flat
     Discrete(rot×col) action space. With MultiDiscrete you cannot enforce joint
     (rot,col) legality via a single mask.
 
     NOTE: This is only a warning. Loader/runtime resolution should ultimately be
-    centralized at the boundary so TrainSpec, model, eval, and watch agree.
+    centralized at the boundary so TrainConfig, model, eval, and watch agree.
     """
-    algo_type = str(train_spec.rl.algo.type).strip().lower()
+    algo_type = str(train_cfg.rl.algo.type).strip().lower()
     if algo_type != "maskable_ppo":
         return
 
@@ -178,4 +178,4 @@ def warn_if_maskable_with_multidiscrete(*, train_spec: TrainSpec, env: Any) -> N
         )
 
 
-__all__ = ["LoadedModel", "load_model_from_spec", "warn_if_maskable_with_multidiscrete"]
+__all__ = ["LoadedModel", "load_model_from_train_config", "warn_if_maskable_with_multidiscrete"]

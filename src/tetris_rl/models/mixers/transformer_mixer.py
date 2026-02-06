@@ -27,7 +27,7 @@ This implementation is *fully eager*:
 import torch
 from torch import nn
 
-from tetris_rl.config.model.mixer_spec import TransformerMixerParams
+from tetris_rl.models.mixers.config import TransformerMixerParams
 from tetris_rl.models.api import TokenStream
 from tetris_rl.models.layers.cls import prepend_cls
 from tetris_rl.models.layers.ffn import FFNSpec

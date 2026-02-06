@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
-from tetris_rl.config.train_spec import TrainSpec
+from tetris_rl.training.config import TrainConfig
 from tetris_rl.runs.checkpoint_manifest import resolve_checkpoint_from_manifest
-from tetris_rl.training.model_io import load_model_from_spec
+from tetris_rl.training.model_io import load_model_from_train_config
 
 
 def _safe_mtime(p: Path) -> float:
@@ -25,11 +25,11 @@ class CheckpointPoller:
 
     - Uses mtime to detect changes.
     - Does NOT reset env/game on reload (watch is continuous).
-    - Loads via load_model_from_spec(train_spec=...) so PPO vs MaskablePPO is handled correctly.
+    - Loads via load_model_from_train_config(train_cfg=...) so PPO vs MaskablePPO is handled correctly.
     """
     run_dir: Path
     which: str
-    train_spec: TrainSpec
+    train_cfg: TrainConfig
     device: str = "auto"
     reload_every_s: float = 1.0
 
@@ -71,7 +71,7 @@ class CheckpointPoller:
         if cur is not None and chosen == cur and mtime <= cur_m:
             return None
 
-        loaded = load_model_from_spec(train_spec=self.train_spec, ckpt=chosen, device=str(self.device))
+        loaded = load_model_from_train_config(train_cfg=self.train_cfg, ckpt=chosen, device=str(self.device))
 
         self._ckpt = loaded.ckpt
         self._mtime = _safe_mtime(self._ckpt)

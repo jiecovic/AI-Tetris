@@ -32,11 +32,11 @@ from torch import nn
 
 from pydantic import BaseModel
 
-from tetris_rl.config.model.feature_augmenter_spec import FeatureAugmenterConfig
-from tetris_rl.config.model.mixer_spec import MixerConfig
-from tetris_rl.config.model.spatial_head_spec import SpatialHeadConfig
-from tetris_rl.config.model.spatial_spec import SpatialPreprocessorConfig, StemConfig
-from tetris_rl.config.model.tokenizer_spec import TokenizerSpec
+from tetris_rl.models.feature_augmenters.config import FeatureAugmenterConfig
+from tetris_rl.models.mixers.config import MixerConfig
+from tetris_rl.models.spatial_heads.config import SpatialHeadConfig
+from tetris_rl.models.spatial.config import SpatialPreprocessorConfig, StemConfig
+from tetris_rl.models.tokenizers.config import TokenizerConfig
 from tetris_rl.models.api import BoardSpec, Specials, SpatialFeatures, SpatialSpec, TokenStream
 from tetris_rl.models.catalog import (
     FEATURE_AUGMENTER_REGISTRY,
@@ -56,7 +56,7 @@ class TetrisFeatureExtractor(BaseFeaturesExtractor):
         spatial_preprocessor: SpatialPreprocessorConfig,
         stem: Optional[StemConfig],
         # --- token encoder branch ---
-        tokenizer: Optional[TokenizerSpec] = None,
+        tokenizer: Optional[TokenizerConfig] = None,
         mixer: Optional[MixerConfig] = None,
         # --- spatial encoder branch ---
         spatial_head: Optional[SpatialHeadConfig] = None,
@@ -173,6 +173,10 @@ class TetrisFeatureExtractor(BaseFeaturesExtractor):
 
         extra = 0
         if feature_augmenter is not None:
+            t = str(feature_augmenter.type).strip().lower()
+            if t in {"none", "null"}:
+                feature_augmenter = None
+        if feature_augmenter is not None:
             extra = _infer_feature_augmenter_extra_dim(cfg=feature_augmenter, n_kinds=self._n_kinds)
             if extra < 0:
                 raise ValueError(f"feature augmenter extra dim must be >= 0, got {extra}")
@@ -277,7 +281,7 @@ def _build_stem(*, cfg: StemConfig, in_channels: int) -> nn.Module:
     return cast(nn.Module, cls(in_channels=int(in_channels), spec=cfg.params))
 
 
-def _build_tokenizer(*, cfg: TokenizerSpec, n_kinds: Optional[int], in_spec: SpatialSpec) -> TetrisTokenizer:
+def _build_tokenizer(*, cfg: TokenizerConfig, n_kinds: Optional[int], in_spec: SpatialSpec) -> TetrisTokenizer:
     return TetrisTokenizer(
         d_model=int(cfg.d_model),
         layout=cfg.layout,

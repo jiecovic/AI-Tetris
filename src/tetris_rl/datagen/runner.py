@@ -12,7 +12,7 @@ import numpy as np
 
 from pydantic import BaseModel
 
-from tetris_rl.config.datagen_spec import DataGenSpec
+from tetris_rl.datagen.plan import DataGenPlan
 from tetris_rl.datagen.progress import MultiWorkerProgress
 from tetris_rl.utils.file_io import write_json
 
@@ -28,14 +28,14 @@ def _best_effort_close_queue(q: Any) -> None:
         pass
 
 
-def _spec_to_dict(spec: DataGenSpec) -> Dict[str, Any]:
-    if isinstance(spec, BaseModel):
-        return spec.model_dump(mode="json")
-    return asdict(spec)
+def _plan_to_dict(plan: DataGenPlan) -> Dict[str, Any]:
+    if isinstance(plan, BaseModel):
+        return plan.model_dump(mode="json")
+    return asdict(plan)
 
 
-def _dataset_dir(*, spec: DataGenSpec, repo_root: Path) -> Path:
-    ds = spec.dataset
+def _dataset_dir(*, plan: DataGenPlan, repo_root: Path) -> Path:
+    ds = plan.dataset
     return (Path(repo_root) / ds.out_root / ds.name).resolve()
 
 
@@ -152,7 +152,7 @@ def _manifest_shard_ids(manifest: Any) -> set[int]:
 def _ensure_manifest(
     *,
     dataset_dir: Path,
-    spec: DataGenSpec,
+    plan: DataGenPlan,
     board_h: int,
     board_w: int,
     num_kinds: int,
@@ -165,7 +165,7 @@ def _ensure_manifest(
 
     Design goals:
       - NEVER scan/load huge NPZ shards (too slow for completed datasets).
-      - Use index.json / datagen_spec.json / manifest.json for cheap consistency checks.
+      - Use index.json / datagen_plan.json / manifest.json for cheap consistency checks.
       - Optionally verify a SINGLE shard (sid=min) to guard against wrong folder/spec.
       - Repair manifest.shards from disk listing if missing/empty/incomplete.
 
@@ -180,7 +180,7 @@ def _ensure_manifest(
 
     manifest_path = dataset_dir / "manifest.json"
     index_path = dataset_dir / "index.json"
-    prior_spec_path = dataset_dir / "datagen_spec.json"
+    prior_spec_path = dataset_dir / "datagen_plan.json"
 
     disk = _scan_shards_on_disk(dataset_dir=dataset_dir)
     disk_ids = set(disk.keys())
@@ -209,16 +209,16 @@ def _ensure_manifest(
             expected_compression = None
 
     if expected_num_shards is None:
-        expected_num_shards = int(spec.dataset.shards.num_shards)
+        expected_num_shards = int(plan.dataset.shards.num_shards)
     if expected_shard_steps is None:
-        expected_shard_steps = int(spec.dataset.shards.shard_steps)
+        expected_shard_steps = int(plan.dataset.shards.shard_steps)
     if expected_compression is None:
         expected_compression = bool(compression)
 
     # If manifest is missing, create it (but don't nuke anything).
     if not manifest_path.exists():
         m0 = init_manifest(
-            name=str(spec.dataset.name),
+            name=str(plan.dataset.name),
             board_h=int(board_h),
             board_w=int(board_w),
             num_kinds=int(num_kinds),
@@ -235,7 +235,7 @@ def _ensure_manifest(
         m = read_manifest(dataset_dir=dataset_dir)
     except Exception:
         m = init_manifest(
-            name=str(spec.dataset.name),
+            name=str(plan.dataset.name),
             board_h=int(board_h),
             board_w=int(board_w),
             num_kinds=int(num_kinds),
@@ -326,7 +326,7 @@ def _ensure_manifest(
     # Rebuild shard list using expected_shard_steps (NOT by opening all NPZs).
     rebuilt: list[dict[str, Any]] = []
     for sid in sorted(disk_ids):
-        seed = int(seed32_from(base_seed=int(spec.run.seed), stream_id=int(sid)))
+        seed = int(seed32_from(base_seed=int(plan.run.seed), stream_id=int(sid)))
         rebuilt.append(
             {
                 "shard_id": int(sid),
@@ -341,7 +341,7 @@ def _ensure_manifest(
     else:
         m_dict = dict(m)
 
-    m_dict["name"] = str(spec.dataset.name)
+    m_dict["name"] = str(plan.dataset.name)
     m_dict["board_h"] = int(board_h)
     m_dict["board_w"] = int(board_w)
     m_dict["num_kinds"] = int(num_kinds)
@@ -363,7 +363,7 @@ def _ensure_manifest(
 
 def run_datagen(
     *,
-    spec: DataGenSpec,
+    plan: DataGenPlan,
     cfg: dict[str, Any],
     repo_root: Path,
     logger: Any = None,
@@ -372,7 +372,7 @@ def run_datagen(
     BC-only datagen runner.
 
     Writes:
-      - datagen_spec.json
+      - datagen_plan.json
       - datagen_cfg.json
       - manifest.json        (BC-minimal schema contract)
       - index.json
@@ -385,11 +385,11 @@ def run_datagen(
     if not isinstance(cfg, dict):
         raise TypeError(f"run_datagen(cfg=...) must be dict, got {type(cfg)!r}")
 
-    dataset_dir = _dataset_dir(spec=spec, repo_root=repo_root)
+    dataset_dir = _dataset_dir(plan=plan, repo_root=repo_root)
     _ensure_dataset_dir(dataset_dir=dataset_dir)
 
-    ds = spec.dataset
-    run = spec.run
+    ds = plan.dataset
+    run = plan.run
 
     num_shards = int(ds.shards.num_shards)
     shard_steps = int(ds.shards.shard_steps)
@@ -402,7 +402,7 @@ def run_datagen(
     # ------------------------------------------------------------------
     # persist inputs (debug / reproducibility only)
     # ------------------------------------------------------------------
-    write_json(dataset_dir / "datagen_spec.json", _spec_to_dict(spec))
+    write_json(dataset_dir / "datagen_plan.json", _plan_to_dict(plan))
     write_json(dataset_dir / "datagen_cfg.json", cfg)
 
     # ------------------------------------------------------------------
@@ -427,7 +427,7 @@ def run_datagen(
 
     _ensure_manifest(
         dataset_dir=dataset_dir,
-        spec=spec,
+        plan=plan,
         board_h=board_h,
         board_w=board_w,
         num_kinds=num_kinds,
@@ -464,7 +464,7 @@ def run_datagen(
                     worker_generate_shards(
                         worker_id=0,
                         shard_ids=[sid],
-                        spec=spec,
+                        plan=plan,
                         cfg=cfg,
                         dataset_dir=str(dataset_dir),
                         progress_queue=prog.queue,
@@ -488,7 +488,7 @@ def run_datagen(
                             worker_generate_shards,
                             worker_id=i % num_workers,
                             shard_ids=[sid],
-                            spec=spec,
+                            plan=plan,
                             cfg=cfg,
                             dataset_dir=str(dataset_dir),
                             progress_queue=None,

@@ -30,7 +30,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from tetris_rl.config.model.tokenizer_spec import (
+from tetris_rl.models.tokenizers.config import (
     BoardEmbedType,
     BoardEmbeddingConfig,
     Conv1DEmbedParams,

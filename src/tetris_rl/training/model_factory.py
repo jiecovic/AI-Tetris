@@ -9,9 +9,9 @@ from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.dqn.policies import DQNPolicy
 
-from tetris_rl.config.model_spec import ModelConfig
-from tetris_rl.config.run_spec import RunSpec
-from tetris_rl.config.train_spec import TrainSpec
+from tetris_rl.models.config import ModelConfig
+from tetris_rl.runs.config import RunConfig
+from tetris_rl.training.config import TrainConfig
 from tetris_rl.models.feature_extractor import TetrisFeatureExtractor
 from tetris_rl.utils.logging import setup_logger
 from tetris_rl.utils.model_params import (
@@ -98,20 +98,20 @@ def build_policy_kwargs_from_cfg(
 def make_model_from_cfg(
     *,
     cfg: ModelConfig,
-    train_spec: TrainSpec,
-    run_spec: RunSpec,
+    train_cfg: TrainConfig,
+    run_cfg: RunConfig,
     vec_env: Any,
     tensorboard_log: Path | None,
 ):
-    algo_type = str(train_spec.rl.algo.type).strip().lower()
-    algo_params = train_spec.rl.algo.params or {}
+    algo_type = str(train_cfg.rl.algo.type).strip().lower()
+    algo_params = train_cfg.rl.algo.params or {}
 
     policy_kwargs = build_policy_kwargs_from_cfg(
         model_cfg=cfg,
         observation_space=vec_env.observation_space,
     )
 
-    device = str(run_spec.device).strip() or "auto"
+    device = str(run_cfg.device).strip() or "auto"
 
     # ------------------------------------------------------------------
     # DQN
@@ -123,7 +123,7 @@ def make_model_from_cfg(
         model_kwargs = build_algo_kwargs(
             algo_cls=DQN,
             raw=algo_params,
-            seed=run_spec.seed,
+            seed=run_cfg.seed,
             where="train.rl.algo.params",
         )
 
@@ -158,7 +158,7 @@ def make_model_from_cfg(
         model_kwargs = build_algo_kwargs(
             algo_cls=Algo,
             raw=algo_params,
-            seed=run_spec.seed,
+            seed=run_cfg.seed,
             where="train.rl.algo.params",
         )
 

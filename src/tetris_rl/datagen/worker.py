@@ -7,8 +7,8 @@ from typing import Any
 
 import numpy as np
 
-from tetris_rl.config.datagen_spec import DataGenSpec
-from tetris_rl.datagen.expert_factory import make_expert_from_spec
+from tetris_rl.datagen.plan import DataGenPlan
+from tetris_rl.datagen.expert_factory import make_expert_from_config
 from tetris_rl.datagen.schema import ShardInfo
 from tetris_rl.datagen.writer import append_shard_to_manifest
 from tetris_rl.envs.factory import make_env_from_cfg
@@ -57,7 +57,7 @@ def worker_generate_shards(
     *,
     worker_id: int,
     shard_ids: list[int],
-    spec: DataGenSpec,
+    plan: DataGenPlan,
     cfg: dict[str, Any],  # resolved root cfg used by training/watch
     dataset_dir: str,
     progress_queue: Any = None,
@@ -82,7 +82,7 @@ def worker_generate_shards(
     shards_dir = out_dir / "shards"
     shards_dir.mkdir(parents=True, exist_ok=True)
 
-    expert = make_expert_from_spec(expert_spec=spec.expert).policy
+    expert = make_expert_from_config(expert_cfg=plan.expert).policy
 
     shards_written = 0
     samples_written = 0
@@ -91,13 +91,13 @@ def worker_generate_shards(
     if k < 0:
         k = 0
 
-    # Optional noise interleaving (kept because it’s in DataGenSpec)
-    noise_enabled = bool(spec.generation.noise.enabled)
-    noise_prob = float(spec.generation.noise.interleave_prob)
-    noise_max_steps = int(spec.generation.noise.interleave_max_steps)
+    # Optional noise interleaving (kept because it's in DataGenPlan)
+    noise_enabled = bool(plan.generation.noise.enabled)
+    noise_prob = float(plan.generation.noise.interleave_prob)
+    noise_max_steps = int(plan.generation.noise.interleave_max_steps)
 
     for sid in shard_ids:
-        s32 = seed32_from(base_seed=int(spec.run.seed), stream_id=int(sid))
+        s32 = seed32_from(base_seed=int(plan.run.seed), stream_id=int(sid))
         rng = np.random.default_rng(int(s32))
 
         built = make_env_from_cfg(cfg=cfg, seed=int(s32))
@@ -125,7 +125,7 @@ def worker_generate_shards(
             if num_kinds <= 0:
                 raise RuntimeError("env.observation_space['active_kind'] must be Discrete for this datagen path")
 
-            N = int(spec.dataset.shards.shard_steps)
+            N = int(plan.dataset.shards.shard_steps)
             if N <= 0:
                 raise ValueError(f"invalid shard_steps: {N}")
 
@@ -139,7 +139,7 @@ def worker_generate_shards(
 
             filled = 0
             ep_steps = 0
-            max_ep = spec.generation.episode_max_steps
+            max_ep = plan.generation.episode_max_steps
             max_ep_i = None if max_ep is None else int(max_ep)
 
             def do_reset() -> None:
@@ -212,7 +212,7 @@ def worker_generate_shards(
             _q_put(pq, ("progress", int(worker_id), int(sid), int(N), int(N)))
 
             shard_path = shards_dir / f"shard_{int(sid):04d}.npz"
-            if bool(spec.dataset.compression):
+            if bool(plan.dataset.compression):
                 np.savez_compressed(
                     shard_path,
                     grid=grid_buf,
@@ -229,7 +229,7 @@ def worker_generate_shards(
                     action=act_buf,
                 )
 
-            # Best-effort manifest update (don’t brick shard generation on races)
+            # Best-effort manifest update (don't brick shard generation on races)
             try:
                 append_shard_to_manifest(
                     dataset_dir=out_dir,
@@ -264,3 +264,5 @@ def worker_generate_shards(
 
 
 __all__ = ["WorkerResult", "worker_generate_shards", "_set_worker_progress_queue"]
+
+
