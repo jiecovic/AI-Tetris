@@ -1,3 +1,4 @@
+# @package _global_
 train:
   checkpoints:
     latest_every: 500_000            # save latest checkpoint every N env steps

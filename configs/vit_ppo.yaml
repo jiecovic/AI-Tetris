@@ -1,3 +1,13 @@
+# @package _global_
+defaults:
+  - hydra: default
+  - env_bundles: macro_discrete_warmup
+  - models: vit_plus_mlp
+  - trains: ppo_bc_eval
+  - _self_
+
+log_level: info
+
 run:
   name: vit_run
   seed: 0
@@ -6,9 +16,3 @@ run:
   device: cuda
   n_envs: 32
   vec: subproc
-
-# point to sub-configs (paths are strings)
-specs:
-  env: configs/env_bundles/macro_discrete_warmup.yaml
-  model: configs/models/vit_plus_mlp.yaml
-  train: configs/trains/ppo_bc_eval.yaml

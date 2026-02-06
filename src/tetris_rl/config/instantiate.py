@@ -54,15 +54,44 @@ About "params" values:
 """
 
 import inspect
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any, Callable, Mapping, MutableMapping, TypeVar
 
-from tetris_rl.config.schema_types import ComponentSpec, as_component_spec
+from pydantic import BaseModel
 
 T = TypeVar("T")
 
 # Special tags meaning "disabled component" (instantiate() returns None).
 _NULL_TYPES = {"none", "null", "off", "disabled"}
+
+
+@dataclass(frozen=True)
+class ComponentSpec:
+    type: str
+    params: Any
+
+
+def as_component_spec(obj: Any, *, where: str) -> ComponentSpec:
+    if isinstance(obj, BaseModel):
+        m = obj.model_dump()
+    elif isinstance(obj, Mapping):
+        m = dict(obj)
+    else:
+        raise TypeError(f"{where} must be a mapping with keys {{type, params}}, got {type(obj)!r}")
+
+    t = m.get("type", None)
+    if t is None:
+        t = "null"
+
+    s = str(t).strip().lower()
+    if not s:
+        raise TypeError(f"{where}.type must be a non-empty string, got {t!r}")
+
+    params = m.get("params", {})
+    if params is None:
+        params = {}
+
+    return ComponentSpec(type=s, params=params)
 
 
 def _callable_name(obj: Any) -> str:
@@ -103,11 +132,11 @@ def _normalize_params(params_any: Any, *, where: str) -> Any:
     """
     if params_any is None:
         return {}
-    if is_dataclass(params_any):
+    if is_dataclass(params_any) or isinstance(params_any, BaseModel):
         return params_any
     if isinstance(params_any, Mapping):
         return dict(params_any)
-    raise TypeError(f"{where}.params must be a mapping or a dataclass, got {type(params_any)!r}")
+    raise TypeError(f"{where}.params must be a mapping or a model, got {type(params_any)!r}")
 
 
 def instantiate(
@@ -131,7 +160,11 @@ def instantiate(
         params_any = _normalize_params(spec.params, where=where)
         inj = dict(injected) if injected else {}
 
-        has_params = (is_dataclass(params_any)) or (isinstance(params_any, dict) and bool(params_any))
+        has_params = (
+            is_dataclass(params_any)
+            or isinstance(params_any, BaseModel)
+            or (isinstance(params_any, dict) and bool(params_any))
+        )
         if inj or has_params:
             raise TypeError(
                 f"{where} type={spec.type!r} does not accept params or injected kwargs "
@@ -151,7 +184,11 @@ def instantiate(
     # Allow pre-built instances in registry only when no kwargs are provided.
     if not callable(ctor_or_obj):
         # params_any is {} or dataclass/dict; forbid any non-empty call context
-        has_params = (is_dataclass(params_any)) or (isinstance(params_any, dict) and bool(params_any))
+        has_params = (
+            is_dataclass(params_any)
+            or isinstance(params_any, BaseModel)
+            or (isinstance(params_any, dict) and bool(params_any))
+        )
         if inj or has_params:
             raise TypeError(
                 f"{where} type={spec.type!r} resolved to a non-callable registry entry "
@@ -165,7 +202,7 @@ def instantiate(
     # ------------------------------------------------------------------
     # Dataclass params
     # ------------------------------------------------------------------
-    if is_dataclass(params_any):
+    if is_dataclass(params_any) or isinstance(params_any, BaseModel):
         kwargs: dict[str, Any] = dict(inj)
 
         # If ctor supports spec=..., prefer passing the dataclass as spec directly.
@@ -173,7 +210,10 @@ def instantiate(
             kwargs["spec"] = params_any
         else:
             # Fall back: expand dataclass into kwargs-style.
-            kwargs.update(asdict(params_any))
+            if is_dataclass(params_any):
+                kwargs.update(asdict(params_any))
+            else:
+                kwargs.update(params_any.model_dump())
 
         try:
             result = ctor(**kwargs)

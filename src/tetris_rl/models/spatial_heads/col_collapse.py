@@ -15,7 +15,7 @@ Report architecture (after stem):
 
 In SB3, this module stops at the feature extractor output, so we target:
   output features_dim = 512
-and rely on SB3’s policy/value heads for the final logits/value.
+and rely on SB3's policy/value heads for the final logits/value.
 
 Pipeline (this module)
 ----------------------
@@ -79,17 +79,8 @@ Pool1D = Literal["avg", "max", "avgmax"]
 def _normalize_collapse(params: ColumnCollapseParams) -> CollapseKind:
     """
     Normalize collapse mode.
-
-    Back-compat:
-      - configs may pass `pooling` instead of `collapse`
-      - configs may use "mean"/"meanmax" instead of "avg"/"avgmax"
     """
-    raw = params.collapse
-    if getattr(params, "pooling", None):
-        # Prefer explicit collapse; only fall back to pooling if collapse was left default-ish
-        # (we keep it simple: if pooling is set, treat it as override)
-        raw = str(params.pooling)  # type: ignore[assignment]
-
+    raw = getattr(params, "collapse", None)
     s = str(raw).strip().lower()
     if s in {"avg", "mean"}:
         return "avg"
@@ -99,7 +90,7 @@ def _normalize_collapse(params: ColumnCollapseParams) -> CollapseKind:
         return "linear"
     # allow some accidental values from older experiments
     if s in {"meanmax", "avgmax"}:
-        # meanmax is NOT a collapse; treat it as invalid here so configs don’t silently change semantics
+        # meanmax is NOT a collapse; treat it as invalid here so configs don't silently change semantics
         raise ValueError("collapse cannot be meanmax/avgmax; use pool='avgmax' for column pooling instead")
     raise ValueError(f"collapse must be avg|max|linear (or mean as alias), got {raw!r}")
 

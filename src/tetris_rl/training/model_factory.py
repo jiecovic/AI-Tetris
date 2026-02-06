@@ -9,8 +9,8 @@ from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.dqn.policies import DQNPolicy
 
+from tetris_rl.config.model_spec import ModelConfig
 from tetris_rl.config.run_spec import RunSpec
-from tetris_rl.config.schema_types import get_mapping, get_str, require_mapping
 from tetris_rl.config.train_spec import TrainSpec
 from tetris_rl.models.feature_extractor import TetrisFeatureExtractor
 from tetris_rl.utils.logging import setup_logger
@@ -43,9 +43,9 @@ def _infer_kind_vocab_size_from_obs_space(observation_space: spaces.Space) -> in
 
 
 def build_policy_kwargs_from_cfg(
-        *,
-        cfg: Dict[str, Any],
-        observation_space: spaces.Space,
+    *,
+    model_cfg: ModelConfig,
+    observation_space: spaces.Space,
 ) -> Dict[str, Any]:
     """
     SB3 policy_kwargs:
@@ -53,50 +53,37 @@ def build_policy_kwargs_from_cfg(
       - net_arch
       - activation_fn
     """
-    root = require_mapping(cfg, where="cfg")
-    model = get_mapping(root, "model", default={}, where="cfg.model")
+    policy_cfg = dict(model_cfg.policy_kwargs or {})
+    net_arch = parse_net_arch(policy_cfg.get("net_arch", model_cfg.net_arch))
+    activation_fn = parse_activation_fn(policy_cfg.get("activation_fn", model_cfg.activation_fn or "gelu"))
 
-    policy_cfg = get_mapping(model, "policy_kwargs", default={}, where="cfg.model.policy_kwargs")
-    net_arch = parse_net_arch(policy_cfg.get("net_arch", model.get("net_arch")))
-    activation_fn = parse_activation_fn(policy_cfg.get("activation_fn", "gelu"))
-
-    fe_cfg = get_mapping(model, "feature_extractor", default=None, where="cfg.model.feature_extractor")
-    if fe_cfg is None:
-        raise ValueError("cfg.model.feature_extractor is required")
-
-    # FE ctor expects flat kwargs (no 'encoder' key).
-    encoder = get_mapping(fe_cfg, "encoder", default=None, where="cfg.model.feature_extractor.encoder")
-    if encoder is None:
-        raise ValueError("model.feature_extractor.encoder is required")
-
-    enc_type = get_str(encoder, "type", default="", where="cfg.model.feature_extractor.encoder.type").strip().lower()
+    fe_cfg = model_cfg.feature_extractor
 
     tokenizer = None
     mixer = None
     spatial_head = None
 
-    if enc_type == "token":
-        tokenizer = encoder.get("tokenizer", None)
-        mixer = encoder.get("mixer", None)
-    elif enc_type == "spatial":
-        spatial_head = encoder.get("spatial_head", None)
+    if fe_cfg.encoder.type == "token":
+        tokenizer = fe_cfg.encoder.tokenizer
+        mixer = fe_cfg.encoder.mixer
+    elif fe_cfg.encoder.type == "spatial":
+        spatial_head = fe_cfg.encoder.spatial_head
     else:
         raise ValueError("model.feature_extractor.encoder.type must be 'token' or 'spatial'")
 
     n_kinds = _infer_kind_vocab_size_from_obs_space(observation_space)
 
     # NOTE:
-    # We no longer take features_dim from config.
     # The feature extractor derives its own output dim from the built branch:
-    #   - token route: mixer output dim
-    #   - spatial route: spatial_head.features_dim
+    #   - token route: mixer.params.features_dim
+    #   - spatial route: spatial_head.params.features_dim
     features_extractor_kwargs: Dict[str, Any] = dict(
-        spatial_preprocessor=fe_cfg["spatial_preprocessor"],
-        stem=fe_cfg.get("stem", None),
+        spatial_preprocessor=fe_cfg.spatial_preprocessor,
+        stem=fe_cfg.stem,
         tokenizer=tokenizer,
         mixer=mixer,
         spatial_head=spatial_head,
-        feature_augmenter=fe_cfg.get("feature_augmenter", None),
+        feature_augmenter=fe_cfg.feature_augmenter,
         n_kinds=n_kinds,
     )
 
@@ -109,20 +96,18 @@ def build_policy_kwargs_from_cfg(
 
 
 def make_model_from_cfg(
-        *,
-        cfg: Dict[str, Any],
-        train_spec: TrainSpec,
-        run_spec: RunSpec,
-        vec_env: Any,
-        tensorboard_log: Path | None,
+    *,
+    cfg: ModelConfig,
+    train_spec: TrainSpec,
+    run_spec: RunSpec,
+    vec_env: Any,
+    tensorboard_log: Path | None,
 ):
-    root = require_mapping(cfg, where="cfg")
-
     algo_type = str(train_spec.rl.algo.type).strip().lower()
     algo_params = train_spec.rl.algo.params or {}
 
     policy_kwargs = build_policy_kwargs_from_cfg(
-        cfg=root,
+        model_cfg=cfg,
         observation_space=vec_env.observation_space,
     )
 

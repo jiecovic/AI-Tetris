@@ -23,72 +23,6 @@ class BuiltEnv:
     game: Any
 
 
-def _env_kwargs_compat(*, env_cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Backward-compat shim for renamed env params.
-
-    This runs *before* instantiate(env), so env classes can stay strict.
-    """
-    out: Dict[str, Any] = dict(env_cfg)
-
-    params = out.get("params", None)
-    if isinstance(params, dict):
-        p = dict(params)
-
-        # Old name in configs: invalid_action_policy
-        # New MacroTetrisEnv ctor kw: invalid_action_policy
-        if "invalid_action_policy" in p and "invalid_action_policy" not in p:
-            p["invalid_action_policy"] = p.pop("invalid_action_policy")
-
-        out["params"] = p
-
-    # Back-compat: env.warmup used to exist.
-    # We intentionally DO NOT pass env.warmup into env ctor; warmup is now an engine concern.
-    if "warmup" in out:
-        out = dict(out)
-        out.pop("warmup", None)
-
-    return out
-
-
-def _maybe_migrate_env_warmup_to_game(*, cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Back-compat migration:
-      - if cfg.env.warmup exists AND cfg.game.warmup is missing, treat env.warmup as game.warmup.
-      - remove cfg.env.warmup so env instantiation never sees it.
-    """
-    if not isinstance(cfg, dict):
-        return cfg
-
-    env = cfg.get("env", None)
-    if not isinstance(env, dict):
-        return cfg
-
-    if "warmup" not in env:
-        return cfg
-
-    game = cfg.get("game", None)
-    game_is_missing = (game is None) or (not isinstance(game, dict)) or ("warmup" not in game)
-
-    if not game_is_missing:
-        # still remove env.warmup so we don't accidentally pass it into env ctor
-        cfg2 = dict(cfg)
-        env2 = dict(env)
-        env2.pop("warmup", None)
-        cfg2["env"] = env2
-        return cfg2
-
-    cfg2 = dict(cfg)
-    env2 = dict(env)
-    warmup_obj = env2.pop("warmup", None)
-    cfg2["env"] = env2
-
-    game2 = dict(game) if isinstance(game, dict) else {}
-    game2["warmup"] = warmup_obj
-    cfg2["game"] = game2
-
-    return cfg2
-
 
 def _make_warmup_fn(bundle: GameBundle) -> Optional[Callable[..., Any]]:
     """
@@ -152,10 +86,8 @@ def build_env(*, cfg: Dict[str, Any], env_cfg: Dict[str, Any], game: Any, warmup
         "warmup": warmup,
     }
 
-    env_cfg2 = _env_kwargs_compat(env_cfg=env_cfg)
-
     env = instantiate(
-        spec_obj=env_cfg2,  # expects env.type + env.params
+        spec_obj=env_cfg,  # expects env.type + env.params
         registry=ENV_REGISTRY,
         where="env",
         injected=injected_env,
@@ -176,28 +108,28 @@ def make_env_from_cfg(*, cfg: Dict[str, Any], seed: Optional[int] = None) -> Bui
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
 
-    cfg2 = _maybe_migrate_env_warmup_to_game(cfg=cfg)
-
-    env_cfg = cfg2.get("env", None)
+    env_cfg = cfg.get("env", None)
     if not isinstance(env_cfg, dict):
         raise TypeError("cfg.env must be a mapping")
 
     # Build a fresh engine per env instance (VecEnv-safe).
+    cfg_effective = cfg
     if seed is None:
-        bundle = make_game_bundle_from_cfg(cfg2)
+        bundle = make_game_bundle_from_cfg(cfg)
     else:
-        cfg3: Dict[str, Any] = dict(cfg2)
+        cfg3: Dict[str, Any] = dict(cfg)
         game_cfg = cfg3.get("game", {}) or {}
         if not isinstance(game_cfg, dict):
             game_cfg = {}
         game_cfg2 = dict(game_cfg)
         game_cfg2["seed"] = int(seed)
         cfg3["game"] = game_cfg2
+        cfg_effective = cfg3
         bundle = make_game_bundle_from_cfg(cfg3)
 
     warmup_fn = _make_warmup_fn(bundle)
 
-    return build_env(cfg=cfg2, env_cfg=env_cfg, game=bundle.game, warmup=warmup_fn)
+    return build_env(cfg=cfg_effective, env_cfg=env_cfg, game=bundle.game, warmup=warmup_fn)
 
 
 __all__ = ["BuiltEnv", "build_env", "make_env_from_cfg"]

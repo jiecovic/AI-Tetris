@@ -47,18 +47,8 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
     """
     Convert config -> tetris_rl_engine.WarmupSpec.
 
-    Accepts:
-      - None
-      - already a WarmupSpec instance
-      - dict forms (spec dict):
-          {"type":"none"}
-          {"type":"fixed", "rows":18, "holes":1, "spawn_buffer":2}
-          {"type":"uniform_rows", "min_rows":10, "max_rows":18, "holes":1, "spawn_buffer":2}
-          {"type":"poisson", "lambda":12.0, "cap":18, "holes":1, "spawn_buffer":2}
-          {"type":"base_plus_poisson", "base":8, "lambda":6.0, "cap":18, "holes":1, "spawn_buffer":2}
-
-        Optional post-transform:
-          "uniform_holes": {"min": 1, "max": 3}
+    Canonical spec shape:
+      {"type": "...", "params": {...}}
     """
     if obj is None:
         return None
@@ -72,53 +62,55 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
     if not isinstance(obj, dict):
         raise TypeError(f"game.warmup.spec must be None|WarmupSpec|dict, got {type(obj)!r}")
 
-    # spawn_buffer is now engine-internal; accept it in configs for back-compat but ignore it.
-    # (Do NOT forward to WarmupSpec constructors.)
-    _ = obj.get("spawn_buffer", None)
+    t = str(obj.get("type", "")).strip().lower()
+    if not t:
+        raise ValueError("game.warmup.spec.type must be a non-empty string")
 
-    t = str(obj.get("type", "none")).strip().lower()
+    params = obj.get("params", {}) or {}
+    if not isinstance(params, dict):
+        raise TypeError("game.warmup.spec.params must be a mapping")
 
     if t in {"none", "off", "disabled", "null"}:
         spec = WarmupSpec.none()
 
     elif t == "fixed":
-        rows = int(obj["rows"])
-        holes = int(obj.get("holes", 1))
+        rows = int(params["rows"])
+        holes = int(params.get("holes", 1))
         spec = WarmupSpec.fixed(rows, holes=holes)
 
     elif t in {"uniform_rows", "uniform"}:
-        min_rows = int(obj["min_rows"])
-        max_rows = int(obj["max_rows"])
-        holes = int(obj.get("holes", 1))
+        min_rows = int(params["min_rows"])
+        max_rows = int(params["max_rows"])
+        holes = int(params.get("holes", 1))
         spec = WarmupSpec.uniform_rows(min_rows, max_rows, holes=holes)
 
     elif t == "poisson":
-        lam_raw = obj.get("lambda", obj.get("lambda_", None))
+        lam_raw = params.get("lambda", params.get("lambda_", None))
         if lam_raw is None:
             raise KeyError("warmup.type=poisson requires key 'lambda' (or 'lambda_')")
         lam = float(lam_raw)
-        cap = int(obj["cap"])
-        holes = int(obj.get("holes", 1))
+        cap = int(params["cap"])
+        holes = int(params.get("holes", 1))
         spec = WarmupSpec.poisson(lam, cap, holes=holes)
 
     elif t in {"base_plus_poisson", "base+poisson"}:
-        base = int(obj["base"])
-        lam_raw = obj.get("lambda", obj.get("lambda_", None))
+        base = int(params["base"])
+        lam_raw = params.get("lambda", params.get("lambda_", None))
         if lam_raw is None:
             raise KeyError("warmup.type=base_plus_poisson requires key 'lambda' (or 'lambda_')")
         lam = float(lam_raw)
-        cap = int(obj["cap"])
-        holes = int(obj.get("holes", 1))
+        cap = int(params["cap"])
+        holes = int(params.get("holes", 1))
         spec = WarmupSpec.base_plus_poisson(base, lam, cap, holes=holes)
 
     else:
         raise ValueError(f"unknown warmup.type={t!r}")
 
     # optional: make holes uniform after base spec was built
-    uh = obj.get("uniform_holes", None)
+    uh = params.get("uniform_holes", None)
     if uh is not None:
         if not isinstance(uh, dict):
-            raise TypeError("warmup.uniform_holes must be a dict {min,max}")
+            raise TypeError("warmup.params.uniform_holes must be a dict {min,max}")
         spec = spec.with_uniform_holes(int(uh["min"]), int(uh["max"]))
 
     return spec
@@ -134,13 +126,7 @@ def _parse_warmup_cfg(obj: Any) -> Tuple[float, Optional[Any]]:
         prob: 0.9
         spec:
           type: poisson
-          params: {...}     # accepted, but we also allow flattened spec dict for back-compat
-
-    Accepted back-compat:
-      warmup: {type: "...", ...}                 -> prob=1.0, spec=that dict
-      warmup: {prob: 0.9, type: "...", ...}      -> prob from dict, spec from remaining keys
-      warmup: {enabled: false, ...}              -> disabled
-      warmup: {prob: 0.0, ...}                   -> disabled
+          params: {...}
     """
     if obj is None:
         return 0.0, None
@@ -153,48 +139,17 @@ def _parse_warmup_cfg(obj: Any) -> Tuple[float, Optional[Any]]:
     if not isinstance(obj, dict):
         raise TypeError(f"cfg.game.warmup must be a mapping or null, got {type(obj)!r}")
 
-    enabled = bool(obj.get("enabled", True))
     prob = float(obj.get("prob", 1.0))
-
-    if (not enabled) or prob <= 0.0:
+    if prob <= 0.0:
         return 0.0, None
-
     if prob > 1.0:
         raise ValueError(f"cfg.game.warmup.prob must be in [0,1], got {prob}")
 
     spec_obj = obj.get("spec", None)
-
-    # back-compat: treat warmup dict itself as spec if it looks like a spec
-    if spec_obj is None and ("type" in obj or "uniform_holes" in obj or "rows" in obj or "min_rows" in obj):
-        spec_obj = dict(obj)
-        # strip non-spec keys
-        spec_obj.pop("enabled", None)
-        spec_obj.pop("prob", None)
-        spec_obj.pop("spec", None)
-
-        # if "params" exists, allow the canonical (type, params) shape too
-        params = spec_obj.get("params", None)
-        if isinstance(params, dict):
-            t = str(spec_obj.get("type", "none")).strip().lower()
-            # expand canonical params into flat keys expected by _parse_warmup_spec
-            merged = {"type": t, **dict(params)}
-            if "uniform_holes" in spec_obj:
-                merged["uniform_holes"] = spec_obj["uniform_holes"]
-            spec_obj = merged
-
-    # canonical: spec is mapping with (type, params) or already flattened
     if spec_obj is None:
-        return 0.0, None
+        raise KeyError("cfg.game.warmup.spec is required when warmup is enabled")
     if not isinstance(spec_obj, dict):
-        raise TypeError(f"cfg.game.warmup.spec must be a mapping or null, got {type(spec_obj)!r}")
-
-    # If canonical {type, params}, expand params into flat dict.
-    if "params" in spec_obj and isinstance(spec_obj.get("params"), dict):
-        t = str(spec_obj.get("type", "none")).strip().lower()
-        merged = {"type": t, **dict(spec_obj["params"])}
-        if "uniform_holes" in spec_obj:
-            merged["uniform_holes"] = spec_obj["uniform_holes"]
-        spec_obj = merged
+        raise TypeError(f"cfg.game.warmup.spec must be a mapping, got {type(spec_obj)!r}")
 
     warmup_spec = _parse_warmup_spec(spec_obj)
     return float(prob), warmup_spec

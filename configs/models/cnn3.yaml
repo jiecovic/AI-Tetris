@@ -1,3 +1,4 @@
+# @package _global_
 model:
 
   policy_kwargs:
@@ -45,13 +46,13 @@ model:
       type: spatial  # token | spatial
 
       # ------------------------------------------------------------------
-      # token encoder (used when type: token_encoder)
+      # token encoder (used when type: token)
       # ------------------------------------------------------------------
 
       spatial_head:
-        features_dim: 128          # base encoder output dim (B, F_base)
         type: global_pool        # options: global_pool | flatten | col_collapse | attn_pool
         params:
+          features_dim: 128          # base encoder output dim (B, F_base)
 #          collapse: linear
           pool: max          # options: mean | max | meanmax (if applicable)
 #          include_active_onehot: true
@@ -63,3 +64,4 @@ model:
         use_active: true        # include one-hot of active piece kind
         use_next: true          # include one-hot(s) of next queue
 #
+

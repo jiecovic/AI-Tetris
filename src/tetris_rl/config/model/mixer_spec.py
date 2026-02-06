@@ -1,8 +1,11 @@
-# src/tetris_rl/config/model/mixer_spec.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Mapping, Type, Any, Literal
+from typing import Literal
+
+from pydantic import Field, model_validator
+
+from tetris_rl.config.base import ConfigBase
+from tetris_rl.config.typed_params import parse_typed_params
 
 PoolKind = Literal[
     "cls",
@@ -21,9 +24,8 @@ PoolKind = Literal[
 # ---------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class MLPMixerParams:
-    features_dim: int
+class MLPMixerParams(ConfigBase):
+    features_dim: int = Field(ge=1)
     n_layers: int = 4
     token_mlp_dim: int = 256
     channel_mlp_dim: int = 1024
@@ -41,9 +43,8 @@ class MLPMixerParams:
 # ---------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class TransformerMixerParams:
-    features_dim: int
+class TransformerMixerParams(ConfigBase):
+    features_dim: int = Field(ge=1)
 
     n_layers: int = 4
     n_heads: int = 8
@@ -65,18 +66,33 @@ class TransformerMixerParams:
 # ---------------------------------------------------------------------
 
 
-MixerType = Literal["mlp_mixer", "transformer"]
+MixerType = Literal["mlp", "transformer"]
 
 
-@dataclass(frozen=True)
-class MixerConfig:
+MIXER_PARAMS_REGISTRY = {
+    "mlp": MLPMixerParams,
+    "transformer": TransformerMixerParams,
+}
+
+
+class MixerConfig(ConfigBase):
     type: MixerType
     params: MLPMixerParams | TransformerMixerParams
 
-MIXER_PARAMS_REGISTRY: Mapping[str, Type[Any]] = {
-    "mlp_mixer": MLPMixerParams,
-    "transformer": TransformerMixerParams,
-}
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_params(cls, data: object) -> object:
+        if isinstance(data, MixerConfig):
+            return data
+        if not isinstance(data, dict):
+            raise TypeError("mixer must be a mapping with keys {type, params}")
+        tag, params = parse_typed_params(
+            type_value=data.get("type", None),
+            params_value=data.get("params", None),
+            registry=MIXER_PARAMS_REGISTRY,
+            where="mixer",
+        )
+        return {"type": tag, "params": params}
 
 
 __all__ = [
@@ -85,4 +101,6 @@ __all__ = [
     "TransformerMixerParams",
     "MixerType",
     "MixerConfig",
+    "MIXER_PARAMS_REGISTRY",
 ]
+

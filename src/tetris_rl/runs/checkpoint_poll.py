@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Optional, Tuple
 
 from tetris_rl.config.train_spec import TrainSpec
-from tetris_rl.runs.checkpoint_manager import resolve_checkpoint_selector
+from tetris_rl.runs.checkpoint_manifest import resolve_checkpoint_from_manifest
 from tetris_rl.training.model_io import load_model_from_spec
 
 
@@ -55,7 +55,10 @@ class CheckpointPoller:
             return None
         self._last_poll_s = now
 
-        chosen = resolve_checkpoint_selector(run_dir=self.run_dir, which=self.which)
+        try:
+            chosen = resolve_checkpoint_from_manifest(run_dir=self.run_dir, which=self.which)
+        except Exception:
+            return None
         if not chosen.is_file():
             return None
 

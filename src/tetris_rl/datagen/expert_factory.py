@@ -53,8 +53,9 @@ def make_expert_from_spec(*, expert_spec: DataGenExpertSpec) -> RustExpertBundle
     # ---------------------------
     # codemy0/1/2 share knobs
     # ---------------------------
-    beam_width = _opt_int(getattr(expert_spec, "beam_width", None))
-    beam_from_depth = int(_opt_int(getattr(expert_spec, "beam_from_depth", None)) or 0)
+    params = getattr(expert_spec, "params", None)
+    beam_width = _opt_int(getattr(params, "beam_width", None))
+    beam_from_depth = int(_opt_int(getattr(params, "beam_from_depth", None)) or 0)
 
     if t == "codemy0":
         return RustExpertBundle(
@@ -73,7 +74,7 @@ def make_expert_from_spec(*, expert_spec: DataGenExpertSpec) -> RustExpertBundle
     # codemy2fast has its own knob
     # ---------------------------
     if t == "codemy2fast":
-        tail_weight = float(_opt_float(getattr(expert_spec, "tail_weight", None)) or 0.5)
+        tail_weight = float(_opt_float(getattr(params, "tail_weight", None)) or 0.5)
         return RustExpertBundle(policy=ExpertPolicy.codemy2fast(tail_weight=tail_weight))
 
     raise ValueError(f"unknown datagen expert.type: {t!r}")

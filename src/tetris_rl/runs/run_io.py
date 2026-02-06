@@ -13,9 +13,7 @@ def choose_config_path(run_dir: Path) -> Path:
     Resolve the authoritative config artifact inside an existing run directory.
 
     Priority:
-      1) config.resolved.yaml
-      2) config.yaml
-      3) the only *.yaml/*.yml file in the directory
+      1) config.yaml
 
     Note:
       - This is NOT YAML parsing and NOT schema logic.
@@ -23,24 +21,15 @@ def choose_config_path(run_dir: Path) -> Path:
     """
     run_dir = Path(run_dir)
 
-    p_resolved = run_dir / "config.resolved.yaml"
-    if p_resolved.is_file():
-        return p_resolved
-
     p_cfg = run_dir / "config.yaml"
     if p_cfg.is_file():
         return p_cfg
 
-    yamls = sorted([*run_dir.glob("*.yaml"), *run_dir.glob("*.yml")])
-    if len(yamls) == 1:
-        return yamls[0]
-
     found = sorted([p.name for p in run_dir.iterdir() if p.is_file()])
     raise FileNotFoundError(
-        "Could not find config in run dir. Expected config.resolved.yaml or config.yaml.\n"
+        "Could not find config in run dir. Expected config.yaml.\n"
         f"run_dir={run_dir}\n"
-        f"files={found}\n"
-        f"yaml_files={[p.name for p in yamls]}"
+        f"files={found}"
     )
 
 

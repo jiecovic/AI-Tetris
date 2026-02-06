@@ -197,6 +197,7 @@ def run_imitation(
             checkpoint_dir=Path(manager.paths.checkpoint_dir),
             eval_every=int(sched.eval_every),
             train_spec=train_spec,
+            run_spec=run_spec,
             eval=train_spec.eval,
             base_seed=int(run_spec.seed),
             table_header_every=10,

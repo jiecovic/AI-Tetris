@@ -1,11 +1,8 @@
-# configs/datagen/rust_codemy1_uniform_noise_depth0.yaml
-
-# ------------------------------------------------------------------
-# Game (same semantics as train, just flattened)
-# ------------------------------------------------------------------
-specs:
-  env: configs/env_bundles/macro_discrete_warmup.yaml
-
+# @package _global_
+defaults:
+  - /hydra: default
+  - /env_bundles: macro_discrete_warmup
+  - _self_
 
 # ------------------------------------------------------------------
 # Dataset
@@ -48,9 +45,12 @@ generation:
 expert:
   type: codemy0              # codemy0 | codemy1 | codemy2 | codemy2fast
 
-  # codemy0 / codemy1 / codemy2 knobs
-#  beam_from_depth: 0
-#  beam_width: 10             # null → use Rust defaults
+  params: {}
+    # codemy0 / codemy1 / codemy2 knobs
+#    beam_from_depth: 0
+#    beam_width: 10             # null -> use Rust defaults
 #
-#   codemy2fast-only (ignored otherwise)
-#  tail_weight: 0.5
+#    codemy2fast-only (ignored otherwise)
+#    tail_weight: 0.5
+
+

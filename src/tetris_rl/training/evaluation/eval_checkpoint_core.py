@@ -11,6 +11,7 @@ try:
 except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
+from tetris_rl.config.run_spec import RunSpec
 from tetris_rl.config.train_spec import TrainEvalSpec, TrainSpec
 from tetris_rl.runs.checkpoint_manager import CheckpointManager, CheckpointPaths
 from tetris_rl.training.evaluation import evaluate_model
@@ -50,6 +51,7 @@ class EvalCheckpointCoreSpec:
     checkpoint_dir: Path
     eval_every: int
     train_spec: TrainSpec
+    run_spec: RunSpec
 
     eval: TrainEvalSpec = field(default_factory=TrainEvalSpec)
 
@@ -321,6 +323,7 @@ class EvalCheckpointCore:
                 model=model,
                 cfg=self.cfg,  # wiring only
                 train_spec=self.spec.train_spec,
+                run_spec=self.spec.run_spec,
                 eval_steps=eval_steps,
                 deterministic=deterministic,
                 seed_base=seed_base,

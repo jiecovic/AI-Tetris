@@ -118,3 +118,14 @@ class RateMeter:
         if dt <= 1e-12:
             return 0.0
         return float(len(self._t) - 1) / dt
+
+    def reset(self) -> None:
+        self._t.clear()
+
+    def trim_to_last(self, n: int = 2) -> None:
+        keep = max(0, int(n))
+        if keep <= 0 or len(self._t) <= keep:
+            return
+        last = list(self._t)[-keep:]
+        self._t.clear()
+        self._t.extend(last)

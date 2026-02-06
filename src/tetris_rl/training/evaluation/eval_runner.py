@@ -1,18 +1,17 @@
 # src/tetris_rl/training/evaluation/eval_runner.py
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, cast
 
 import numpy as np
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv
 
-from tetris_rl.config.run_spec import RunSpec, parse_run_spec
-from tetris_rl.config.schema_types import get_mapping, require_mapping
+from tetris_rl.config.run_spec import RunSpec
 from tetris_rl.config.train_spec import TrainSpec
 from tetris_rl.metrics import StatsAccumulator, StatsAccumulatorConfig
 from tetris_rl.training.env_factory import make_vec_env_from_cfg
-from tetris_rl.utils.config_merge import merge_env_for_eval
+from tetris_rl.utils.config_merge import merge_cfg_for_eval
 
 
 def _obs_set(obs: Any, idx: int, value: Any) -> Any:
@@ -98,7 +97,12 @@ class _SlotState:
     ep_steps: int = 0
 
 
-def _build_eval_vec_env(*, cfg: Dict[str, Any], train_spec: TrainSpec) -> Tuple[VecEnv, Any]:
+def _build_eval_vec_env(
+    *,
+    cfg: Dict[str, Any],
+    train_spec: TrainSpec,
+    run_spec: RunSpec,
+) -> Tuple[VecEnv, Any]:
     """
     Build a fresh eval VecEnv.
 
@@ -107,8 +111,7 @@ def _build_eval_vec_env(*, cfg: Dict[str, Any], train_spec: TrainSpec) -> Tuple[
       - uses run.n_envs (single knob)
       - forces vec="dummy"
     """
-    base_run: RunSpec = parse_run_spec(cfg=cfg)
-    eval_run: RunSpec = replace(base_run, n_envs=int(base_run.n_envs), vec="dummy")
+    eval_run: RunSpec = run_spec.model_copy(update={"vec": "dummy"})
 
     env_override: Any
     try:
@@ -116,7 +119,7 @@ def _build_eval_vec_env(*, cfg: Dict[str, Any], train_spec: TrainSpec) -> Tuple[
     except Exception:
         env_override = {}
 
-    cfg_eval = merge_env_for_eval(cfg=cfg, env_override=env_override)
+    cfg_eval = merge_cfg_for_eval(cfg=cfg, env_override=env_override)
 
     built = make_vec_env_from_cfg(cfg=cfg_eval, run_spec=eval_run)
     return built.vec_env, built  # keep built alive for any held refs
@@ -127,6 +130,7 @@ def evaluate_model(
         model: Any,
         cfg: Dict[str, Any],
         train_spec: TrainSpec,
+        run_spec: RunSpec,
         eval_steps: int,
         deterministic: bool,
         seed_base: int,
@@ -152,7 +156,7 @@ def evaluate_model(
     algo_type = _effective_algo_type_from_model(model)
     want_masking = algo_type == "maskable_ppo"
 
-    vec_env, _built = _build_eval_vec_env(cfg=cfg, train_spec=train_spec)
+    vec_env, _built = _build_eval_vec_env(cfg=cfg, train_spec=train_spec, run_spec=run_spec)
     obs = vec_env.reset()
 
     # Infer n_envs from the built VecEnv.
@@ -315,8 +319,9 @@ def evaluate_model(
 
     # purely descriptive (non-semantic) metadata from cfg is allowed until Run/Env specs exist
     try:
-        root = require_mapping(cfg, where="cfg")
-        env = get_mapping(root, "env", default={}, where="cfg.env")
+        env = cfg.get("env", {}) if isinstance(cfg, dict) else {}
+        if not isinstance(env, dict):
+            env = {}
         out["meta/env_type"] = str(env.get("type", ""))
         obs_cfg = env.get("obs", {}) or {}
         out["meta/obs_type"] = str(obs_cfg.get("type", "")) if isinstance(obs_cfg, dict) else ""

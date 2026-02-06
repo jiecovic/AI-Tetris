@@ -1,40 +1,32 @@
-# src/tetris_rl/config/env_spec.py
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Dict
 
-from tetris_rl.config.schema_types import require_mapping_strict
+from pydantic import Field, field_validator
+
+from tetris_rl.config.base import ConfigBase
 
 
-@dataclass(frozen=True)
-class EnvSpec:
-    """
-    Env-bundle spec loaded from specs.env.
+class RewardSpec(ConfigBase):
+    type: str
+    params: Dict[str, Any] = Field(default_factory=dict)
 
-    Contract:
-      - must contain top-level keys: env, game
-      - env and game are separate namespaces in the composed root cfg
-
-    This parser only validates presence/types. Deeper validation is done by
-    env/game factories and typed spec parsers.
-    """
-    env: Dict[str, Any]
-    game: Dict[str, Any]
+    @field_validator("type", mode="before")
+    @classmethod
+    def _type_lower(cls, v: object) -> str:
+        return str(v).strip().lower()
 
 
-def parse_env_spec(*, obj: Dict[str, Any], where: str = "specs.env") -> EnvSpec:
-    root = require_mapping_strict(obj, where=where, allowed_keys={"env", "game"})
+class EnvConfig(ConfigBase):
+    type: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+    reward: RewardSpec
 
-    env = root.get("env", None)
-    if not isinstance(env, dict):
-        raise TypeError(f"{where}.env must be a mapping")
-
-    game = root.get("game", None)
-    if not isinstance(game, dict):
-        raise TypeError(f"{where}.game must be a mapping")
-
-    return EnvSpec(env=dict(env), game=dict(game))
+    @field_validator("type", mode="before")
+    @classmethod
+    def _type_lower(cls, v: object) -> str:
+        return str(v).strip().lower()
 
 
-__all__ = ["EnvSpec", "parse_env_spec"]
+__all__ = ["EnvConfig", "RewardSpec"]
+

@@ -1,22 +1,15 @@
-# src/tetris_rl/config/train_spec.py
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
-from tetris_rl.config.schema_types import (
-    get_bool,
-    get_float,
-    get_int,
-    get_mapping,
-    get_str,
-    require_mapping,
-    require_mapping_strict,
-)
+from pydantic import Field, field_validator, model_validator
+
+from tetris_rl.config.base import ConfigBase
+
+TrainEvalMode = Literal["off", "rl", "imitation", "both"]
 
 
-@dataclass(frozen=True)
-class TrainCheckpointsSpec:
+class TrainCheckpointsSpec(ConfigBase):
     """
     Checkpoint cadence for training.
 
@@ -24,230 +17,94 @@ class TrainCheckpointsSpec:
       - latest_every: save checkpoints/latest.zip every N environment steps.
     """
 
-    latest_every: int = 200_000
+    latest_every: int = Field(default=200_000, ge=1)
 
 
-@dataclass(frozen=True)
-class TrainEvalSpec:
+class TrainEvalSpec(ConfigBase):
     """
     Training-time evaluation semantics.
 
     This is a training hook (for TB + best checkpoints), not a benchmarking suite.
-
-    mode:
-      - "off": disable evaluation entirely
-      - "rl": evaluate only during RL phase
-      - "imitation": evaluate only during imitation phase
-      - "both": evaluate during both phases
-
-    eval_every:
-      - <= 0 disables evaluation (regardless of mode)
     """
 
-    mode: str = "off"  # off | rl | imitation | both
-    steps: int = 100_000
-    eval_every: int = 0
+    mode: TrainEvalMode = "off"
+    steps: int = Field(default=100_000, ge=1)
+    eval_every: int = Field(default=0, ge=0)
 
     deterministic: bool = True
     seed_offset: int = 10_000
-    num_envs: int = 1
+    num_envs: int = Field(default=1, ge=1)
 
     # Optional config patch applied ONLY when building the eval environment.
     # Intended usage: disable warmup, remove max_steps truncation, etc.
-    env_override: Dict[str, Any] = field(default_factory=dict)
+    env_override: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def _mode_lower(cls, v: object) -> str:
+        return str(v).strip().lower()
 
 
-@dataclass(frozen=True)
-class ImitationSpec:
+class ImitationSpec(ConfigBase):
     enabled: bool = False
 
     # offline dataset (required when enabled)
     dataset_dir: str = ""
 
     # training
-    epochs: int = 1
-    batch_size: int = 256
+    epochs: int = Field(default=1, ge=1)
+    batch_size: int = Field(default=256, ge=1)
     learning_rate: float = 3e-4
     max_grad_norm: float = 1.0
     shuffle: bool = True
 
     # optional: limit how many samples to use (0 = all)
-    max_samples: int = 0
+    max_samples: int = Field(default=0, ge=0)
 
     # archive (copy of latest.zip)
     save_archive: bool = True
     archive_dir: str = "checkpoints/imitation"
 
+    @model_validator(mode="after")
+    def _validate_dataset_dir(self) -> "ImitationSpec":
+        if self.enabled and not str(self.dataset_dir).strip():
+            raise ValueError("train.imitation.enabled=true requires train.imitation.dataset_dir to be set")
+        return self
 
-@dataclass(frozen=True)
-class RLAlgoSpec:
-    type: str = "ppo"  # ppo | maskable_ppo | dqn
-    params: Dict[str, Any] = field(default_factory=dict)
+
+class RLAlgoSpec(ConfigBase):
+    type: Literal["ppo", "maskable_ppo", "dqn"] = "ppo"
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _type_lower(cls, v: object) -> str:
+        return str(v).strip().lower()
 
 
-@dataclass(frozen=True)
-class RLSpec:
+class RLSpec(ConfigBase):
     enabled: bool = True
-    total_timesteps: int = 200_000
+    total_timesteps: int = Field(default=200_000, ge=0)
 
     # Resume training from a previous run folder.
-    # Semantics:
-    #   - if set to "experiments/cnn_run_013", we load:
-    #       experiments/cnn_run_013/checkpoints/latest.zip
-    #   - if empty or missing => start fresh
     resume: Optional[str] = None
 
-    algo: RLAlgoSpec = field(default_factory=RLAlgoSpec)
+    algo: RLAlgoSpec = Field(default_factory=RLAlgoSpec)
+
+    @field_validator("resume", mode="before")
+    @classmethod
+    def _resume_empty_to_none(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s if s else None
 
 
-@dataclass(frozen=True)
-class TrainSpec:
-    checkpoints: TrainCheckpointsSpec = field(default_factory=TrainCheckpointsSpec)
-    eval: TrainEvalSpec = field(default_factory=TrainEvalSpec)
-    imitation: ImitationSpec = field(default_factory=ImitationSpec)
-    rl: RLSpec = field(default_factory=RLSpec)
-
-
-def parse_train_spec(*, cfg: Dict[str, Any]) -> TrainSpec:
-    """
-    Canonical layout ONLY:
-
-      train:
-        checkpoints: { latest_every }
-        eval:        { mode, steps, eval_every, deterministic, seed_offset, num_envs, env_override }
-        imitation:   { enabled, dataset_dir, epochs, batch_size, learning_rate, max_grad_norm, shuffle, max_samples, ... }
-        rl:          { enabled, total_timesteps, resume, algo: { type, params } }
-    """
-    root = require_mapping(cfg, where="cfg")
-    train = require_mapping_strict(root.get("train", None), where="cfg.train")
-
-    # ---------------------------
-    # checkpoints
-    # ---------------------------
-    ckpt = get_mapping(train, "checkpoints", default={}, where="cfg.train.checkpoints")
-
-    latest_every = max(
-        1,
-        get_int(
-            ckpt,
-            "latest_every",
-            default=TrainCheckpointsSpec.latest_every,
-            where="cfg.train.checkpoints.latest_every",
-        ),
-    )
-    checkpoints = TrainCheckpointsSpec(latest_every=int(latest_every))
-
-    # ---------------------------
-    # eval (training-time)
-    # ---------------------------
-    ev = get_mapping(train, "eval", default={}, where="cfg.train.eval")
-
-    mode = get_str(ev, "mode", default=TrainEvalSpec.mode, where="cfg.train.eval.mode").strip().lower()
-    if mode not in {"off", "rl", "imitation", "both"}:
-        raise ValueError(f"cfg.train.eval.mode must be off|rl|imitation|both, got {mode!r}")
-
-    steps = max(
-        1,
-        get_int(
-            ev,
-            "steps",
-            default=TrainEvalSpec.steps,
-            where="cfg.train.eval.steps",
-        ),
-    )
-    eval_every = max(
-        0,
-        get_int(
-            ev,
-            "eval_every",
-            default=TrainEvalSpec.eval_every,
-            where="cfg.train.eval.eval_every",
-        ),
-    )
-    deterministic = get_bool(
-        ev,
-        "deterministic",
-        default=TrainEvalSpec.deterministic,
-        where="cfg.train.eval.deterministic",
-    )
-    seed_offset = get_int(
-        ev,
-        "seed_offset",
-        default=TrainEvalSpec.seed_offset,
-        where="cfg.train.eval.seed_offset",
-    )
-    num_envs = max(
-        1,
-        get_int(
-            ev,
-            "num_envs",
-            default=TrainEvalSpec.num_envs,
-            where="cfg.train.eval.num_envs",
-        ),
-    )
-
-    env_override = get_mapping(ev, "env_override", default={}, where="cfg.train.eval.env_override")
-
-    eval_spec = TrainEvalSpec(
-        mode=str(mode),
-        steps=int(steps),
-        eval_every=int(eval_every),
-        deterministic=bool(deterministic),
-        seed_offset=int(seed_offset),
-        num_envs=int(num_envs),
-        env_override=dict(env_override),
-    )
-
-    # ---------------------------
-    # imitation
-    # ---------------------------
-    im = get_mapping(train, "imitation", default={}, where="cfg.train.imitation")
-
-    imitation = ImitationSpec(
-        enabled=get_bool(im, "enabled", default=ImitationSpec.enabled, where="cfg.train.imitation.enabled"),
-        dataset_dir=get_str(im, "dataset_dir", default=ImitationSpec.dataset_dir, where="cfg.train.imitation.dataset_dir"),
-        epochs=max(1, get_int(im, "epochs", default=ImitationSpec.epochs, where="cfg.train.imitation.epochs")),
-        batch_size=max(1, get_int(im, "batch_size", default=ImitationSpec.batch_size, where="cfg.train.imitation.batch_size")),
-        learning_rate=get_float(im, "learning_rate", default=ImitationSpec.learning_rate, where="cfg.train.imitation.learning_rate"),
-        max_grad_norm=get_float(im, "max_grad_norm", default=ImitationSpec.max_grad_norm, where="cfg.train.imitation.max_grad_norm"),
-        shuffle=get_bool(im, "shuffle", default=ImitationSpec.shuffle, where="cfg.train.imitation.shuffle"),
-        max_samples=max(0, get_int(im, "max_samples", default=ImitationSpec.max_samples, where="cfg.train.imitation.max_samples")),
-        save_archive=get_bool(im, "save_archive", default=ImitationSpec.save_archive, where="cfg.train.imitation.save_archive"),
-        archive_dir=get_str(im, "archive_dir", default=ImitationSpec.archive_dir, where="cfg.train.imitation.archive_dir"),
-    )
-
-    if imitation.enabled and not imitation.dataset_dir.strip():
-        raise ValueError("cfg.train.imitation.enabled=true requires cfg.train.imitation.dataset_dir to be set")
-
-    # ---------------------------
-    # rl
-    # ---------------------------
-    rl_obj = get_mapping(train, "rl", default={}, where="cfg.train.rl")
-
-    total_timesteps = max(
-        0,
-        get_int(rl_obj, "total_timesteps", default=RLSpec.total_timesteps, where="cfg.train.rl.total_timesteps"),
-    )
-
-    resume_raw = get_str(rl_obj, "resume", default="", where="cfg.train.rl.resume").strip()
-    resume: Optional[str] = resume_raw if resume_raw else None
-
-    algo_obj = require_mapping(rl_obj.get("algo", None), where="cfg.train.rl.algo")
-    algo_type = get_str(algo_obj, "type", default=RLAlgoSpec.type, where="cfg.train.rl.algo.type").strip().lower()
-    if algo_type not in {"ppo", "maskable_ppo", "dqn"}:
-        raise ValueError(f"cfg.train.rl.algo.type must be 'ppo'|'maskable_ppo'|'dqn', got {algo_type!r}")
-
-    algo_params = algo_obj.get("params", {}) or {}
-    algo_params = require_mapping(algo_params, where="cfg.train.rl.algo.params")
-
-    rl = RLSpec(
-        enabled=get_bool(rl_obj, "enabled", default=RLSpec.enabled, where="cfg.train.rl.enabled"),
-        total_timesteps=int(total_timesteps),
-        resume=resume,
-        algo=RLAlgoSpec(type=str(algo_type), params=dict(algo_params)),
-    )
-
-    return TrainSpec(checkpoints=checkpoints, eval=eval_spec, imitation=imitation, rl=rl)
+class TrainSpec(ConfigBase):
+    checkpoints: TrainCheckpointsSpec = Field(default_factory=TrainCheckpointsSpec)
+    eval: TrainEvalSpec = Field(default_factory=TrainEvalSpec)
+    imitation: ImitationSpec = Field(default_factory=ImitationSpec)
+    rl: RLSpec = Field(default_factory=RLSpec)
 
 
 __all__ = [
@@ -257,5 +114,6 @@ __all__ = [
     "ImitationSpec",
     "RLSpec",
     "RLAlgoSpec",
-    "parse_train_spec",
+    "TrainEvalMode",
 ]
+

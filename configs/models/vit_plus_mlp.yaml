@@ -1,3 +1,4 @@
+# @package _global_
 model:
 
   policy_kwargs:
@@ -38,7 +39,7 @@ model:
       type: token  # token | spatial
 
       # ------------------------------------------------------------------
-      # token encoder (used when type: token_encoder)
+      # token encoder (used when type: token)
       # ------------------------------------------------------------------
 
       tokenizer:
@@ -87,10 +88,10 @@ model:
           pre_ln_input: true      # options: true | false
 
   #  encoder:
-  #    type: spatial_encoder          # options: token_encoder | spatial_encoder
+  #    type: spatial          # options: token | spatial
 
       # ------------------------------------------------------------------
-      # spatial encoder (used when type: spatial_encoder)
+      # spatial encoder (used when type: spatial)
       # ------------------------------------------------------------------
 
       # spatial_head:
@@ -104,3 +105,4 @@ model:
 #      params:
 ##        use_active: true        # include one-hot of active piece kind
 ###        use_next: true          # include one-hot(s) of next queue
+

@@ -10,7 +10,7 @@ from tetris_rl.envs.api import RewardFn, TransitionFeatures
 @dataclass(frozen=True)
 class HeuristicDeltaPiecewiseReward(RewardFn):
     """
-    Placement-level reward shaping using a learned piecewise-linear reward over Δ-features.
+    Placement-level reward shaping using a learned piecewise-linear reward over delta-features.
 
     Model:
       r = bias
@@ -18,8 +18,7 @@ class HeuristicDeltaPiecewiseReward(RewardFn):
           + sum_i sum_k w_hinge[i,k] * max(0, x_i - knot[i,k])
 
     Notes:
-      - We keep the implementation explicit and cheap (a few max(0,·) hinges).
-      - Coefficients below are the *normalized=std* weights from reward_fit.
+      - We keep the implementation explicit and cheap (a few max(0, x) hinges).
 
     Conventions:
       - All penalties are POSITIVE magnitudes.

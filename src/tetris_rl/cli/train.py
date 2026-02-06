@@ -1,18 +1,24 @@
-# src/tetris_rl/cli/train.py
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import time
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, Sequence
 
+from hydra import compose, initialize, initialize_config_dir
+from omegaconf import DictConfig, OmegaConf
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 
-from tetris_rl.config.resolve import resolve_config
-from tetris_rl.config.run_spec import parse_run_spec
-from tetris_rl.config.train_spec import parse_train_spec
-from tetris_rl.config.snapshot import load_yaml, write_config_snapshot
+from tetris_rl.config.io import to_plain_dict
+from tetris_rl.config.root import TrainConfig
 from tetris_rl.runs.run_io import make_run_paths, materialize_run_paths
+from tetris_rl.runs.run_manifest import write_run_manifest
+from tetris_rl.runs.checkpoint_manifest import (
+    CheckpointEntry,
+    CheckpointManifest,
+    save_checkpoint_manifest,
+    update_checkpoint_manifest,
+)
 from tetris_rl.training.callbacks.eval_checkpoint import (
     EvalCheckpointCallback,
     EvalCheckpointSpec,
@@ -31,48 +37,19 @@ from tetris_rl.training.reporting import (
     log_ppo_params,
     log_runtime_info,
 )
+from tetris_rl.utils.config_merge import merge_cfg_for_eval
 from tetris_rl.utils.logging import setup_logger
 from tetris_rl.utils.paths import repo_root as find_repo_root
 
 
-def _deep_merge(base: Any, patch: Any) -> Any:
-    """
-    Simple deep-merge for config patches.
-
-    Rules:
-      - mapping + mapping => recursively merge keys
-      - otherwise => patch replaces base
-      - patch=None => replaces base with None (used to disable warmup etc.)
-    """
-    if patch is None:
-        return None
-    if isinstance(base, dict) and isinstance(patch, dict):
-        out: Dict[str, Any] = dict(base)
-        for k, v in patch.items():
-            out[k] = _deep_merge(out.get(k, None), v)
-        return out
-    return patch
-
-
 def _build_eval_cfg(*, cfg: Dict[str, Any], train: Any) -> Dict[str, Any]:
     """
-    Apply train.eval.env_override as a deep-merge patch and return a new cfg mapping.
-
-    Intended overrides:
-      - disable warmup:  {"game": {"warmup": None}}
-      - disable truncation: {"env": {"params": {"max_steps": None}}}
-
-    IMPORTANT:
-      We keep EvalCheckpointSpec unchanged by precomputing the eval cfg
-      and passing it as the callback's `cfg` argument.
+    Apply train.eval.env_override and return a new cfg mapping.
     """
-    patch = getattr(getattr(train, "eval", None), "env_override", None) or {}
-    if not isinstance(patch, dict) or not patch:
+    override = getattr(getattr(train, "eval", None), "env_override", None) or {}
+    if not isinstance(override, dict) or not override:
         return cfg
-    merged = _deep_merge(cfg, patch)
-    if not isinstance(merged, dict):
-        raise TypeError("train.eval.env_override patch produced non-mapping cfg")
-    return merged
+    return merge_cfg_for_eval(cfg=cfg, env_override=override)
 
 
 def _resolve_resume_checkpoint(*, resume: str) -> Path:
@@ -92,34 +69,69 @@ def _resolve_resume_checkpoint(*, resume: str) -> Path:
     return p / "checkpoints" / "latest.zip"
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", type=str, default="configs/mlp.yaml")
-    ap.add_argument("--log-level", type=str, default="info")
-    args = ap.parse_args()
+def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(
+        description="Train an RL-Tetris agent.",
+        allow_abbrev=False,
+    )
+    ap.add_argument("-cfg", "--config-file", dest="config_file", default=None, help="path to a YAML config file")
+    ap.add_argument("-c", "--config-name", dest="config_name", default="cnn_ppo", help="config name (no .yaml)")
+    ap.add_argument("-p", "--config-path", dest="config_path", default="configs", help="config directory")
+    ap.add_argument("overrides", nargs=argparse.REMAINDER, help="Hydra overrides (after --)")
+    return ap.parse_args(argv)
 
-    repo_root = find_repo_root()
-    cfg_path = Path(args.config)
-    cfg = load_yaml(cfg_path)
-    cfg = resolve_config(cfg=cfg, cfg_path=cfg_path)
 
-    run = parse_run_spec(cfg=cfg)
-    train = parse_train_spec(cfg=cfg)
+def _resolve_config_selection(args: argparse.Namespace) -> tuple[Path, str]:
+    if args.config_file:
+        p = Path(str(args.config_file)).expanduser().resolve()
+        if not p.is_file():
+            raise FileNotFoundError(f"--config-file not found: {p}")
+        # If the file lives under a "configs" dir, use that as config root so defaults work.
+        for parent in p.parents:
+            if parent.name == "configs":
+                rel = p.relative_to(parent).with_suffix("")
+                return parent, rel.as_posix()
+        return p.parent, p.stem
+    base = Path(str(args.config_path)).expanduser()
+    if not base.is_absolute():
+        base = (Path.cwd() / base).resolve()
+    return base, str(args.config_name)
+
+
+def _normalize_overrides(overrides: Sequence[str]) -> list[str]:
+    if not overrides:
+        return []
+    if overrides[0] == "--":
+        return list(overrides[1:])
+    return list(overrides)
+
+
+def run_from_cfg(cfg: DictConfig) -> int:
+    cfg_dict = to_plain_dict(cfg)
+    train_cfg = TrainConfig.model_validate(cfg_dict)
+
+    run = train_cfg.run
+    train = train_cfg.train
 
     paths = make_run_paths(run_spec=run)
 
-    logger = setup_logger(name="tetris_rl.train", use_rich=True, level=args.log_level)
+    logger = setup_logger(name="tetris_rl.train", use_rich=True, level=str(train_cfg.log_level))
     logger.info(f"[run] dir: {paths.run_dir}")
     logger.info(f"[run] n_envs={run.n_envs} vec={run.vec} device={run.device}")
 
     t0 = time.perf_counter()
     materialize_run_paths(paths=paths)
-    write_config_snapshot(src_path=cfg_path, run_dir=paths.run_dir, resolved_cfg=cfg)
+    config_path = paths.run_dir / "config.yaml"
+    OmegaConf.save(config=OmegaConf.create(cfg_dict), f=config_path)
+    write_run_manifest(run_dir=paths.run_dir, config_path=config_path)
+    manifest_path = paths.ckpt_dir / "manifest.json"
+    if not manifest_path.exists():
+        save_checkpoint_manifest(manifest_path, CheckpointManifest())
     logger.info(f"[timing] paths+snapshot: {time.perf_counter() - t0:.2f}s")
 
     t0 = time.perf_counter()
     logger.info("[timing] building vec env...")
-    built = make_vec_env_from_cfg(cfg=cfg, run_spec=run)
+    built = make_vec_env_from_cfg(cfg=cfg_dict, run_spec=run)
     logger.info(f"[timing] vec env built: {time.perf_counter() - t0:.2f}s")
 
     # ==============================================================
@@ -178,7 +190,7 @@ def main() -> int:
     else:
         logger.info("[timing] building model...")
         model = make_model_from_cfg(
-            cfg=cfg,
+            cfg=train_cfg.model,
             train_spec=train,
             run_spec=run,
             vec_env=built.vec_env,
@@ -228,7 +240,7 @@ def main() -> int:
         logger.info(f"[train] algo={algo_type or type(model).__name__} (skipping PPO param log)")
 
     log_policy_compact(model=model, logger=logger)
-    if str(args.log_level).lower() in {"debug", "trace"}:
+    if str(train_cfg.log_level).lower() in {"debug", "trace"}:
         log_policy_full(model=model, logger=logger)
 
     cb_verbose = 1  # keep existing behavior
@@ -239,12 +251,12 @@ def main() -> int:
     if bool(train.imitation.enabled):
         if algo_type in {"ppo", "maskable_ppo"}:
             run_imitation(
-                cfg=cfg,
+                cfg=cfg_dict,
                 model=model,
                 train_spec=train,
                 run_spec=run,
                 run_dir=paths.run_dir,
-                repo=repo_root,
+                repo=find_repo_root(),
                 logger=logger,
             )
         else:
@@ -259,9 +271,9 @@ def main() -> int:
     # ==============================================================
 
     callbacks: list[BaseCallback] = [
-        InfoLoggerCallback(cfg=cfg, verbose=0),
+        InfoLoggerCallback(cfg=cfg_dict, verbose=0),
         LatestCheckpointCallback(
-            cfg=cfg,
+            cfg=cfg_dict,
             spec=LatestCheckpointSpec(
                 checkpoint_dir=paths.ckpt_dir,
                 latest_every=int(train.checkpoints.latest_every),
@@ -273,7 +285,7 @@ def main() -> int:
     if int(train.eval.eval_every) > 0 and str(train.eval.mode).strip().lower() != "off":
         # IMPORTANT: keep EvalCheckpointSpec unchanged by passing an eval-specific cfg
         # into the callback (callback still receives `cfg` and can build eval env as before).
-        eval_cfg = _build_eval_cfg(cfg=cfg, train=train)
+        eval_cfg = _build_eval_cfg(cfg=cfg_dict, train=train)
 
         callbacks.append(
             EvalCheckpointCallback(
@@ -284,6 +296,7 @@ def main() -> int:
                     eval=train.eval,
                     base_seed=int(run.seed),
                     train_spec=train,
+                    run_spec=run,
                     verbose=cb_verbose,
                 ),
             )
@@ -300,7 +313,17 @@ def main() -> int:
             progress_bar=True,
             reset_num_timesteps=not is_resume,
         )
-        model.save(str(paths.ckpt_dir / "final.zip"))
+        final_path = paths.ckpt_dir / "final.zip"
+        model.save(str(final_path))
+        final_steps = int(getattr(model, "num_timesteps", int(train.rl.total_timesteps)))
+        update_checkpoint_manifest(
+            manifest_path=paths.ckpt_dir / "manifest.json",
+            field="final",
+            entry=CheckpointEntry(
+                path=final_path.name,
+                timesteps=final_steps,
+            ),
+        )
     else:
         logger.info("[rl] skipped (train.rl.enabled is false or total_timesteps <= 0)")
 
@@ -308,6 +331,21 @@ def main() -> int:
 
     logger.info("[done]")
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parse_args(argv)
+    cfg_path, cfg_name = _resolve_config_selection(args)
+    overrides = _normalize_overrides(args.overrides)
+
+    if cfg_path.is_absolute():
+        with initialize_config_dir(version_base=None, config_dir=str(cfg_path)):
+            cfg: DictConfig = compose(config_name=str(cfg_name), overrides=overrides)
+    else:
+        with initialize(version_base=None, config_path=str(cfg_path)):
+            cfg = compose(config_name=str(cfg_name), overrides=overrides)
+
+    return run_from_cfg(cfg)
 
 
 if __name__ == "__main__":

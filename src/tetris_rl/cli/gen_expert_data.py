@@ -1,56 +1,96 @@
-# src/tetris_rl/cli/gen_expert_data.py
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Sequence
 
-from tetris_rl.config.loader import load_config
+from hydra import compose, initialize, initialize_config_dir
+from omegaconf import DictConfig
+
+from tetris_rl.config.io import to_plain_dict
+from tetris_rl.config.datagen_spec import DataGenSpec
+from tetris_rl.config.root import DataGenConfig
 from tetris_rl.datagen.runner import run_datagen
 from tetris_rl.utils.logging import setup_logger
-from tetris_rl.utils.paths import relpath, repo_root as find_repo_root
+from tetris_rl.utils.paths import repo_root as find_repo_root
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", "-c", type=str, required=True)
-    ap.add_argument("--repo-root", type=str, default="")
-    ap.add_argument("--log-level", type=str, default="info")
-    ap.add_argument("--no-rich", action="store_true")
-    args = ap.parse_args()
+def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(
+        description="Generate expert data for RL-Tetris.",
+        allow_abbrev=False,
+    )
+    ap.add_argument("-cfg", "--config-file", dest="config_file", default=None, help="path to a YAML config file")
+    ap.add_argument(
+        "-c",
+        "--config-name",
+        dest="config_name",
+        default="datagen/codemy1_uniform_noise",
+        help="config name (no .yaml)",
+    )
+    ap.add_argument("-p", "--config-path", dest="config_path", default="configs", help="config directory")
+    ap.add_argument("overrides", nargs=argparse.REMAINDER, help="Hydra overrides (after --)")
+    return ap.parse_args(argv)
+
+
+def _resolve_config_selection(args: argparse.Namespace) -> tuple[Path, str]:
+    if args.config_file:
+        p = Path(str(args.config_file)).expanduser().resolve()
+        if not p.is_file():
+            raise FileNotFoundError(f"--config-file not found: {p}")
+        # If the file lives under a "configs" dir, use that as config root so defaults work.
+        for parent in p.parents:
+            if parent.name == "configs":
+                rel = p.relative_to(parent).with_suffix("")
+                return parent, rel.as_posix()
+        return p.parent, p.stem
+    base = Path(str(args.config_path)).expanduser()
+    if not base.is_absolute():
+        base = (Path.cwd() / base).resolve()
+    return base, str(args.config_name)
+
+
+def _normalize_overrides(overrides: Sequence[str]) -> list[str]:
+    if not overrides:
+        return []
+    if overrides[0] == "--":
+        return list(overrides[1:])
+    return list(overrides)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parse_args(argv)
+    cfg_path, cfg_name = _resolve_config_selection(args)
+    overrides = _normalize_overrides(args.overrides)
+
+    if cfg_path.is_absolute():
+        with initialize_config_dir(version_base=None, config_dir=str(cfg_path)):
+            cfg: DictConfig = compose(config_name=str(cfg_name), overrides=overrides)
+    else:
+        with initialize(version_base=None, config_path=str(cfg_path)):
+            cfg = compose(config_name=str(cfg_name), overrides=overrides)
+
+    cfg_dict = to_plain_dict(cfg)
+    data_cfg = DataGenConfig.model_validate(cfg_dict)
 
     logger = setup_logger(
         name="tetris_rl.datagen",
-        use_rich=(not bool(args.no_rich)),
-        level=str(args.log_level),
+        use_rich=bool(data_cfg.use_rich),
+        level=str(data_cfg.log_level),
     )
 
-    cfg_path = Path(args.config)
-    if not cfg_path.is_file():
-        logger.error("[datagen] config file not found: %s", str(cfg_path))
-        return 2
-
     try:
-        repo = Path(args.repo_root).resolve() if str(args.repo_root).strip() else find_repo_root()
+        repo = Path(data_cfg.repo_root).resolve() if str(data_cfg.repo_root).strip() else find_repo_root()
     except Exception:
         logger.exception("[datagen] failed to resolve repo root")
         return 4
 
     logger.info("[datagen] repo_root=%s", str(repo))
-    logger.info("[datagen] config=%s", relpath(cfg_path, base=repo))
-
-    # Load + resolve specs.* (esp specs.env -> {env, game})
-    try:
-        loaded = load_config(path=cfg_path, domain="datagen")
-        spec = loaded.spec
-        cfg = loaded.cfg
-    except Exception:
-        logger.exception("[datagen] failed to load/resolve/parse config: %s", str(cfg_path))
-        return 3
 
     # Helpful summary
     try:
-        ds = spec.dataset
-        run = spec.run
+        ds = data_cfg.dataset
+        run = data_cfg.run
         out_dir = (Path(repo) / str(ds.out_root) / str(ds.name)).resolve()
 
         logger.info(
@@ -65,8 +105,15 @@ def main() -> int:
     except Exception:
         pass
 
+    spec = DataGenSpec(
+        dataset=data_cfg.dataset,
+        run=data_cfg.run,
+        generation=data_cfg.generation,
+        expert=data_cfg.expert,
+    )
+
     try:
-        out_dir = run_datagen(spec=spec, cfg=cfg, repo_root=repo, logger=logger)
+        out_dir = run_datagen(spec=spec, cfg=cfg_dict, repo_root=repo, logger=logger)
     except KeyboardInterrupt:
         logger.warning("[datagen] interrupted (Ctrl+C)")
         import os

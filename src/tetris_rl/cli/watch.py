@@ -5,8 +5,7 @@ import argparse
 import time
 from typing import Any, Optional
 
-from tetris_rl.config.snapshot import load_yaml
-from tetris_rl.config.train_spec import parse_train_spec
+from tetris_rl.config.io import load_train_config, to_plain_dict
 from tetris_rl.envs.factory import make_env_from_cfg
 from tetris_rl.runs.action_source import (
     as_action_pair,
@@ -14,7 +13,7 @@ from tetris_rl.runs.action_source import (
     predict_action,
     sample_masked_discrete,
 )
-from tetris_rl.runs.checkpoint_manager import CheckpointPaths, resolve_checkpoint_path
+from tetris_rl.runs.checkpoint_manifest import resolve_checkpoint_from_manifest
 from tetris_rl.runs.checkpoint_poll import CheckpointPoller
 from tetris_rl.runs.hud_adapter import env_info_for_renderer, from_info as hud_from_info
 from tetris_rl.runs.hud_text import HudFormatter, HudSnapshot
@@ -24,9 +23,7 @@ from tetris_rl.runs.run_io import choose_config_path
 from tetris_rl.runs.speed_control import RateMeter, SpeedControl
 from tetris_rl.training.model_io import load_model_from_spec, warn_if_maskable_with_multidiscrete
 from tetris_rl.utils.paths import repo_root, resolve_run_dir
-from tetris_rl.config.resolve import resolve_config
-
-from tetris_rl.utils.config_merge import merge_env_for_eval  # type: ignore[import-not-found]
+from tetris_rl.utils.config_merge import merge_cfg_for_eval
 
 
 def parse_args() -> argparse.Namespace:
@@ -100,7 +97,7 @@ def _build_watch_cfg(*, cfg: dict[str, Any], train_spec: Any, which: str) -> dic
     override = getattr(getattr(train_spec, "eval", None), "env_override", {}) or {}
     if not isinstance(override, dict):
         override = {}
-    return merge_env_for_eval(cfg=cfg_watch, env_override=override)
+    return merge_cfg_for_eval(cfg=cfg_watch, env_override=override)
 
 
 def _engine_board_h(env: Any, fallback: int) -> int:
@@ -194,9 +191,9 @@ def main() -> int:
     run_dir = resolve_run_dir(repo, str(args.run))
 
     cfg_path = choose_config_path(run_dir)
-    cfg = load_yaml(cfg_path)
-    cfg = resolve_config(cfg=cfg, cfg_path=cfg_path)
-    train_spec = parse_train_spec(cfg=cfg)
+    train_cfg = load_train_config(cfg_path)
+    cfg = to_plain_dict(train_cfg)
+    train_spec = train_cfg.train
 
     cfg_watch = _build_watch_cfg(cfg=cfg, train_spec=train_spec, which=str(args.env))
 
@@ -222,16 +219,8 @@ def main() -> int:
     if bool(args.heuristic_agent):
         expert_policy = _make_expert_policy(args=args, engine=game)
 
-    ckpt_dir = run_dir / "checkpoints"
-    paths = CheckpointPaths(checkpoint_dir=ckpt_dir)
-
     which = str(args.which).strip().lower()
-    if which == "final":
-        ckpt = ckpt_dir / "final.zip"
-    else:
-        ckpt = resolve_checkpoint_path(paths, which)
-    if not ckpt.is_file() and which in {"best", "reward"} and paths.latest.is_file():
-        ckpt = paths.latest
+    ckpt = resolve_checkpoint_from_manifest(run_dir=run_dir, which=which)
 
     model = None
     if (not bool(args.heuristic_agent)) and (not bool(args.random_action)):
@@ -255,7 +244,6 @@ def main() -> int:
     if bool(args.heuristic_agent):
         agent_name = f"{agent_name}({str(args.heuristic_policy).strip().lower()})"
     print(f"[watch] agent={agent_name}")
-    print("[watch] controls: P pause | N step | R reset | ESC quit | [ slower | ] faster | = max-speed")
 
     poller = CheckpointPoller(
         run_dir=run_dir,
@@ -347,6 +335,9 @@ def main() -> int:
     # fixed-step accumulator for ms-mode
     acc_s = 0.0
     last_frame_t = time.perf_counter()
+    last_speed_adjust_s = time.time()
+
+    SPEED_ADJUST_REPEAT_S = 0.08
 
     # cap sim steps per frame so input stays responsive in uncapped mode
     MAX_STEPS_PER_FRAME = 500
@@ -490,16 +481,25 @@ def main() -> int:
                 if event.key == pygame.K_LEFTBRACKET:  # [
                     speed.handle_slower()
                     speed.clamp()
+                    last_speed_adjust_s = time.time()
+                    sps_meter.trim_to_last(2)
+                    fps_meter.trim_to_last(2)
                     continue
 
                 if event.key == pygame.K_RIGHTBRACKET:  # ]
                     speed.handle_faster()
                     speed.clamp()
+                    last_speed_adjust_s = time.time()
+                    sps_meter.trim_to_last(2)
+                    fps_meter.trim_to_last(2)
                     continue
 
                 if event.key == pygame.K_EQUALS:  # =
                     speed.handle_max()
                     speed.clamp()
+                    last_speed_adjust_s = time.time()
+                    sps_meter.trim_to_last(2)
+                    fps_meter.trim_to_last(2)
                     continue
 
                 if event.key == pygame.K_p:
@@ -539,6 +539,29 @@ def main() -> int:
 
         if not running:
             break
+
+        # apply speed adjustments while key is held (more responsive)
+        keys = pygame.key.get_pressed()
+        now_s = time.time()
+        if (now_s - last_speed_adjust_s) >= SPEED_ADJUST_REPEAT_S:
+            if keys[pygame.K_LEFTBRACKET]:
+                speed.handle_slower()
+                speed.clamp()
+                last_speed_adjust_s = now_s
+                sps_meter.trim_to_last(2)
+                fps_meter.trim_to_last(2)
+            elif keys[pygame.K_RIGHTBRACKET]:
+                speed.handle_faster()
+                speed.clamp()
+                last_speed_adjust_s = now_s
+                sps_meter.trim_to_last(2)
+                fps_meter.trim_to_last(2)
+            elif keys[pygame.K_EQUALS]:
+                speed.handle_max()
+                speed.clamp()
+                last_speed_adjust_s = now_s
+                sps_meter.trim_to_last(2)
+                fps_meter.trim_to_last(2)
 
         # simulation updates (decoupled from render)
         if not paused:

@@ -13,9 +13,7 @@ try:
 except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
-from tetris_rl.config.resolve import resolve_config
-from tetris_rl.config.snapshot import load_yaml
-from tetris_rl.config.train_spec import parse_train_spec
+from tetris_rl.config.io import load_train_config, to_plain_dict
 from tetris_rl.envs.factory import make_env_from_cfg
 from tetris_rl.runs.action_source import (
     as_action_pair,
@@ -23,12 +21,12 @@ from tetris_rl.runs.action_source import (
     predict_action,
     sample_masked_discrete,
 )
-from tetris_rl.runs.checkpoint_manager import CheckpointPaths, resolve_checkpoint_path
+from tetris_rl.runs.checkpoint_manifest import resolve_checkpoint_from_manifest
 from tetris_rl.runs.checkpoint_poll import CheckpointPoller
 from tetris_rl.runs.hud_adapter import from_info as hud_from_info
 from tetris_rl.runs.run_io import choose_config_path
 from tetris_rl.training.model_io import load_model_from_spec, warn_if_maskable_with_multidiscrete
-from tetris_rl.utils.config_merge import merge_env_for_eval  # type: ignore[import-not-found]
+from tetris_rl.utils.config_merge import merge_cfg_for_eval
 from tetris_rl.utils.paths import repo_root, resolve_run_dir
 
 
@@ -104,7 +102,7 @@ def _build_eval_cfg(*, cfg: dict[str, Any], train_spec: Any, which_env: str) -> 
     override = getattr(getattr(train_spec, "eval", None), "env_override", {}) or {}
     if not isinstance(override, dict):
         override = {}
-    return merge_env_for_eval(cfg=cfg_eval, env_override=override)
+    return merge_cfg_for_eval(cfg=cfg_eval, env_override=override)
 
 
 def _resolve_expert_policy_class(*, engine: Any) -> Any:
@@ -274,9 +272,9 @@ def main() -> int:
     run_dir = resolve_run_dir(repo, str(args.run))
 
     cfg_path = choose_config_path(run_dir)
-    cfg = load_yaml(cfg_path)
-    cfg = resolve_config(cfg=cfg, cfg_path=cfg_path)
-    train_spec = parse_train_spec(cfg=cfg)
+    train_cfg = load_train_config(cfg_path)
+    cfg = to_plain_dict(train_cfg)
+    train_spec = train_cfg.train
 
     cfg_bench = _build_eval_cfg(cfg=cfg, train_spec=train_spec, which_env=str(args.env))
 
@@ -302,16 +300,8 @@ def main() -> int:
     if bool(args.heuristic_agent):
         expert_policy = _make_expert_policy(args=args, engine=game)
 
-    ckpt_dir = run_dir / "checkpoints"
-    paths = CheckpointPaths(checkpoint_dir=ckpt_dir)
-
     which = str(args.which).strip().lower()
-    if which == "final":
-        ckpt = ckpt_dir / "final.zip"
-    else:
-        ckpt = resolve_checkpoint_path(paths, which)
-    if not ckpt.is_file() and which in {"best", "reward"} and paths.latest.is_file():
-        ckpt = paths.latest
+    ckpt = resolve_checkpoint_from_manifest(run_dir=run_dir, which=which)
 
     model = None
     if (not bool(args.heuristic_agent)) and (not bool(args.random_action)):

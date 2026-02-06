@@ -1,8 +1,11 @@
-# src/tetris_rl/config/model/tokenizer_spec.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
+
+from pydantic import Field, model_validator
+
+from tetris_rl.config.base import ConfigBase
+from tetris_rl.config.typed_params import parse_typed_params
 
 TokenizerLayout = Literal["row", "column", "patch", "row_column"]
 BoardEmbedType = Literal["linear", "conv1d", "discrete_pattern"]
@@ -14,22 +17,19 @@ PaddingMode = Literal["valid", "same", "tetris"]
 # ---------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class RowLayoutParams:
+class RowLayoutParams(ConfigBase):
     pass
 
 
-@dataclass(frozen=True)
-class ColumnLayoutParams:
+class ColumnLayoutParams(ConfigBase):
     pass
 
 
-@dataclass(frozen=True)
-class PatchLayoutParams:
+class PatchLayoutParams(ConfigBase):
     patch_h: int = 1
     patch_w: int = 1
-    stride_h: Optional[int] = None
-    stride_w: Optional[int] = None
+    stride_h: int | None = None
+    stride_w: int | None = None
 
 
 # ---------------------------------------------------------------------
@@ -37,20 +37,17 @@ class PatchLayoutParams:
 # ---------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class LinearEmbedParams:
+class LinearEmbedParams(ConfigBase):
     pass
 
 
-@dataclass(frozen=True)
-class DiscretePatternEmbedParams:
+class DiscretePatternEmbedParams(ConfigBase):
     pass
 
 
-@dataclass(frozen=True)
-class Conv1DEmbedParams:
+class Conv1DEmbedParams(ConfigBase):
     # preset selection
-    preset: Literal["tiny", "base", "deep", "generic"] = "base"
+    preset: Literal["tiny", "base", "deep", "deep_l5", "generic"] = "base"
 
     # shared
     dropout: float = 0.0
@@ -62,7 +59,7 @@ class Conv1DEmbedParams:
     # generic-only fields
     channels: tuple[int, ...] = ()
     kernel_sizes: tuple[int, ...] = ()
-    strides: Optional[tuple[int, ...]] = None
+    strides: tuple[int, ...] | None = None
     activation: Literal["gelu", "relu", "silu"] = "gelu"
     use_batchnorm: bool = False
 
@@ -70,35 +67,6 @@ class Conv1DEmbedParams:
 # ---------------------------------------------------------------------
 # Typed sections (YAML: tokenizer.layout / tokenizer.board_embedding)
 # ---------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class LayoutConfig:
-    type: TokenizerLayout
-    params: RowLayoutParams | ColumnLayoutParams | PatchLayoutParams
-
-
-@dataclass(frozen=True)
-class BoardEmbeddingConfig:
-    type: BoardEmbedType
-    params: LinearEmbedParams | Conv1DEmbedParams | DiscretePatternEmbedParams
-
-
-# ---------------------------------------------------------------------
-# Tokenizer top-level (YAML: tokenizer)
-# ---------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class TokenizerSpec:
-    d_model: int
-    layout: LayoutConfig
-    board_embedding: BoardEmbeddingConfig
-
-    add_active_token: bool = True
-    add_next_token: bool = False
-
-    share_kind_embedding: bool = True
 
 
 TOKENIZER_LAYOUT_PARAMS_REGISTRY = {
@@ -114,6 +82,63 @@ TOKENIZER_BOARD_EMBED_PARAMS_REGISTRY = {
     "discrete_pattern": DiscretePatternEmbedParams,
 }
 
+
+class LayoutConfig(ConfigBase):
+    type: TokenizerLayout
+    params: RowLayoutParams | ColumnLayoutParams | PatchLayoutParams
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_params(cls, data: object) -> object:
+        if isinstance(data, LayoutConfig):
+            return data
+        if not isinstance(data, dict):
+            raise TypeError("tokenizer.layout must be a mapping with keys {type, params}")
+        tag, params = parse_typed_params(
+            type_value=data.get("type", None),
+            params_value=data.get("params", None),
+            registry=TOKENIZER_LAYOUT_PARAMS_REGISTRY,
+            where="tokenizer.layout",
+        )
+        return {"type": tag, "params": params}
+
+
+class BoardEmbeddingConfig(ConfigBase):
+    type: BoardEmbedType
+    params: LinearEmbedParams | Conv1DEmbedParams | DiscretePatternEmbedParams
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_params(cls, data: object) -> object:
+        if isinstance(data, BoardEmbeddingConfig):
+            return data
+        if not isinstance(data, dict):
+            raise TypeError("tokenizer.board_embedding must be a mapping with keys {type, params}")
+        tag, params = parse_typed_params(
+            type_value=data.get("type", None),
+            params_value=data.get("params", None),
+            registry=TOKENIZER_BOARD_EMBED_PARAMS_REGISTRY,
+            where="tokenizer.board_embedding",
+        )
+        return {"type": tag, "params": params}
+
+
+# ---------------------------------------------------------------------
+# Tokenizer top-level (YAML: tokenizer)
+# ---------------------------------------------------------------------
+
+
+class TokenizerSpec(ConfigBase):
+    d_model: int = Field(ge=1)
+    layout: LayoutConfig
+    board_embedding: BoardEmbeddingConfig
+
+    add_active_token: bool = True
+    add_next_token: bool = False
+
+    share_kind_embedding: bool = True
+
+
 __all__ = [
     "TokenizerLayout",
     "BoardEmbedType",
@@ -126,4 +151,7 @@ __all__ = [
     "LayoutConfig",
     "BoardEmbeddingConfig",
     "TokenizerSpec",
+    "TOKENIZER_LAYOUT_PARAMS_REGISTRY",
+    "TOKENIZER_BOARD_EMBED_PARAMS_REGISTRY",
 ]
+

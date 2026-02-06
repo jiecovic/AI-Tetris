@@ -22,7 +22,6 @@ BaseFeaturesExtractor.features_dim MUST equal the actual returned feature dimens
 i.e. AFTER augmentation (F_final).
 """
 
-import dataclasses
 import inspect
 from typing import Optional, cast, Any
 
@@ -30,6 +29,8 @@ import torch
 from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
+
+from pydantic import BaseModel
 
 from tetris_rl.config.model.feature_augmenter_spec import FeatureAugmenterConfig
 from tetris_rl.config.model.mixer_spec import MixerConfig
@@ -143,10 +144,10 @@ class TetrisFeatureExtractor(BaseFeaturesExtractor):
         else:
             assert spatial_head is not None
 
-            # Pattern "B": SpatialHeadConfig owns base output dim.
-            F_base = int(spatial_head.features_dim)
+            # Pattern "B": SpatialHeadConfig params own base output dim.
+            F_base = int(getattr(spatial_head.params, "features_dim", 0))
             if F_base <= 0:
-                raise ValueError(f"spatial_head.features_dim must be > 0, got {F_base}")
+                raise ValueError(f"spatial_head.params.features_dim must be > 0, got {F_base}")
 
             self.spatial_head = _build_spatial_head(
                 cfg=spatial_head,
@@ -158,7 +159,7 @@ class TetrisFeatureExtractor(BaseFeaturesExtractor):
             out_dim = int(getattr(self.spatial_head, "out_dim", 0))
             if out_dim > 0 and out_dim != int(F_base):
                 raise ValueError(
-                    f"spatial_head out_dim mismatch: built out_dim={out_dim} vs cfg.features_dim={F_base}"
+                    f"spatial_head out_dim mismatch: built out_dim={out_dim} vs cfg.params.features_dim={F_base}"
                 )
 
         if int(F_base) <= 0:
@@ -323,7 +324,7 @@ def _build_spatial_head(*, cfg: SpatialHeadConfig, in_spec: SpatialSpec, feature
     if "in_channels" in sig.parameters:
         kwargs["in_channels"] = int(in_spec.c)
 
-    # Pattern "B": output dim comes from cfg.features_dim (wrapper), not params.
+    # Pattern "B": output dim is configured in params but injected as a separate arg.
     if "features_dim" in sig.parameters:
         kwargs["features_dim"] = int(features_dim)
 
@@ -417,8 +418,8 @@ def _maybe_set_param_features_dim(params: Any, *, features_dim: int) -> Any:
         cur = int(getattr(params, "features_dim"))
         if cur == int(features_dim):
             return params
-        if dataclasses.is_dataclass(params):
-            return dataclasses.replace(params, features_dim=int(features_dim))
+        if isinstance(params, BaseModel):
+            return params.model_copy(update={"features_dim": int(features_dim)})
         d = dict(getattr(params, "__dict__", {}))
         d["features_dim"] = int(features_dim)
         return type(params)(**d)

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from tetris_rl.runs.checkpoint_manifest import CheckpointEntry, update_checkpoint_manifest
 from tetris_rl.utils.file_io import append_jsonl, atomic_save_zip, read_json, write_json
 
 
@@ -43,64 +44,6 @@ class CheckpointPaths:
     @property
     def history(self) -> Path:
         return self.checkpoint_dir / "eval_history.jsonl"
-
-
-def resolve_checkpoint_path(paths: CheckpointPaths, which: str) -> Path:
-    """
-    Resolve a user-facing checkpoint selector into a concrete checkpoint path.
-
-    Supported:
-      - latest
-      - best (alias for best_reward)
-      - reward
-      - score
-      - lines
-      - level
-      - survival (alias: len, length, time)
-
-    Notes:
-      - 'final' is not produced by the checkpoint manager; callers may special-case it.
-      - If a best_* file does not exist, callers may fall back to latest.
-    """
-    w = str(which).strip().lower()
-    if w in {"latest"}:
-        return paths.latest
-    if w in {"best", "reward"}:
-        return paths.best_reward
-    if w in {"score"}:
-        return paths.best_score
-    if w in {"lines"}:
-        return paths.best_lines
-    if w in {"level"}:
-        return paths.best_level
-    if w in {"survival", "len", "length", "time"}:
-        return paths.best_survival
-    raise ValueError(f"unknown checkpoint selector: {which!r}")
-
-
-def resolve_checkpoint_selector(*, run_dir: Path, which: str) -> Path:
-    """
-    Resolve a checkpoint selector into an on-disk path.
-
-    - Supports: latest, best/reward, score, lines, level, survival, final
-    - Applies fallback: best/reward -> latest if missing
-    - Returns the resolved path even if it doesn't exist (callers may check is_file()).
-    """
-    ckpt_dir = Path(run_dir) / "checkpoints"
-    paths = CheckpointPaths(checkpoint_dir=ckpt_dir)
-
-    w = str(which).strip().lower()
-    if w == "final":
-        return ckpt_dir / "final.zip"
-
-    p = resolve_checkpoint_path(paths, w)
-    if p.is_file():
-        return p
-
-    if w in {"best", "reward"} and paths.latest.is_file():
-        return paths.latest
-
-    return p
 
 
 class CheckpointManager:
@@ -149,6 +92,14 @@ class CheckpointManager:
         self._state.setdefault("latest", {})
         self._state["latest"]["timesteps"] = int(timesteps)
         self._write_state()
+        update_checkpoint_manifest(
+            manifest_path=self.paths.checkpoint_dir / "manifest.json",
+            field="latest",
+            entry=CheckpointEntry(
+                path=self.paths.latest.name,
+                timesteps=int(timesteps),
+            ),
+        )
         return True
 
     def maybe_save_best(self, *, model, metric: str, value: float, timesteps: int) -> bool:
@@ -179,6 +130,18 @@ class CheckpointManager:
         atomic_save_zip(model=model, dst=dst)
         best[metric] = {"value": float(v), "timesteps": int(timesteps)}
         self._write_state()
+        manifest_field = self._metric_to_manifest_field(metric)
+        if manifest_field is not None:
+            update_checkpoint_manifest(
+                manifest_path=self.paths.checkpoint_dir / "manifest.json",
+                field=manifest_field,
+                entry=CheckpointEntry(
+                    path=dst.name,
+                    timesteps=int(timesteps),
+                    metric=str(metric),
+                    value=float(v),
+                ),
+            )
         return True
 
     def _metric_to_path(self, metric: str) -> Optional[Path]:
@@ -192,4 +155,17 @@ class CheckpointManager:
             return self.paths.best_level
         if metric == "survival":
             return self.paths.best_survival
+        return None
+
+    def _metric_to_manifest_field(self, metric: str) -> Optional[str]:
+        if metric == "reward":
+            return "best_reward"
+        if metric == "score":
+            return "best_score"
+        if metric == "lines":
+            return "best_lines"
+        if metric == "level":
+            return "best_level"
+        if metric == "survival":
+            return "best_survival"
         return None

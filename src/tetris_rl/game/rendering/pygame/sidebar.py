@@ -371,15 +371,11 @@ def draw_sidebar(
     )
 
     legend = [
-        ("P", "pause / resume"),
-        ("A / D", "move (paused)"),
-        ("Space", "hard drop"),
-        ("N", "step"),
-        ("R", "reset"),
+        ("P/N/R", "pause step reset"),
         ("Esc", "quit"),
-        ("[", "slower"),
-        ("]", "faster"),
-        ("=", "max-speed"),
+        ("[/]/=", "slower/faster/max"),
+        ("A/D", "move (paused)"),
+        ("Q/E/Spc", "rot/commit (paused)"),
     ]
 
     yy = int(ctrl_y) + int(_LAYOUT.controls_list_y_offset)

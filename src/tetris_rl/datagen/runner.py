@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
+from pydantic import BaseModel
+
 from tetris_rl.config.datagen_spec import DataGenSpec
 from tetris_rl.datagen.progress import MultiWorkerProgress
 from tetris_rl.utils.file_io import write_json
@@ -27,6 +29,8 @@ def _best_effort_close_queue(q: Any) -> None:
 
 
 def _spec_to_dict(spec: DataGenSpec) -> Dict[str, Any]:
+    if isinstance(spec, BaseModel):
+        return spec.model_dump(mode="json")
     return asdict(spec)
 
 
