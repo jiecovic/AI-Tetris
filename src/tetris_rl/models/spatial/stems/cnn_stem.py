@@ -75,7 +75,7 @@ class CNNStem(nn.Module):
             raise ValueError("dropout must be >= 0")
         p = float(spec.dropout)
 
-        # geometry metadata (single source of truth for out_spec)
+        # geometry metadata (authoritative for out_spec)
         self._kernels: tuple[int, ...] = kernels
         self._strides: tuple[int, ...] = strides
         self._paddings: tuple[int, ...] = tuple(k // 2 for k in kernels)

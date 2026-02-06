@@ -167,7 +167,7 @@ class MLPMixer(nn.Module):
         k = int(spec.num_cls_tokens) if bool(spec.use_cls) else 0
         self._num_cls = k
 
-        # global token type universe (single source of truth)
+        # global token type universe (authoritative)
         n_types = int(len(TokenType))
         cls_type_id = int(TokenType.CLS)
 

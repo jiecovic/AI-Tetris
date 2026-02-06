@@ -12,7 +12,7 @@ class EnvSpec:
     """
     Env-bundle spec loaded from specs.env.
 
-    New-only contract:
+    Contract:
       - must contain top-level keys: env, game
       - env and game are separate namespaces in the composed root cfg
 

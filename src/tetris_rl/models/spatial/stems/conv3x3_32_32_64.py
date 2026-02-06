@@ -19,7 +19,7 @@ from tetris_rl.models.api import SpatialFeatures, SpatialSpec
 
 
 class Conv3x3_32_32_64Stem(nn.Module):
-    # single source of truth (paper-exact)
+    # authoritative constants (paper-exact)
     KERNEL: int = 3
     STRIDE: int = 1
     PADDING: int = 1

@@ -101,7 +101,7 @@ def make_run_paths(*, run_spec: RunSpec) -> RunPaths:
     """
     Determine run output locations from RunSpec (wiring only).
 
-    North Star:
+    Responsibilities:
       - TrainSpec/DataGenSpec own training/datagen semantics.
       - RunSpec owns runtime wiring + filesystem/logging.
       - No other module reads cfg.run directly.

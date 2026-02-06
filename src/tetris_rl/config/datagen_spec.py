@@ -16,7 +16,7 @@ from tetris_rl.config.schema_types import (
 
 
 # -----------------------------------------------------------------------------
-# Spec dataclasses (NEW-ONLY)
+# Spec dataclasses
 # -----------------------------------------------------------------------------
 
 
@@ -55,7 +55,7 @@ class DataGenGenerationSpec:
 
 
 # -----------------------------------------------------------------------------
-# Expert specs (NEW-ONLY)
+# Expert specs
 # -----------------------------------------------------------------------------
 
 
@@ -73,7 +73,7 @@ class DataGenRustExpertParams:
 @dataclass(frozen=True)
 class DataGenExpertSpec:
     """
-    New-only:
+    Example:
       expert:
         type: codemy0|codemy1|codemy2|codemy2fast
         beam_from_depth: 0
@@ -87,7 +87,7 @@ class DataGenExpertSpec:
 @dataclass(frozen=True)
 class DataGenSpec:
     """
-    New-only datagen spec.
+    Datagen spec.
 
     NOTE:
       - Composition keys (specs/env/game) are handled by config.resolve and are NOT part of DataGenSpec.
@@ -227,7 +227,7 @@ def parse_datagen_spec(*, cfg: Dict[str, Any]) -> DataGenSpec:
     )
 
     # ---------------------------
-    # expert (NEW-ONLY flat rust)
+    # expert (flat rust)
     # ---------------------------
     expert_obj = require_mapping_strict(
         get_mapping(root, "expert", default={}, where="cfg.expert"),

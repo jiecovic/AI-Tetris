@@ -23,7 +23,7 @@ from tetris_rl.models.api import SpatialFeatures, SpatialSpec
 
 
 class Conv3x3_32_32_64_64_128_5LStem(nn.Module):
-    # single source of truth
+    # authoritative constants
     KERNEL: int = 3
     STRIDE: int = 1
     PADDING: int = 1  # "same" for 3x3 when stride=1

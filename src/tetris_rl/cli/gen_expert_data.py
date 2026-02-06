@@ -38,7 +38,7 @@ def main() -> int:
     logger.info("[datagen] repo_root=%s", str(repo))
     logger.info("[datagen] config=%s", relpath(cfg_path, base=repo))
 
-    # NEW-ONLY: load + resolve specs.* (esp specs.env -> {env, game})
+    # Load + resolve specs.* (esp specs.env -> {env, game})
     try:
         loaded = load_config(path=cfg_path, domain="datagen")
         spec = loaded.spec

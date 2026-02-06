@@ -19,7 +19,7 @@ class ManualMacroCursor:
     """
     Manual macro-placement cursor for watch mode.
 
-    STRICT CONVENTIONS (Rust engine SSOT):
+    STRICT CONVENTIONS (Rust engine authoritative):
       - Cursor stores ENGINE ACTION parameters: (rot, col_left)
       - Discrete action_id is always computed via engine.encode_action_id(rot, col_left)
       - Legality is derived from engine.action_mask() at that action_id

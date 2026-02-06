@@ -120,7 +120,7 @@ def build_env(*, cfg: Dict[str, Any], env_cfg: Dict[str, Any], game: Any, warmup
     """
     Build a single env instance.
 
-    North Star:
+    Invariants:
       - Env emits RAW Dict observations only.
       - Tokenization is model-owned.
       - Warmup noise is owned by Rust engine; Python only gates whether to apply it per episode.

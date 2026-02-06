@@ -66,7 +66,7 @@ def worker_generate_shards(
     """
     BC-only datagen worker:
 
-      - builds env via make_env_from_cfg (SSOT)
+      - builds env via make_env_from_cfg (authoritative)
       - steps engine with Rust expert (action_id)
       - records obs BEFORE expert action: {"grid","active_kind","next_kind"} + action_id
       - writes NPZ shard (uint8 everywhere except grid already uint8)
@@ -114,7 +114,7 @@ def worker_generate_shards(
 
             H, W = int(grid0.shape[0]), int(grid0.shape[1])
 
-            # SSOT dims
+            # authoritative dims
             action_dim = int(getattr(env.action_space, "n", -1))
             if action_dim <= 0:
                 raise RuntimeError("env.action_space must be Discrete for this datagen path")

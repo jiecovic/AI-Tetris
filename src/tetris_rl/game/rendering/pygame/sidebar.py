@@ -146,7 +146,7 @@ def _try_engine_preview_mask(
     """
     UI-only: ask Rust engine (PyO3) for a 4x4 preview mask.
 
-    Snapshot kind idx convention (SSOT):
+    Snapshot kind idx convention (engine snapshot):
       - engine snapshot uses 0..6 for I..L
 
     Engine preview API convention:
@@ -203,7 +203,7 @@ def draw_sidebar(
 
     State contract (Rust snapshot dict preferred):
       - score, lines, steps, game_over, next_kind
-      - next_kind_idx / active_kind_idx are 0..6 (engine snapshot SSOT)
+      - next_kind_idx / active_kind_idx are 0..6 (engine snapshot convention)
     """
     panel_w = int(w)
 
@@ -213,7 +213,7 @@ def draw_sidebar(
     used_h = _LAYOUT.next_panel_h + _LAYOUT.panel_gap_y + _LAYOUT.stats_panel_h + _LAYOUT.panel_gap_y
     controls_h = max(_LAYOUT.controls_min_h, int(board_outer_h) - int(used_h))
 
-    # Read idx0 (0..6) from snapshot (SSOT)
+    # Read idx0 (0..6) from snapshot
     next_kind_idx0 = _get(state, "next_kind_idx", None)
     active_kind_idx0 = _get(state, "active_kind_idx", None)
 
@@ -295,7 +295,7 @@ def draw_sidebar(
     st_game_over = _get(state, "game_over", None)
     game_over = bool(done) if st_game_over is None else bool(st_game_over)
 
-    # New SSOT: env_info["game"] (populated by macro_info.build_step_info_update)
+    # Preferred source: env_info["game"] (populated by macro_info.build_step_info_update)
     holes = None
     max_height = None
     if isinstance(env_info, dict):

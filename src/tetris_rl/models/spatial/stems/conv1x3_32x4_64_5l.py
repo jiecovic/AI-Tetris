@@ -21,7 +21,7 @@ from tetris_rl.models.api import SpatialFeatures, SpatialSpec
 
 
 class Conv1x3_32x4_64_5LStem(nn.Module):
-    # single source of truth
+    # authoritative constants
     KERNEL: tuple[int, int] = (1, 3)
     STRIDE: int = 1
     PADDING: tuple[int, int] = (0, 1)  # "same" for 1x3

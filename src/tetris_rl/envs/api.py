@@ -21,7 +21,7 @@ class TransitionFeatures:
       - requested_rotation / requested_column: what the policy/agent asked for (macro action).
       - used_rotation / used_column: the action actually executed (may differ if remapped).
 
-    Strict legality (North Star: invalid_rot OR oob OR collision at current py):
+    Strict legality (invariant: invalid_rot OR oob OR collision at current py):
       - applied: True iff we actually applied *some* placement to the active piece and executed hard_drop.
                 (False for noop/terminate, or if remap fails / no legal actions exist.)
       - invalid_action: True iff the originally requested action was illegal under strict rules.
@@ -31,7 +31,7 @@ class TransitionFeatures:
 
     Mask/debug-only signals (mainly for MaskablePPO / sanity checks):
       - masked_action: whether the requested joint Discrete(rot×col) action was masked out as illegal.
-                       Under “one truth”, this should agree with invalid_action in discrete mode.
+                       In discrete mode, this should agree with invalid_action.
 
     Optional shaping/diagnostics:
       - delta_holes / delta_max_height / delta_bumpiness / delta_agg_height: board metric deltas vs previous step.

@@ -114,7 +114,7 @@ class SpatialHeadConfig:
 
 
 # ---------------------------------------------------------------------
-# Params registry (single source of truth for resolve.py hydration)
+# Params registry (resolve.py hydration mapping)
 # ---------------------------------------------------------------------
 
 SPATIAL_HEAD_PARAMS_REGISTRY: Mapping[str, Type[Any]] = {

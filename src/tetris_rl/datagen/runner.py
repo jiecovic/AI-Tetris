@@ -433,7 +433,7 @@ def run_datagen(
     )
 
     # ------------------------------------------------------------------
-    # resume bookkeeping (disk is the SSOT for resume)
+    # resume bookkeeping (disk is authoritative for resume)
     # ------------------------------------------------------------------
     shards_dir = dataset_dir / "shards"
     existing = _existing_shard_ids(shards_dir)

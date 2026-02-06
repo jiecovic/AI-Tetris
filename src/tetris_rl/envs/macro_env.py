@@ -27,7 +27,7 @@ class MacroTetrisEnv(gym.Env):
     """
     Macro placement environment backed by the Rust engine (PyO3).
 
-    SSOT:
+    Authoritative sources:
       - Validity: engine.step_action_id() return value.
       - Mask: MaskablePPO action_masks() + optional mismatch debug.
       - Action encoding/decoding: engine.encode_action_id / engine.decode_action_id.
@@ -57,7 +57,7 @@ class MacroTetrisEnv(gym.Env):
 
         self._warmup: WarmupFn | None = warmup
 
-        # Geometry from engine (SSOT).
+        # Geometry from engine (authoritative).
         self.h = int(self.game.visible_h())
         self.w = int(self.game.board_w())
         self.max_rots = int(self.game.max_rots())
@@ -139,11 +139,11 @@ class MacroTetrisEnv(gym.Env):
 
     def _requested_rot_col_and_action_id(self, action: Any) -> tuple[int, int, int]:
         """
-        Returns (requested_rot, requested_col, requested_action_id), using engine SSOT.
+        Returns (requested_rot, requested_col, requested_action_id), using engine helpers.
         """
         if self.action_mode == "discrete":
             requested_action_id = int(action)
-            # SSOT decode (for logging/features)
+            # Engine decode (for logging/features)
             try:
                 rot, col = self.game.decode_action_id(int(requested_action_id))
                 return int(rot), int(col), int(requested_action_id)
@@ -163,7 +163,7 @@ class MacroTetrisEnv(gym.Env):
             requested_rot = int(arr[0])
             requested_col = int(arr[1])
 
-        # SSOT encode
+        # Engine encode
         requested_action_id = int(self.game.encode_action_id(int(requested_rot), int(requested_col)))
         return int(requested_rot), int(requested_col), int(requested_action_id)
 
@@ -228,7 +228,7 @@ class MacroTetrisEnv(gym.Env):
         truncated = False
         cleared = 0
 
-        # SSOT: invalid_action comes from engine if we stepped; otherwise policy.
+        # invalid_action comes from engine if we stepped; otherwise policy.
         invalid_action = False
 
         if requested_mask_invalid:
@@ -282,7 +282,7 @@ class MacroTetrisEnv(gym.Env):
         next_score = float(st.get("score", 0.0))
         delta_score = float(next_score - prev_score)
 
-        # SSOT decode for used action id (if valid range)
+        # Engine decode for used action id (if valid range)
         try:
             used_rot, used_col = self.game.decode_action_id(int(used_action_id))
             used_rot = int(used_rot)

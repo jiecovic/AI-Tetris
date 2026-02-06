@@ -50,7 +50,7 @@ class Palette:
     hidden_overlay_rgba: Tuple[int, int, int, int] = (0, 0, 0, 95)
 
     # ---------------------------------------------------------------------
-    # Piece-id colors (engine SSOT uses 1..=7; 0 = empty)
+    # Piece-id colors (engine encoding uses 1..=7; 0 = empty)
     #
     # Mapping matches your earlier glyph palette:
     #   I cyan, O yellow, T purple, S green, Z red, J blue, L orange

@@ -11,10 +11,10 @@ use tetris_engine::engine::{
     WarmupSpec, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
 };
 
-// SSOT: bind the engine's canonical action-id helpers (do NOT reimplement).
+// Authoritative: bind the engine's canonical action-id helpers (do NOT reimplement).
 use tetris_engine::engine::constants::{decode_action_id, encode_action_id};
 
-// UI helpers (SSOT) for piece layout preview.
+// UI helpers (authoritative) for piece layout preview.
 // NOTE: pieces live under tetris_engine::engine::pieces (not crate-root).
 use tetris_engine::engine::pieces::{preview_mask_4x4, Kind};
 
@@ -102,7 +102,7 @@ impl TetrisEngine {
     }
 
     // ---------------------------------------------------------------------
-    // Action-id helpers (SSOT: bind constants::{encode_action_id, decode_action_id})
+    // Action-id helpers (authoritative: bind constants::{encode_action_id, decode_action_id})
     // ---------------------------------------------------------------------
 
     /// encode_action_id(rot, col) -> action_id

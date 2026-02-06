@@ -94,7 +94,7 @@ def _extract_next_kind_idx(state: Any) -> int:
 
 def encode_macro_obs(*, game: Any, state: Any, spec: MacroObsSpec) -> Dict[str, Any]:
     """
-    Encode the canonical raw obs dict (North Star).
+    Encode the canonical raw obs dict.
 
     Works with:
       - legacy Python state objects (attributes)

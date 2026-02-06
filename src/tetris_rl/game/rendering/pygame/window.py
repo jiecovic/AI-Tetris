@@ -47,7 +47,7 @@ def compute_layout(
     footer_h: int = 0,    # reserved footer bar height (below board+sidebar)
 ) -> Layout:
     """
-    Single source of truth for window geometry.
+    Authoritative layout for window geometry.
 
     IMPORTANT:
     - The board is typically rendered with an outer frame that includes `margin` pixels
