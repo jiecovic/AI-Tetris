@@ -26,10 +26,6 @@ class CheckpointPaths:
         return self.checkpoint_dir / "best_lines.zip"
 
     @property
-    def best_level(self) -> Path:
-        return self.checkpoint_dir / "best_level.zip"
-
-    @property
     def best_survival(self) -> Path:
         return self.checkpoint_dir / "best_survival.zip"
 
@@ -52,7 +48,6 @@ class CheckpointManager:
         "best": {
           "reward":   {"value": float, "timesteps": int},
           "lines":    {"value": float, "timesteps": int},
-          "level":    {"value": float, "timesteps": int},
           "survival": {"value": float, "timesteps": int}
         }
       }
@@ -77,6 +72,7 @@ class CheckpointManager:
             self._state["best"] = {}
         else:
             self._state["best"].pop("score", None)
+            self._state["best"].pop("level", None)
 
     def _write_state(self) -> None:
         write_json(self.paths.state, self._state)
@@ -146,8 +142,6 @@ class CheckpointManager:
             return self.paths.best_reward
         if metric == "lines":
             return self.paths.best_lines
-        if metric == "level":
-            return self.paths.best_level
         if metric == "survival":
             return self.paths.best_survival
         return None
@@ -157,8 +151,6 @@ class CheckpointManager:
             return "best_reward"
         if metric == "lines":
             return "best_lines"
-        if metric == "level":
-            return "best_level"
         if metric == "survival":
             return "best_survival"
         return None

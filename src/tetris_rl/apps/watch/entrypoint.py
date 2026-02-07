@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
         "--which",
         type=str,
         default="latest",
-        choices=["latest", "best", "reward", "lines", "level", "survival", "final"],
+        choices=["latest", "best", "reward", "lines", "survival", "final"],
     )
     ap.add_argument("--device", type=str, default="auto")
 

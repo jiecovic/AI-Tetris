@@ -40,6 +40,7 @@ pub struct Game {
 
     pub score: u64,
     pub lines_cleared: u64,
+    pub level: u32,
     pub steps: u64,
     pub game_over: bool,
 }
@@ -76,6 +77,7 @@ impl Game {
             next,
             score: 0,
             lines_cleared: 0,
+            level: 0,
             steps: 0,
             game_over: false,
         }
@@ -88,6 +90,18 @@ impl Game {
     pub fn spawn_next(&mut self) {
         self.active = self.next;
         self.next = self.piece_rule.draw();
+    }
+
+    #[inline]
+    fn line_clear_score(cleared: u32, level: u32) -> u64 {
+        let base = match cleared {
+            1 => 100u64,
+            2 => 300u64,
+            3 => 500u64,
+            4 => 800u64,
+            _ => 0u64,
+        };
+        base.saturating_mul(u64::from(level) + 1)
     }
 
     #[inline]
@@ -282,8 +296,10 @@ impl Game {
         lock_on_grid(&mut self.grid, self.active, rot, x, y);
         let (cleared, spawn_occupied) = clear_lines_inplace(&mut self.grid);
 
+        let level_before = self.level;
         self.lines_cleared += cleared as u64;
-        self.score += 100 * cleared as u64;
+        self.score += Self::line_clear_score(cleared, level_before);
+        self.level = (self.lines_cleared / 10) as u32;
         self.steps += 1;
 
         // True game over check: locked blocks in spawn rows.
@@ -335,12 +351,13 @@ impl Game {
         }
         s.push_str("+----------+\n");
         s.push_str(&format!(
-            "rule={:?} active={} next={} score={} lines={} steps={} over={}\n",
+            "rule={:?} active={} next={} score={} lines={} level={} steps={} over={}\n",
             self.piece_rule.kind(),
             self.active.glyph(),
             self.next.glyph(),
             self.score,
             self.lines_cleared,
+            self.level,
             self.steps,
             self.game_over
         ));

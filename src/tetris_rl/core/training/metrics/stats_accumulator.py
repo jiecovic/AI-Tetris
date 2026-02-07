@@ -106,10 +106,6 @@ class StatsAccumulator:
         self._sum_delta_score = 0.0
         self._cnt_delta_score = 0
 
-        self._sum_level = 0.0
-        self._cnt_level = 0
-        self._max_level: Optional[float] = None
-
         self._sum_lines_total = 0.0
         self._cnt_lines_total = 0
 
@@ -229,13 +225,6 @@ class StatsAccumulator:
             self._sum_delta_score += float(v)
             self._cnt_delta_score += 1
 
-        v = _as_float(game.get("level"))
-        if v is not None:
-            self._sum_level += float(v)
-            self._cnt_level += 1
-            if self._max_level is None or float(v) > float(self._max_level):
-                self._max_level = float(v)
-
         v = _as_float(game.get("lines_total"))
         if v is not None:
             self._sum_lines_total += float(v)
@@ -329,12 +318,6 @@ class StatsAccumulator:
             if self._n_steps > 0:
                 out["game/score_per_step"] = float(self._sum_delta_score / float(self._n_steps))
 
-        m = self._mean(self._sum_level, self._cnt_level)
-        if m is not None:
-            out["game/level_mean"] = m
-        if self._max_level is not None:
-            out["game/level_max"] = float(self._max_level)
-
         if self._n_steps > 0:
             out["game/lines_per_step"] = float(self._sum_lines_for_rate / float(self._n_steps))
 
@@ -381,9 +364,6 @@ class StatsAccumulator:
             "cnt_score": int(self._cnt_score),
             "sum_delta_score": float(self._sum_delta_score),
             "cnt_delta_score": int(self._cnt_delta_score),
-            "sum_level": float(self._sum_level),
-            "cnt_level": int(self._cnt_level),
-            "max_level": None if self._max_level is None else float(self._max_level),
             "sum_lines_total": float(self._sum_lines_total),
             "cnt_lines_total": int(self._cnt_lines_total),
             "sum_lines_for_rate": float(self._sum_lines_for_rate),
@@ -428,12 +408,6 @@ class StatsAccumulator:
         self._cnt_score += int(state.get("cnt_score", 0))
         self._sum_delta_score += float(state.get("sum_delta_score", 0.0))
         self._cnt_delta_score += int(state.get("cnt_delta_score", 0))
-        self._sum_level += float(state.get("sum_level", 0.0))
-        self._cnt_level += int(state.get("cnt_level", 0))
-        max_level = state.get("max_level", None)
-        if max_level is not None:
-            if self._max_level is None or float(max_level) > float(self._max_level):
-                self._max_level = float(max_level)
 
         self._sum_lines_total += float(state.get("sum_lines_total", 0.0))
         self._cnt_lines_total += int(state.get("cnt_lines_total", 0))

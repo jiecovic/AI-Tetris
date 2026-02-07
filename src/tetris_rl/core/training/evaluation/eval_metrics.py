@@ -20,7 +20,7 @@ def safe_int(x: Any, default: int = 0) -> int:
 
 def pick_best_values(
     metrics: dict[str, Any],
-) -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+) -> Tuple[Optional[float], Optional[float], Optional[float]]:
     return_mean = as_float(metrics.get("episode/return_mean"))
     steps_mean = as_float(metrics.get("episode/steps_mean"))
     reward_per_step = None
@@ -28,13 +28,12 @@ def pick_best_values(
         reward_per_step = float(return_mean) / float(steps_mean)
 
     lines_per_step = as_float(metrics.get("game/lines_per_step"))
-    level_max = as_float(metrics.get("game/level_max"))
 
     go_rate = as_float(metrics.get("tf/game_over_rate"))
     survival_like = None if go_rate is None else (1.0 - float(go_rate))
 
     reward_like = reward_per_step
-    return reward_like, lines_per_step, level_max, survival_like
+    return reward_like, lines_per_step, survival_like
 
 
 __all__ = ["as_float", "pick_best_values", "safe_int"]

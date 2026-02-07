@@ -178,7 +178,6 @@ def _eval_state_loop(
     ep_steps: list[int] = []
     ep_final_scores: list[Optional[float]] = []
     ep_final_lines: list[Optional[float]] = []
-    ep_max_levels: list[Optional[float]] = []
 
     next_seed = int(seed_base) + n_envs
     warned_no_masks = False
@@ -230,11 +229,9 @@ def _eval_state_loop(
             if isinstance(game, Mapping):
                 ep_final_scores.append(_as_float(game.get("score")))
                 ep_final_lines.append(_as_float(game.get("lines_total")))
-                ep_max_levels.append(_as_float(game.get("level")))
             else:
                 ep_final_scores.append(None)
                 ep_final_lines.append(None)
-                ep_max_levels.append(None)
 
             if on_episode is not None:
                 on_episode(completed_episodes, float(ep_returns[-1]))
@@ -267,7 +264,6 @@ def _eval_state_loop(
         "ep_steps": list(ep_steps),
         "ep_final_scores": list(ep_final_scores),
         "ep_final_lines": list(ep_final_lines),
-        "ep_max_levels": list(ep_max_levels),
         "cur_ep_steps": [int(s.ep_steps) for s in slots if int(s.ep_steps) > 0],
         "n_envs": int(n_envs),
         "algo_type": str(algo_type),
@@ -317,7 +313,6 @@ def _summarize_eval_states(
     ep_steps: list[int] = []
     ep_final_scores: list[Optional[float]] = []
     ep_final_lines: list[Optional[float]] = []
-    ep_max_levels: list[Optional[float]] = []
     cur_steps: list[int] = []
 
     for state in states:
@@ -329,7 +324,6 @@ def _summarize_eval_states(
         ep_steps.extend(state.get("ep_steps", []) or [])
         ep_final_scores.extend(state.get("ep_final_scores", []) or [])
         ep_final_lines.extend(state.get("ep_final_lines", []) or [])
-        ep_max_levels.extend(state.get("ep_max_levels", []) or [])
         cur_steps.extend(state.get("cur_ep_steps", []) or [])
 
     out: Dict[str, Any] = {}
@@ -371,9 +365,6 @@ def _summarize_eval_states(
     m = _mean_opt(ep_final_scores)
     if m is not None:
         out["episode/final_score_mean"] = float(m)
-    m = _mean_opt(ep_max_levels)
-    if m is not None:
-        out["episode/max_level_mean"] = float(m)
 
     # purely descriptive (non-semantic) metadata from cfg is allowed until Run/Env specs exist
     try:

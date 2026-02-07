@@ -318,6 +318,7 @@ def draw_sidebar(
     game_rows: List[tuple[str, Any]] = [
         ("Score", score),
         ("Lines", lines),
+        ("Level", _get(state, "level", 0)),
         ("Steps", steps),
         ("Holes", holes),
         ("MaxH", max_height),

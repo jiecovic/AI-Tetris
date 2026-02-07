@@ -48,7 +48,6 @@ def _planning_eval_state(
     ep_steps: list[int] = []
     ep_final_scores: list[Optional[float]] = []
     ep_final_lines: list[Optional[float]] = []
-    ep_max_levels: list[Optional[float]] = []
 
     episode_idx = 0
     next_seed = _episode_seed(base_seed=int(seed_base), episode_idx=episode_idx)
@@ -83,11 +82,9 @@ def _planning_eval_state(
         if isinstance(game, Mapping):
             ep_final_scores.append(_as_float(game.get("score")))
             ep_final_lines.append(_as_float(game.get("lines_total")))
-            ep_max_levels.append(_as_float(game.get("level")))
         else:
             ep_final_scores.append(None)
             ep_final_lines.append(None)
-            ep_max_levels.append(None)
 
         if on_episode is not None:
             on_episode(completed_episodes, float(ep_returns[-1]))
@@ -108,7 +105,6 @@ def _planning_eval_state(
         "ep_steps": list(ep_steps),
         "ep_final_scores": list(ep_final_scores),
         "ep_final_lines": list(ep_final_lines),
-        "ep_max_levels": list(ep_max_levels),
         "cur_ep_steps": int(cur_ep_steps),
     }
 
@@ -127,7 +123,6 @@ def _summarize_eval_state(
     ep_steps: list[int] = []
     ep_final_scores: list[Optional[float]] = []
     ep_final_lines: list[Optional[float]] = []
-    ep_max_levels: list[Optional[float]] = []
     cur_steps: list[int] = []
 
     for state in states:
@@ -139,7 +134,6 @@ def _summarize_eval_state(
         ep_steps.extend(state.get("ep_steps", []) or [])
         ep_final_scores.extend(state.get("ep_final_scores", []) or [])
         ep_final_lines.extend(state.get("ep_final_lines", []) or [])
-        ep_max_levels.extend(state.get("ep_max_levels", []) or [])
         cur_steps.append(int(state.get("cur_ep_steps", 0)))
 
     out: Dict[str, Any] = {}
@@ -182,9 +176,6 @@ def _summarize_eval_state(
     m = _mean_opt(ep_final_scores)
     if m is not None:
         out["episode/final_score_mean"] = float(m)
-    m = _mean_opt(ep_max_levels)
-    if m is not None:
-        out["episode/max_level_mean"] = float(m)
 
     return out
 

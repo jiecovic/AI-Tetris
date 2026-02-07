@@ -17,7 +17,6 @@ class EvalTable:
 
     _COL_W_RPS = 10
     _COL_W_LPS = 10
-    _COL_W_LVM = 8
     _COL_W_EPL = 8
     _COL_W_IAR = 8
 
@@ -54,12 +53,11 @@ class EvalTable:
         self.emit(
             "[eval] best checkpoints: "
             f"R={paths.best_reward.name}  N={paths.best_lines.name}  "
-            f"V={paths.best_level.name}  T={paths.best_survival.name}"
+            f"T={paths.best_survival.name}"
         )
         self.emit(
             "[eval] update legend: "
-            "R=best reward/step  N=best lines/step  V=best level_max  "
-            "T=best survival(1-go_rate)  .=no update"
+            "R=best reward/step  N=best lines/step  T=best survival(1-go_rate)  .=no update"
         )
         self.emit(
             "[eval] cols: "
@@ -79,7 +77,6 @@ class EvalTable:
             f"{'ep':>{self._COL_W_EP}} "
             f"{'rwd/s':>{self._COL_W_RPS}} "
             f"{'lines/s':>{self._COL_W_LPS}} "
-            f"{'lv_max':>{self._COL_W_LVM}} "
             f"{'ep_len':>{self._COL_W_EPL}} "
             f"{'ill%':>{self._COL_W_IAR}} "
             f"{'bc_vloss':>{self._COL_W_BCL}} "
@@ -96,7 +93,6 @@ class EvalTable:
             f"{'-' * self._COL_W_EP} "
             f"{'-' * self._COL_W_RPS} "
             f"{'-' * self._COL_W_LPS} "
-            f"{'-' * self._COL_W_LVM} "
             f"{'-' * self._COL_W_EPL} "
             f"{'-' * self._COL_W_IAR} "
             f"{'-' * self._COL_W_BCL} "
@@ -146,7 +142,6 @@ class EvalTable:
         completed_eps: Optional[int],
         reward_per_step: Optional[float],
         lines_per_step: Optional[float],
-        level_max: Optional[float],
         ep_len_mean: Optional[float],
         invalid_action_rate: Optional[float],
         # optional extra metrics (offline validation etc.)
@@ -175,7 +170,6 @@ class EvalTable:
             f"{self._fmt_int(completed_eps, self._COL_W_EP)} "
             f"{self._fmt_float(reward_per_step, self._COL_W_RPS, prec=5)} "
             f"{self._fmt_float(lines_per_step, self._COL_W_LPS, prec=5)} "
-            f"{self._fmt_float(level_max, self._COL_W_LVM, prec=2)} "
             f"{self._fmt_float(ep_len_mean, self._COL_W_EPL, prec=1)} "
             f"{self._fmt_float(ill_pct, self._COL_W_IAR, prec=2)} "
             f"{self._fmt_float(bc_val_loss, self._COL_W_BCL, prec=4)} "

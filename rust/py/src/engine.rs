@@ -268,6 +268,7 @@ impl TetrisEngine {
 
         d.set_item("score", self.g.score)?;
         d.set_item("lines", self.g.lines_cleared)?;
+        d.set_item("level", self.g.level)?;
         d.set_item("steps", self.g.steps)?;
         d.set_item("game_over", self.g.game_over)?;
 
@@ -364,6 +365,9 @@ impl TetrisEngine {
     }
     fn lines_cleared(&self) -> u64 {
         self.g.lines_cleared
+    }
+    fn level(&self) -> u32 {
+        self.g.level
     }
     fn steps(&self) -> u64 {
         self.g.steps

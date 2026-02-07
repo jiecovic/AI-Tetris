@@ -224,19 +224,17 @@ class EvalCheckpointCore:
             except Exception:
                 pass
 
-        reward_like, lines_like, level_like, survival_like = pick_best_values(metrics)
+        reward_like, lines_like, survival_like = pick_best_values(metrics)
 
-        did_r = did_n = did_v = did_t = False
+        did_r = did_n = did_t = False
         if reward_like is not None:
             did_r = self.manager.maybe_save_best(model=model, metric="reward", value=float(reward_like), timesteps=t)
         if lines_like is not None:
             did_n = self.manager.maybe_save_best(model=model, metric="lines", value=float(lines_like), timesteps=t)
-        if level_like is not None:
-            did_v = self.manager.maybe_save_best(model=model, metric="level", value=float(level_like), timesteps=t)
         if survival_like is not None:
             did_t = self.manager.maybe_save_best(model=model, metric="survival", value=float(survival_like), timesteps=t)
 
-        upd = ("R" if did_r else ".") + ("N" if did_n else ".") + ("V" if did_v else ".") + ("T" if did_t else ".")
+        upd = ("R" if did_r else ".") + ("N" if did_n else ".") + ("T" if did_t else ".")
 
         ep_len = as_float(metrics.get("episode/steps_mean"))
         ep_ret = as_float(metrics.get("episode/return_mean"))
@@ -258,7 +256,6 @@ class EvalCheckpointCore:
             completed_eps=safe_int(metrics.get("episode/completed_episodes"), default=0),
             reward_per_step=rwd_per_step,
             lines_per_step=as_float(metrics.get("game/lines_per_step")),
-            level_max=as_float(metrics.get("game/level_max")),
             ep_len_mean=ep_len,
             invalid_action_rate=as_float(metrics.get("tf/invalid_action_rate")),
             bc_val_loss=bc_vloss,
