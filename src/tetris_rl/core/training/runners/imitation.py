@@ -42,7 +42,7 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     policy_cfg = exp_cfg.policy
     algo_cfg = exp_cfg.algo
     callbacks_cfg = exp_cfg.callbacks
-    eval_cfg = exp_cfg.eval
+    learn_cfg = exp_cfg.learn
     imitation_params = exp_cfg.algo.params
 
     paths = make_run_paths(run_cfg=run_cfg)
@@ -86,7 +86,7 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     )
     logger.info(f"[timing] policy built: {time.perf_counter() - t0:.2f}s")
 
-    resume_target = getattr(imitation_params, "resume", None)
+    resume_target = getattr(learn_cfg, "resume", None)
     if resume_target:
         resume_path = Path(str(resume_target)).expanduser()
         if resume_path.is_dir():
@@ -121,7 +121,7 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     cfg_eval = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
     model.learn(
         cfg=cfg_eval,
-        eval_cfg=eval_cfg,
+        learn_cfg=learn_cfg,
         callbacks_cfg=callbacks_cfg,
         run_cfg=run_cfg,
         run_dir=paths.run_dir,

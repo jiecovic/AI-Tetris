@@ -15,7 +15,7 @@ from rich.progress import (
 )
 from tqdm.rich import FractionColumn, RateColumn
 
-from planning_rl.ga import GAConfig, GAEvalConfig, HeuristicGA
+from planning_rl.ga import GAConfig, GAFitnessConfig, HeuristicGA
 from planning_rl.ga.types import GAStats
 from tetris_rl.core.callbacks import EvalCallback, LatestCallback, PlanningCallbackAdapter
 from tetris_rl.core.config.io import to_plain_dict
@@ -24,7 +24,7 @@ from tetris_rl.core.policies.spec import HeuristicSearch, save_heuristic_spec
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
 from tetris_rl.core.runs.run_manifest import write_run_manifest
-from tetris_rl.core.training.config import CallbacksConfig, EvalConfig
+from tetris_rl.core.training.config import CallbacksConfig
 from tetris_rl.core.training.evaluation import evaluate_planning_policy
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
@@ -43,14 +43,14 @@ def _parse_ga_config(obj: Any) -> GAConfig:
     return GAConfig(**data)
 
 
-def _parse_eval_config(obj: Any) -> GAEvalConfig:
+def _parse_fitness_config(obj: Any) -> GAFitnessConfig:
     if obj is None:
-        return GAEvalConfig()
-    if isinstance(obj, GAEvalConfig):
+        return GAFitnessConfig()
+    if isinstance(obj, GAFitnessConfig):
         return obj
     if not isinstance(obj, dict):
-        raise TypeError("eval config must be a mapping")
-    return GAEvalConfig(**obj)
+        raise TypeError("fitness config must be a mapping")
+    return GAFitnessConfig(**obj)
 
 
 def _log_stats(*, logger: Any, stats: list[GAStats]) -> None:
@@ -119,9 +119,9 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         raise ValueError(f"algo.type must be 'ga' for GA runs (got {algo_type!r})")
 
     ga_cfg = _parse_ga_config(algo_block.get("params", None))
-    fitness_cfg = _parse_eval_config(learn_block.get("eval", None))
+    fitness_cfg = _parse_fitness_config(learn_block.get("fitness", None))
     callbacks_cfg = CallbacksConfig.model_validate(cfg_dict.get("callbacks", {}) or {})
-    eval_cfg = EvalConfig.model_validate(cfg_dict.get("eval", {}) or {})
+    eval_cfg = callbacks_cfg.eval_checkpoint
 
     logger.info(f"[run] dir: {paths.run_dir}")
     logger.info(
@@ -143,7 +143,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     )
     logger.info(
         "[ga] eval every=%d steps=%d seed_offset=%d",
-        int(callbacks_cfg.eval.every),
+        int(callbacks_cfg.eval_checkpoint.every),
         int(eval_cfg.steps),
         int(eval_cfg.seed_offset),
     )
@@ -151,8 +151,8 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         "[ga] callbacks latest_enabled=%s latest_every=%d eval_enabled=%s eval_every=%d",
         bool(callbacks_cfg.latest.enabled),
         int(callbacks_cfg.latest.every),
-        bool(callbacks_cfg.eval.enabled),
-        int(callbacks_cfg.eval.every),
+        bool(callbacks_cfg.eval_checkpoint.enabled),
+        int(callbacks_cfg.eval_checkpoint.every),
     )
     logger.info(
         "[ga] search plies=%d beam_width=%s beam_from_depth=%d",
@@ -209,7 +209,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         seed=int(fitness_cfg.seed),
     ).env
 
-    eval_enabled = bool(callbacks_cfg.eval.enabled) and int(callbacks_cfg.eval.every) > 0
+    eval_enabled = bool(callbacks_cfg.eval_checkpoint.enabled) and int(callbacks_cfg.eval_checkpoint.every) > 0
     env_eval = None
     if eval_enabled:
         env_eval = make_env_from_cfg(
@@ -223,7 +223,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         search=search,
         env_train=env_train,
         ga=ga_cfg,
-        eval_cfg=fitness_cfg,
+        fitness_cfg=fitness_cfg,
         workers=int(run_cfg.workers),
     )
 
@@ -273,7 +273,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         core_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
-                eval_every=int(callbacks_cfg.eval.every),
+                eval_every=int(callbacks_cfg.eval_checkpoint.every),
                 run_cfg=run_cfg,
                 eval=eval_cfg,
                 base_seed=int(run_cfg.seed),
@@ -289,7 +289,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         )
         callback_items.append(PlanningCallbackAdapter(core_cb))
     else:
-        logger.info("[eval] disabled (callbacks.eval disabled)")
+        logger.info("[eval] disabled (callbacks.eval_checkpoint disabled)")
 
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),

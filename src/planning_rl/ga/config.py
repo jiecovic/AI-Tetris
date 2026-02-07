@@ -30,11 +30,11 @@ class GAConfig:
 
 
 @dataclass(frozen=True)
-class GAEvalConfig:
+class GAFitnessConfig:
     episodes: int = 100
     max_steps: int = 500
     fitness_metric: Literal["total_reward", "reward_per_step"] = "total_reward"
     seed: int = 12345
 
 
-__all__ = ["GAConfig", "GAEvalConfig"]
+__all__ = ["GAConfig", "GAFitnessConfig"]

@@ -9,7 +9,7 @@ from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
 from stable_baselines3.common.type_aliases import GymEnv
 
 from tetris_rl.core.training.algorithms.base import BaseAlgorithm
-from tetris_rl.core.training.config import ImitationAlgoParams
+from tetris_rl.core.training.config import ImitationAlgoParams, ImitationLearnConfig
 
 
 PolicySpec = Union[ActorCriticPolicy, MaskableActorCriticPolicy]
@@ -47,7 +47,7 @@ class ImitationAlgorithm(BaseAlgorithm):
         cfg: Dict[str, Any],
         run_cfg: Any,
         callbacks_cfg: Any,
-        eval_cfg: Any,
+        learn_cfg: ImitationLearnConfig,
         run_dir: Path,
         repo: Optional[Path] = None,
         logger: Any = None,
@@ -57,7 +57,7 @@ class ImitationAlgorithm(BaseAlgorithm):
         trainer = ImitationTrainer(
             cfg=cfg,
             algo=self,
-            eval_cfg=eval_cfg,
+            learn_cfg=learn_cfg,
             callbacks_cfg=callbacks_cfg,
             run_cfg=run_cfg,
             run_dir=run_dir,

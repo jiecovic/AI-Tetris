@@ -3,15 +3,13 @@ callbacks:
   latest:
     enabled: true                     # save latest checkpoints
     every: 20_000                     # save latest every N env steps
-  eval:
+  eval_checkpoint:
     enabled: true                     # run eval + save best checkpoints
     every: 5_000_000                  # eval cadence in training env steps
-
-eval:
-  steps: 100_000                      # eval step budget (episodes * max_steps)
-  deterministic: true                 # SB3 eval uses deterministic actions
-  seed_offset: 10_000                 # offset from run.seed for eval seeds
-  num_envs: 1                         # eval env count
+    steps: 100_000                    # eval step budget (episodes * max_steps)
+    deterministic: true               # SB3 eval uses deterministic actions
+    seed_offset: 10_000               # offset from run.seed for eval seeds
+    num_envs: 1                       # eval env count
 
 learn:
   total_timesteps: 800_000_000        # total env steps for RL training

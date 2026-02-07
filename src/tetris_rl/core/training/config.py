@@ -3,17 +3,19 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 
 from tetris_rl.core.config.base import ConfigBase
 
-class EvalConfig(ConfigBase):
+class EvalCheckpointCallbackConfig(ConfigBase):
     """
-    Training-time evaluation semantics.
+    Training-time evaluation hook.
 
     This is a training hook (for TB + best checkpoints), not a benchmarking suite.
     """
 
+    enabled: bool = False
+    every: int = Field(default=0, ge=0)
     steps: int = Field(default=100_000, ge=1)
 
     deterministic: bool = True
@@ -25,21 +27,16 @@ class LatestCallbackConfig(ConfigBase):
     every: int = Field(default=200_000, ge=1)
 
 
-class EvalCheckpointCallbackConfig(ConfigBase):
-    enabled: bool = False
-    every: int = Field(default=0, ge=0)
-
-
 class CallbacksConfig(ConfigBase):
     latest: LatestCallbackConfig = LatestCallbackConfig()
-    eval: EvalCheckpointCallbackConfig = EvalCheckpointCallbackConfig()
+    eval_checkpoint: EvalCheckpointCallbackConfig = EvalCheckpointCallbackConfig()
 
 
-class ImitationAlgoParams(ConfigBase):
-    # offline dataset
-    dataset_dir: Optional[str] = None
+class ImitationLearnConfig(ConfigBase):
+    # offline dataset (required)
+    dataset_dir: str
 
-    # training
+    # training loop
     epochs: int = Field(default=1, ge=1)
     batch_size: int = Field(default=256, ge=1)
     learning_rate: float = 3e-4
@@ -53,9 +50,6 @@ class ImitationAlgoParams(ConfigBase):
     save_archive: bool = True
     archive_dir: str = "checkpoints/imitation"
 
-    # policy backend used for BC (must match PPO policy class)
-    policy_backend: Literal["ppo", "maskable_ppo"] = "maskable_ppo"
-
     # optional: initialize from another run/checkpoint
     resume: Optional[str] = None
 
@@ -66,6 +60,12 @@ class ImitationAlgoParams(ConfigBase):
             return None
         s = str(v).strip()
         return s if s else None
+
+
+class ImitationAlgoParams(ConfigBase):
+    # policy backend used for BC (must match PPO policy class)
+    policy_backend: Literal["ppo", "maskable_ppo"] = "maskable_ppo"
+
 
 class AlgoConfig(ConfigBase):
     type: Literal["ppo", "maskable_ppo"] = "ppo"
@@ -100,9 +100,9 @@ class ImitationAlgoConfig(ConfigBase):
 __all__ = [
     "AlgoConfig",
     "CallbacksConfig",
-    "EvalConfig",
     "EvalCheckpointCallbackConfig",
     "ImitationAlgoConfig",
+    "ImitationLearnConfig",
     "ImitationAlgoParams",
     "LatestCallbackConfig",
     "LearnConfig",

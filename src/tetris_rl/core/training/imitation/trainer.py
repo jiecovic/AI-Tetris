@@ -10,7 +10,7 @@ from tqdm.rich import tqdm  # <-- rich tqdm (NOT tqdm.auto)
 from tetris_rl.core.callbacks import CallbackList, EvalCallback, LatestCallback
 from tetris_rl.core.datagen.io.shard_reader import ShardDataset
 from tetris_rl.core.runs.config import RunConfig
-from tetris_rl.core.training.config import CallbacksConfig, EvalConfig
+from tetris_rl.core.training.config import CallbacksConfig, ImitationLearnConfig
 from tetris_rl.core.training.evaluation import evaluate_model
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
@@ -99,7 +99,7 @@ class ImitationTrainer:
         *,
         cfg: Dict[str, Any],
         algo: ImitationAlgorithm,
-        eval_cfg: EvalConfig,
+        learn_cfg: ImitationLearnConfig,
         callbacks_cfg: CallbacksConfig,
         run_cfg: RunConfig,
         run_dir: Path,
@@ -108,7 +108,7 @@ class ImitationTrainer:
     ) -> None:
         self.cfg = cfg
         self.algo = algo
-        self.eval_cfg = eval_cfg
+        self.learn_cfg = learn_cfg
         self.callbacks_cfg = callbacks_cfg
         self.run_cfg = run_cfg
         self.run_dir = Path(run_dir)
@@ -116,9 +116,9 @@ class ImitationTrainer:
         self.logger = logger
 
     def run(self) -> Dict[str, Any]:
-        im = self.algo.params
+        learn = self.learn_cfg
 
-        ds_dir = _resolve_dataset_dir(self.repo, str(im.dataset_dir))
+        ds_dir = _resolve_dataset_dir(self.repo, str(learn.dataset_dir))
         ds = ShardDataset(dataset_dir=ds_dir)
 
         ds_h = int(ds.manifest.board_h)
@@ -159,7 +159,11 @@ class ImitationTrainer:
         train_sids = split.train
         eval_sids = split.eval
 
-        eval_every = int(self.callbacks_cfg.eval.every) if bool(self.callbacks_cfg.eval.enabled) else 0
+        eval_every = (
+            int(self.callbacks_cfg.eval_checkpoint.every)
+            if bool(self.callbacks_cfg.eval_checkpoint.enabled)
+            else 0
+        )
         latest_every = int(self.callbacks_cfg.latest.every) if bool(self.callbacks_cfg.latest.enabled) else 0
 
         sched = ImitationScheduleSpec(
@@ -198,7 +202,7 @@ class ImitationTrainer:
             val_iter = iter_bc_batches_from_dataset(
                 ds=ds,
                 shard_ids=eval_sids,
-                batch_size=int(im.batch_size),
+                batch_size=int(learn.batch_size),
                 base_seed=int(val_seed),
                 shuffle_shards=False,
                 shuffle_within_shard=False,
@@ -227,17 +231,17 @@ class ImitationTrainer:
             return out
 
         if int(sched.eval_every) > 0:
-            eval_seed_base = int(self.run_cfg.seed) + int(self.eval_cfg.seed_offset)
+            eval_seed_base = int(self.run_cfg.seed) + int(self.callbacks_cfg.eval_checkpoint.seed_offset)
 
             def _eval_fn(_model: Any, _t: int, on_episode, on_step) -> Dict[str, Any]:
                 metrics = evaluate_model(
                     model=_model,
                     cfg=self.cfg,
                     run_cfg=self.run_cfg,
-                    eval_steps=int(self.eval_cfg.steps),
-                    deterministic=bool(self.eval_cfg.deterministic),
+                    eval_steps=int(self.callbacks_cfg.eval_checkpoint.steps),
+                    deterministic=bool(self.callbacks_cfg.eval_checkpoint.deterministic),
                     seed_base=int(eval_seed_base),
-                    num_envs=int(self.eval_cfg.num_envs),
+                    num_envs=int(self.callbacks_cfg.eval_checkpoint.num_envs),
                     on_episode=on_episode,
                     on_step=on_step,
                 )
@@ -250,7 +254,7 @@ class ImitationTrainer:
                         checkpoint_dir=Path(self.run_dir) / "checkpoints",
                         eval_every=int(sched.eval_every),
                         run_cfg=self.run_cfg,
-                        eval=self.eval_cfg,
+                        eval=self.callbacks_cfg.eval_checkpoint,
                         base_seed=int(self.run_cfg.seed),
                         table_header_every=10,
                         progress_unit=str(sched.tick_unit),
@@ -279,9 +283,9 @@ class ImitationTrainer:
                     str(ds_dir),
                     int(len(train_sids)),
                     int(len(eval_sids)),
-                    int(im.batch_size),
-                    int(im.epochs),
-                    int(im.max_samples),
+                    int(learn.batch_size),
+                    int(learn.epochs),
+                    int(learn.max_samples),
                 )
                 self.logger.info(
                     "[imitation] cadences: latest_every=%d (%s)  eval_every=%d (%s)  eval_enabled=%s",
@@ -289,14 +293,14 @@ class ImitationTrainer:
                     str(sched.tick_unit),
                     int(sched.eval_every),
                     str(sched.tick_unit),
-                    str(self.callbacks_cfg.eval.enabled),
+                    str(self.callbacks_cfg.eval_checkpoint.enabled),
                 )
             except Exception:
                 pass
 
         bc_spec = BCTrainSpec(
-            learning_rate=float(im.learning_rate),
-            max_grad_norm=float(im.max_grad_norm),
+            learning_rate=float(learn.learning_rate),
+            max_grad_norm=float(learn.max_grad_norm),
             log_every_updates=max(1, int(sched.log_every)),
         )
 
@@ -310,18 +314,18 @@ class ImitationTrainer:
         counts: dict[int, int] = {int(r.shard_id): int(r.num_samples) for r in ds.shards}
         train_total_samples_full = sum(int(counts.get(int(sid), 0)) for sid in train_sids)
 
-        for e in range(max(1, int(im.epochs))):
+        for e in range(max(1, int(learn.epochs))):
             epoch_seed = seed32_from(base_seed=int(self.run_cfg.seed), stream_id=1009 * (e + 1))
 
-            if int(im.max_samples) > 0:
-                epoch_total_samples = min(int(im.max_samples), int(train_total_samples_full))
+            if int(learn.max_samples) > 0:
+                epoch_total_samples = min(int(learn.max_samples), int(train_total_samples_full))
             else:
                 epoch_total_samples = int(train_total_samples_full)
             epoch_total_samples_or_none = int(epoch_total_samples) if int(epoch_total_samples) > 0 else None
 
             with tqdm(
                 total=epoch_total_samples_or_none,
-                desc=f"bc epoch {int(e + 1)}/{int(im.epochs)}",
+                desc=f"bc epoch {int(e + 1)}/{int(learn.epochs)}",
                 unit="samp",
                 leave=False,
                 dynamic_ncols=True,
@@ -346,11 +350,11 @@ class ImitationTrainer:
                 batch_iter = iter_bc_batches_from_dataset(
                     ds=ds,
                     shard_ids=train_sids,
-                    batch_size=int(im.batch_size),
+                    batch_size=int(learn.batch_size),
                     base_seed=int(epoch_seed),
-                    shuffle_shards=bool(im.shuffle),
+                    shuffle_shards=bool(learn.shuffle),
                     shuffle_within_shard=True,
-                    max_samples=int(im.max_samples),
+                    max_samples=int(learn.max_samples),
                     drop_last=False,
                     crop_top_rows=int(crop_top_rows),
                     progress_cb=None,
@@ -401,7 +405,7 @@ class ImitationTrainer:
                         parts.append(f"H={ent:.3f}")
 
                     try:
-                        base = f"bc epoch {int(e + 1)}/{int(im.epochs)}"
+                        base = f"bc epoch {int(e + 1)}/{int(learn.epochs)}"
                         if parts:
                             epoch_bar.set_description_str(base + "  " + "  ".join(parts), refresh=True)
                             epoch_bar.refresh()
@@ -428,7 +432,7 @@ class ImitationTrainer:
                     self.logger.info(
                         "[imitation] epoch=%d/%d  samples_seen=%d  updates=%d  loss=%.6g",
                         int(e + 1),
-                        int(im.epochs),
+                        int(learn.epochs),
                         int(state.samples_seen),
                         int(state.updates),
                         float(stats.get("bc_loss", float("nan"))),

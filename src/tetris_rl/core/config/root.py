@@ -17,8 +17,8 @@ from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.training.config import (
     AlgoConfig,
     CallbacksConfig,
-    EvalConfig,
     ImitationAlgoConfig,
+    ImitationLearnConfig,
     LearnConfig,
 )
 
@@ -32,7 +32,6 @@ class ExperimentConfig(ConfigBase):
     learn: LearnConfig
     algo: AlgoConfig
     callbacks: CallbacksConfig = CallbacksConfig()
-    eval: EvalConfig = EvalConfig()
 
 
 class ImitationExperimentConfig(ConfigBase):
@@ -41,14 +40,14 @@ class ImitationExperimentConfig(ConfigBase):
     env_train: EnvConfig
     env_eval: EnvConfig
     policy: SB3PolicyConfig
+    learn: ImitationLearnConfig
     algo: ImitationAlgoConfig = ImitationAlgoConfig()
     callbacks: CallbacksConfig = CallbacksConfig()
-    eval: EvalConfig = EvalConfig()
 
     @model_validator(mode="after")
     def _validate_imitation_dataset(self) -> "ImitationExperimentConfig":
-        dataset_dir = self.algo.params.dataset_dir
-        if dataset_dir is None or not str(dataset_dir).strip():
+        dataset_dir = self.learn.dataset_dir
+        if not str(dataset_dir).strip():
             raise ValueError("imitation.dataset_dir must be set")
         return self
 

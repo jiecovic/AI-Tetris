@@ -3,27 +3,27 @@ callbacks:
   latest:
     enabled: true                     # save latest checkpoints
     every: 20_000                     # save latest every N samples
-  eval:
+  eval_checkpoint:
     enabled: true                     # run eval + save best checkpoints
     every: 5_000_000                  # eval cadence in samples
+    steps: 100_000                    # eval step budget (episodes * max_steps)
+    deterministic: true               # imitation eval uses deterministic actions
+    seed_offset: 10_000               # offset from run.seed for eval seeds
+    num_envs: 1                       # ignored for imitation eval
 
-eval:
-  steps: 100_000                      # eval step budget (episodes * max_steps)
-  deterministic: true                 # imitation eval uses deterministic actions
-  seed_offset: 10_000                 # offset from run.seed for eval seeds
-  num_envs: 1                         # ignored for imitation eval
+learn:
+  dataset_dir: datasets/bc/codemy2_uniform_noise
+  epochs: 10                          # number of epochs over dataset
+  batch_size: 512                     # batch size for BC updates
+  learning_rate: 1.0e-4               # optimizer learning rate
+  max_grad_norm: 1.0                  # gradient clipping norm
+  shuffle: true                       # shuffle dataset each epoch
+  max_samples: 0                      # max samples to use (0 = all)
+  save_archive: true                  # archive final imitation checkpoint
+  archive_dir: checkpoints/imitation  # directory for BC archives
+  resume: null                        # optional: run dir or checkpoint path
 
 algo:
   type: imitation
   params:
-    dataset_dir: datasets/bc/codemy2_uniform_noise
-    epochs: 10                          # number of epochs over dataset
-    batch_size: 512                     # batch size for BC updates
-    learning_rate: 1.0e-4               # optimizer learning rate
-    max_grad_norm: 1.0                  # gradient clipping norm
-    shuffle: true                       # shuffle dataset each epoch
-    max_samples: 0                      # max samples to use (0 = all)
-    save_archive: true                  # archive final imitation checkpoint
-    archive_dir: checkpoints/imitation  # directory for BC archives
     policy_backend: maskable_ppo        # ppo | maskable_ppo
-    resume: null                        # optional: run dir or checkpoint path

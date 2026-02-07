@@ -51,7 +51,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
     learn_cfg = exp_cfg.learn
     algo_cfg = exp_cfg.algo
     callbacks_cfg = exp_cfg.callbacks
-    eval_cfg = exp_cfg.eval
+    eval_cfg = callbacks_cfg.eval_checkpoint
     env_train_cfg = exp_cfg.env_train
     env_eval_cfg = exp_cfg.env_eval
     policy_cfg = exp_cfg.policy
@@ -209,9 +209,8 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
             )
         )
 
-    if bool(callbacks_cfg.eval.enabled) and int(callbacks_cfg.eval.every) > 0:
-        # IMPORTANT: keep EvalCheckpointCoreSpec eval as EvalConfig while passing
-        # an eval-specific cfg dict for env wiring.
+    if bool(callbacks_cfg.eval_checkpoint.enabled) and int(callbacks_cfg.eval_checkpoint.every) > 0:
+        # Provide eval-specific cfg dict for env wiring.
         eval_cfg_plain = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
 
         eval_cb: EvalCallback | None = None
@@ -239,7 +238,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
         eval_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
-                eval_every=int(callbacks_cfg.eval.every),
+                eval_every=int(callbacks_cfg.eval_checkpoint.every),
                 run_cfg=run_cfg,
                 eval=eval_cfg,
                 base_seed=int(run_cfg.seed),
@@ -254,7 +253,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
         )
         core_callbacks.append(eval_cb)
     else:
-        logger.info("[eval] disabled (callbacks.eval disabled)")
+        logger.info("[eval] disabled (callbacks.eval_checkpoint disabled)")
 
     if core_callbacks:
         callbacks.append(SB3CallbackAdapter(core_callbacks))

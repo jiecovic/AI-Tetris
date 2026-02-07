@@ -12,7 +12,7 @@ import numpy as np
 
 from planning_rl.algorithms import PlanningAlgorithm
 from planning_rl.callbacks import PlanningCallback, wrap_callbacks
-from planning_rl.ga.config import GAConfig, GAEvalConfig
+from planning_rl.ga.config import GAConfig, GAFitnessConfig
 from planning_rl.ga.operators import evolve_population, init_population
 from planning_rl.ga.types import GAStats
 from planning_rl.ga.utils import episode_seeds, to_jsonable
@@ -26,16 +26,16 @@ class GAAlgorithm(PlanningAlgorithm):
         policy: VectorParamPolicy,
         env: Any,
         cfg: GAConfig,
-        eval_cfg: GAEvalConfig | None = None,
+        fitness_cfg: GAFitnessConfig | None = None,
         seed: int | None = None,
     ) -> None:
         super().__init__(policy=policy)
         self.env = env
         self.cfg = cfg
-        self.eval_cfg = eval_cfg or GAEvalConfig()
+        self.fitness_cfg = fitness_cfg or GAFitnessConfig()
         self.episode_seeds = episode_seeds(
-            base_seed=int(self.eval_cfg.seed),
-            episodes=int(self.eval_cfg.episodes),
+            base_seed=int(self.fitness_cfg.seed),
+            episodes=int(self.fitness_cfg.episodes),
         )
         self.rng = np.random.default_rng(int(seed if seed is not None else cfg.seed))
         self.population = init_population(cfg=cfg, num_params=policy.num_params, rng=self.rng)
@@ -77,11 +77,11 @@ class GAAlgorithm(PlanningAlgorithm):
         *,
         weights: Sequence[float],
         env: Any | None = None,
-        eval_cfg: GAEvalConfig | None = None,
+        fitness_cfg: GAFitnessConfig | None = None,
     ) -> float:
-        cfg = eval_cfg or self.eval_cfg
+        cfg = fitness_cfg or self.fitness_cfg
         env_eval = self.env if env is None else env
-        if eval_cfg is None:
+        if fitness_cfg is None:
             seeds = self.episode_seeds
         else:
             seeds = episode_seeds(base_seed=int(cfg.seed), episodes=int(cfg.episodes))
@@ -144,7 +144,8 @@ class GAAlgorithm(PlanningAlgorithm):
                 generations=int(generations),
                 population_size=int(self.population.shape[0]),
                 ga_config=self.cfg,
-                eval_config=self.eval_cfg,
+                fitness_config=self.fitness_cfg,
+                eval_config=self.fitness_cfg,
             )
         for _ in range(int(generations)):
             if cb is not None:
@@ -179,7 +180,7 @@ class GAAlgorithm(PlanningAlgorithm):
             "generation": int(self.generation),
             "best_score": float(self.best_score),
             "cfg": asdict(self.cfg),
-            "eval_cfg": asdict(self.eval_cfg),
+            "fitness_cfg": asdict(self.fitness_cfg),
             "rng_state": to_jsonable(self.rng.bit_generator.state),
         }
         stats = [asdict(s) for s in self.stats]
@@ -216,8 +217,8 @@ class GAAlgorithm(PlanningAlgorithm):
                 stats_raw = json.load(fh)
 
             cfg = GAConfig(**meta["cfg"])
-            eval_cfg = GAEvalConfig(**meta["eval_cfg"])
-            algo = cls(policy=policy, env=env, cfg=cfg, eval_cfg=eval_cfg)
+            fitness_cfg = GAFitnessConfig(**meta["fitness_cfg"])
+            algo = cls(policy=policy, env=env, cfg=cfg, fitness_cfg=fitness_cfg)
 
             with zf.open("population.npy") as fh:
                 algo.population = np.load(fh)

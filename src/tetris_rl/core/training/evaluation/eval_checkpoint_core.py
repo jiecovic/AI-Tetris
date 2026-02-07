@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
 from tetris_rl.core.runs.config import RunConfig
-from tetris_rl.core.training.config import EvalConfig
+from tetris_rl.core.training.config import EvalCheckpointCallbackConfig
 from tetris_rl.core.runs.checkpoints.checkpoint_manager import CheckpointManager, CheckpointPaths
 from tetris_rl.core.training.evaluation import evaluate_model
 from tetris_rl.core.training.evaluation.eval_metrics import as_float, pick_best_values, safe_int
@@ -30,7 +30,7 @@ class EvalCheckpointCoreSpec:
     eval_every: int
     run_cfg: RunConfig
 
-    eval: EvalConfig = field(default_factory=EvalConfig)
+    eval: EvalCheckpointCallbackConfig = field(default_factory=EvalCheckpointCallbackConfig)
 
     # injected by wiring code (cli/train.py)
     base_seed: int = 0

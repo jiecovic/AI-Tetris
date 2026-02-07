@@ -13,7 +13,7 @@ from tetris_rl.core.policies.planning_policies.heuristic_policy import Heuristic
 from tetris_rl.core.policies.spec import HeuristicSearch, HeuristicSpec, save_heuristic_spec
 from planning_rl.callbacks import PlanningCallback, wrap_callbacks
 from planning_rl.ga.algorithm import GAAlgorithm
-from planning_rl.ga.config import GAConfig, GAEvalConfig
+from planning_rl.ga.config import GAConfig, GAFitnessConfig
 from planning_rl.ga.types import GAStats
 from tetris_rl.core.envs.factory import make_env_from_cfg
 
@@ -26,7 +26,7 @@ class HeuristicRunResult:
 
 _WORKER_ENV: Any | None = None
 _WORKER_POLICY: HeuristicPlanningPolicy | None = None
-_WORKER_EVAL_CFG: GAEvalConfig | None = None
+_WORKER_FITNESS_CFG: GAFitnessConfig | None = None
 _WORKER_SEEDS: list[int] | None = None
 _ACTIVE_POOL: Any | None = None
 
@@ -35,7 +35,7 @@ def _eval_policy(
     *,
     policy: HeuristicPlanningPolicy,
     env: Any,
-    eval_cfg: GAEvalConfig,
+    fitness_cfg: GAFitnessConfig,
     seeds: Sequence[int],
 ) -> float:
     total_reward = 0.0
@@ -44,7 +44,7 @@ def _eval_policy(
         _obs, info = env.reset(seed=int(seed))
         _ = info
         steps = 0
-        while steps < int(eval_cfg.max_steps):
+        while steps < int(fitness_cfg.max_steps):
             action = policy.predict(env=env)
             _obs, reward, terminated, truncated, _info2 = env.step(action)
             total_reward += float(reward)
@@ -52,7 +52,7 @@ def _eval_policy(
             if terminated or truncated:
                 break
         total_steps += steps
-    if eval_cfg.fitness_metric == "reward_per_step":
+    if fitness_cfg.fitness_metric == "reward_per_step":
         return float(total_reward) / float(max(1, total_steps))
     return float(total_reward)
 
@@ -61,26 +61,26 @@ def _init_worker(
     env_cfg: dict[str, Any],
     features: list[str],
     search_cfg: dict[str, Any],
-    eval_cfg: dict[str, Any],
+    fitness_cfg: dict[str, Any],
     seeds: list[int],
 ) -> None:
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    global _WORKER_ENV, _WORKER_POLICY, _WORKER_EVAL_CFG, _WORKER_SEEDS
-    _WORKER_EVAL_CFG = GAEvalConfig(**eval_cfg)
+    global _WORKER_ENV, _WORKER_POLICY, _WORKER_FITNESS_CFG, _WORKER_SEEDS
+    _WORKER_FITNESS_CFG = GAFitnessConfig(**fitness_cfg)
     _WORKER_SEEDS = list(seeds)
     search = HeuristicSearch.model_validate(search_cfg)
     _WORKER_POLICY = HeuristicPlanningPolicy(features=features, search=search)
-    _WORKER_ENV = make_env_from_cfg(cfg={"env": dict(env_cfg)}, seed=int(_WORKER_EVAL_CFG.seed)).env
+    _WORKER_ENV = make_env_from_cfg(cfg={"env": dict(env_cfg)}, seed=int(_WORKER_FITNESS_CFG.seed)).env
 
 
 def _worker_eval(weights: Sequence[float]) -> float:
-    if _WORKER_ENV is None or _WORKER_POLICY is None or _WORKER_EVAL_CFG is None or _WORKER_SEEDS is None:
+    if _WORKER_ENV is None or _WORKER_POLICY is None or _WORKER_FITNESS_CFG is None or _WORKER_SEEDS is None:
         raise RuntimeError("worker not initialized")
     _WORKER_POLICY.set_params(weights)
     return _eval_policy(
         policy=_WORKER_POLICY,
         env=_WORKER_ENV,
-        eval_cfg=_WORKER_EVAL_CFG,
+        fitness_cfg=_WORKER_FITNESS_CFG,
         seeds=_WORKER_SEEDS,
     )
 
@@ -94,7 +94,7 @@ class HeuristicGA:
         search: HeuristicSearch | None = None,
         env_train: Any | None = None,
         ga: GAConfig | None = None,
-        eval_cfg: GAEvalConfig | None = None,
+        fitness_cfg: GAFitnessConfig | None = None,
         workers: int | None = None,
         seed: int | None = None,
     ) -> None:
@@ -108,7 +108,7 @@ class HeuristicGA:
         self.policy = policy
         self.ga = ga or GAConfig()
         self.workers = int(workers) if workers is not None else 1
-        eval_cfg = eval_cfg or GAEvalConfig()
+        fitness_cfg = fitness_cfg or GAFitnessConfig()
         self._cfg_dict: dict[str, Any] | None = cfg if isinstance(cfg, dict) else None
         self._env_train_cfg: dict[str, Any] | None = None
         if self._cfg_dict is not None:
@@ -122,13 +122,13 @@ class HeuristicGA:
             if isinstance(cfg, dict) and "env" not in cfg and "env_train" in cfg:
                 cfg_env = dict(cfg)
                 cfg_env["env"] = cfg["env_train"]
-            env_train = make_env_from_cfg(cfg=cfg_env, seed=int(eval_cfg.seed)).env
+            env_train = make_env_from_cfg(cfg=cfg_env, seed=int(fitness_cfg.seed)).env
         self.env = env_train
         self.algo = GAAlgorithm(
             policy=self.policy,
             env=self.env,
             cfg=self.ga,
-            eval_cfg=eval_cfg,
+            fitness_cfg=fitness_cfg,
             seed=seed,
         )
         self._best_spec: HeuristicSpec | None = None
@@ -159,7 +159,8 @@ class HeuristicGA:
                     generations=int(generations),
                     population_size=int(self.algo.population.shape[0]),
                     ga_config=self.ga,
-                    eval_config=self.algo.eval_cfg,
+                    fitness_config=self.algo.fitness_cfg,
+                    eval_config=self.algo.fitness_cfg,
                 )
             if int(self.workers) <= 1:
                 stats = self.algo.learn(
@@ -173,7 +174,7 @@ class HeuristicGA:
                     raise ValueError("env_train config required for parallel GA evaluation")
                 features = list(self.policy.features)
                 search_cfg = self.policy.search.model_dump(mode="json")
-                eval_cfg = self.algo.eval_cfg
+                fitness_cfg = self.algo.fitness_cfg
                 seeds = list(self.algo.episode_seeds)
                 ctx = get_context("spawn")
                 pool = None
@@ -195,7 +196,7 @@ class HeuristicGA:
                             self._env_train_cfg,
                             features,
                             search_cfg,
-                            asdict(eval_cfg),
+                            asdict(fitness_cfg),
                             seeds,
                         ),
                     )

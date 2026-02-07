@@ -1,7 +1,7 @@
 # @package _global_
 learn:
   generations: 10                 # number of generations to run
-  eval:
+  fitness:
     episodes: 100                 # episodes per candidate (fitness eval)
     max_steps: 500                # max steps per episode (fitness eval)
     fitness_metric: total_reward  # total_reward | reward_per_step
@@ -11,20 +11,18 @@ callbacks:
   latest:
     enabled: true                 # save latest checkpoints
     every: 1                      # save latest every N generations
-  eval:
+  eval_checkpoint:
     enabled: true                 # run eval + save best checkpoints
     every: 1                      # eval cadence in generations
-
-eval:
-  steps: 100_000                    # eval step budget (episodes * max_steps)
-  deterministic: true             # planning policies are deterministic
-  seed_offset: 10000              # offset from run.seed for eval seeds
-  num_envs: 1                     # ignored for planning eval
+    steps: 100_000                # eval step budget (episodes * max_steps)
+    deterministic: true           # planning policies are deterministic
+    seed_offset: 10000            # offset from run.seed for eval seeds
+    num_envs: 1                   # ignored for planning eval
 
 algo:
   type: ga
   params:
-    population_size: 48           # individuals per generation
+    population_size: 500           # individuals per generation
     selection: tournament           # tournament | elite_pool
     offspring_frac: 0.3             # fraction replaced by offspring
     tournament_frac: 0.1            # fraction sampled per tournament
