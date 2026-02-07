@@ -8,9 +8,7 @@ import numpy as np
 from gymnasium import spaces
 
 from tetris_rl.core.envs.api import RewardFn
-from tetris_rl.core.envs.invalid_action import InvalidActionPolicy
 from tetris_rl.core.envs.config import MacroEnvParams
-from tetris_rl.core.envs.macro_actions import ActionMode
 from tetris_rl.core.envs.macro_info import (
     build_reset_info,
     build_step_info_update,
