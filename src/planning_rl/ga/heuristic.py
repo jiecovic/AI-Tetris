@@ -9,12 +9,13 @@ from typing import Any, Callable, Sequence
 
 import numpy as np
 
-from tetris_rl.policies.planning_policies.heuristic_policy import HeuristicPlanningPolicy
-from tetris_rl.policies.spec import HeuristicSearch, HeuristicSpec, save_heuristic_spec
+from tetris_rl.core.policies.planning_policies.heuristic_policy import HeuristicPlanningPolicy
+from tetris_rl.core.policies.spec import HeuristicSearch, HeuristicSpec, save_heuristic_spec
+from planning_rl.callbacks import PlanningCallback, wrap_callbacks
 from planning_rl.ga.algorithm import GAAlgorithm
 from planning_rl.ga.config import GAConfig, GAEvalConfig
 from planning_rl.ga.types import GAStats
-from tetris_rl.envs.factory import make_env_from_cfg
+from tetris_rl.core.envs.factory import make_env_from_cfg
 
 
 @dataclass(frozen=True)
@@ -162,13 +163,24 @@ class HeuristicGA:
         generations: int,
         on_generation: Callable[[GAStats], None] | None = None,
         on_candidate: Callable[[int, float], None] | None = None,
+        callback: PlanningCallback | list[PlanningCallback] | None = None,
     ) -> HeuristicRunResult:
         try:
+            cb = wrap_callbacks(callback)
+            if cb is not None:
+                cb.init_callback(self.algo)
+                cb.on_start(
+                    generations=int(generations),
+                    population_size=int(self.algo.population.shape[0]),
+                    ga_config=self.ga,
+                    eval_config=self.algo.eval_cfg,
+                )
             if int(self.workers) <= 1:
                 stats = self.algo.learn(
                     generations=int(generations),
                     on_generation=on_generation,
                     on_candidate=on_candidate,
+                    callback=cb,
                 )
             else:
                 if self._env_train_cfg is None:
@@ -203,6 +215,12 @@ class HeuristicGA:
                     )
                     globals()["_ACTIVE_POOL"] = pool
                     for _ in range(int(generations)):
+                        if cb is not None:
+                            cb.on_event(
+                                event="generation_start",
+                                generation=int(self.algo.generation),
+                                population=self.algo.population,
+                            )
                         pop = self.algo.population
                         weights_list = [w.tolist() for w in pop]
                         scores: list[float] = [0.0 for _ in range(len(weights_list))]
@@ -210,6 +228,14 @@ class HeuristicGA:
                             scores[idx] = float(score)
                             if on_candidate is not None:
                                 on_candidate(idx, float(score))
+                            if cb is not None:
+                                cb.on_event(
+                                    event="candidate",
+                                    generation=int(self.algo.generation),
+                                    candidate_index=int(idx),
+                                    score=float(score),
+                                    weights=weights_list[int(idx)],
+                                )
                         eval_best_score = None
                         if self.eval_env is not None:
                             best_idx = int(np.argmax(scores))
@@ -221,6 +247,12 @@ class HeuristicGA:
                         stats.append(gen_stats)
                         if on_generation is not None:
                             on_generation(gen_stats)
+                        if cb is not None:
+                            cb.on_event(
+                                event="generation_end",
+                                generation=int(gen_stats.generation),
+                                stats=gen_stats,
+                            )
                 except KeyboardInterrupt:
                     terminated = True
                     if pool is not None:
@@ -235,6 +267,12 @@ class HeuristicGA:
                         pool.join()
             spec = self.policy.build_spec(self.best_weights)
             self._best_spec = spec
+            if cb is not None:
+                cb.on_end(
+                    stats=list(stats),
+                    best_score=float(self.algo.best_score),
+                    best_weights=self.algo.best_weights.tolist(),
+                )
             return HeuristicRunResult(
                 spec=spec,
                 best_score=float(self.algo.best_score),
