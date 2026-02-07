@@ -7,7 +7,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from tetris_rl.envs.api import RewardFn, WarmupFn
+from tetris_rl.envs.api import RewardFn
 from tetris_rl.envs.invalid_action import InvalidActionPolicy
 from tetris_rl.envs.config import MacroEnvParams
 from tetris_rl.envs.macro_actions import ActionMode
@@ -42,7 +42,6 @@ class MacroTetrisEnv(gym.Env):
             game: Any,  # PyO3 TetrisEngine
             reward_fn: RewardFn,
             spec: MacroEnvParams,
-            warmup: WarmupFn | None = None,
     ) -> None:
         super().__init__()
         self.game = game
@@ -54,7 +53,6 @@ class MacroTetrisEnv(gym.Env):
         if self.invalid_action_policy not in {"noop", "terminate"}:
             raise ValueError(f"unknown invalid_action_policy: {spec.invalid_action_policy!r}")
 
-        self._warmup: WarmupFn | None = warmup
 
         # Geometry from engine (authoritative).
         self.h = int(self.game.visible_h())
@@ -116,10 +114,6 @@ class MacroTetrisEnv(gym.Env):
     def _episode_seed_from_np_random(self) -> int:
         return int(self.np_random.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
 
-    def _warmup_spec_for_reset(self) -> Any:
-        if self._warmup is None:
-            return None
-        return self._warmup(game=self.game, rng=self.np_random)  # type: ignore[misc]
 
     def _snapshot(self) -> Dict[str, Any]:
         # Current binding supports snapshot(include_grid=True, visible=True)
@@ -184,9 +178,7 @@ class MacroTetrisEnv(gym.Env):
         self._prev_feat = None
 
         ep_seed = int(seed) if seed is not None else self._episode_seed_from_np_random()
-        warmup_spec = self._warmup_spec_for_reset()
-
-        self.game.reset(seed=int(ep_seed), warmup=warmup_spec)
+        self.game.reset(seed=int(ep_seed))
 
         st = self._snapshot()
         self._last_state = st
@@ -201,7 +193,7 @@ class MacroTetrisEnv(gym.Env):
             piece_rule=self._piece_rule_name(),
         )
         info["invalid_action_policy"] = str(self.invalid_action_policy)
-        info["warmup"] = None if self._warmup is None else getattr(self._warmup.__class__, "__name__", "warmup")
+        info["warmup"] = None
         info["episode_seed"] = int(ep_seed)
         return obs, info
 

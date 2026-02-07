@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tetris_rl_engine import TetrisEngine as _TetrisEngine  # type: ignore[import-not-found]
@@ -27,19 +27,14 @@ def _import_engine() -> tuple[Any, Any]:
 @dataclass(frozen=True)
 class GameBundle:
     """
-    Engine + warmup gating info.
-
-    warmup_prob:
-      - probability in [0,1] that env should apply warmup on each reset
-      - if 0, env should pass warmup=None (disabled)
+    Engine + warmup spec (engine-owned gating).
 
     warmup_spec:
       - PyO3 WarmupSpec instance OR None
-      - when env decides to apply warmup, it passes this object to engine.reset(..., warmup=...)
+      - passed to engine at construction time
     """
 
     game: Any
-    warmup_prob: float
     warmup_spec: Optional[Any]
 
 
@@ -117,7 +112,7 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
 
 
 
-def _parse_warmup_cfg(obj: Any) -> Tuple[float, Optional[Any]]:
+def _parse_warmup_cfg(obj: Any) -> Optional[Any]:
     """
     Parse cfg.env.game.warmup in canonical form:
 
@@ -129,19 +124,19 @@ def _parse_warmup_cfg(obj: Any) -> Tuple[float, Optional[Any]]:
           params: {...}
     """
     if obj is None:
-        return 0.0, None
+        return None
 
     # If someone already passed a WarmupSpec instance here, treat as prob=1.
     _, WarmupSpec = _import_engine()
     if isinstance(obj, WarmupSpec):
-        return 1.0, obj
+        return obj
 
     if not isinstance(obj, dict):
         raise TypeError(f"cfg.env.game.warmup must be a mapping or null, got {type(obj)!r}")
 
     prob = float(obj.get("prob", 1.0))
     if prob <= 0.0:
-        return 0.0, None
+        return None
     if prob > 1.0:
         raise ValueError(f"cfg.env.game.warmup.prob must be in [0,1], got {prob}")
 
@@ -152,17 +147,20 @@ def _parse_warmup_cfg(obj: Any) -> Tuple[float, Optional[Any]]:
         raise TypeError(f"cfg.env.game.warmup.spec must be a mapping, got {type(spec_obj)!r}")
 
     warmup_spec = _parse_warmup_spec(spec_obj)
-    return float(prob), warmup_spec
+    if warmup_spec is None:
+        return None
+    if prob < 1.0:
+        warmup_spec = warmup_spec.with_prob(prob)
+    return warmup_spec
 
 
 def make_game_bundle_from_cfg(cfg: Dict[str, Any]) -> GameBundle:
     """
-    Construct the Rust engine wrapper + warmup gating info.
+    Construct the Rust engine wrapper + warmup spec.
 
     Notes:
       - Engine stores (piece_rule, warmup) as defaults for reset() reuse.
-      - We still return (prob, warmup_spec) so Python env can decide per-episode:
-          engine.reset(seed=..., warmup=spec_or_none)
+      - Warmup gating probability is handled inside Rust.
     """
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
@@ -182,13 +180,12 @@ def make_game_bundle_from_cfg(cfg: Dict[str, Any]) -> GameBundle:
     # Rust expects "uniform" | "bag7"
     piece_rule = str(game_cfg.get("piece_rule", "uniform")).strip().lower()
 
-    warmup_prob, warmup_spec = _parse_warmup_cfg(game_cfg.get("warmup", None))
+    warmup_spec = _parse_warmup_cfg(game_cfg.get("warmup", None))
 
-    # IMPORTANT: set engine default warmup to NONE.
-    # We want the env to control whether warmup is applied each episode by passing warmup=...
-    game = TetrisEngine(seed=seed, piece_rule=piece_rule, warmup=None)
+    # Engine owns warmup gating; pass the spec at construction time.
+    game = TetrisEngine(seed=seed, piece_rule=piece_rule, warmup=warmup_spec)
 
-    return GameBundle(game=game, warmup_prob=warmup_prob, warmup_spec=warmup_spec)
+    return GameBundle(game=game, warmup_spec=warmup_spec)
 
 
 def make_game_from_cfg(cfg: Dict[str, Any]) -> Any:

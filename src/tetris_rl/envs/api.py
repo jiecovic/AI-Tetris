@@ -89,16 +89,4 @@ class RewardFn(Protocol):
     ) -> float: ...
 
 
-@runtime_checkable
-class WarmupFn(Protocol):
-    """
-    Post-reset mutator hook (shared by RL + imitation + datagen).
-
-    Called by env.reset() AFTER game.reset() and BEFORE the first obs is emitted.
-    Must only mutate game state (typically game.board.grid).
-    """
-
-    def __call__(self, *, game: Any, rng: np.random.Generator) -> None: ...
-
-
-__all__ = ["TransitionFeatures", "RewardFn", "WarmupFn"]
+__all__ = ["TransitionFeatures", "RewardFn"]

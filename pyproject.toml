@@ -37,3 +37,4 @@ manifest-path = "rust/py/Cargo.toml"
 python-source = "src"
 features = ["pyo3/extension-module"]
 module-name = "tetris_rl_engine"
+profile = "release"

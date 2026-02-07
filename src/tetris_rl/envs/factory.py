@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 from tetris_rl.config.instantiate import instantiate
 from tetris_rl.envs.catalog import ENV_REGISTRY, REWARD_REGISTRY
@@ -25,40 +25,14 @@ class BuiltEnv:
 
 
 
-def _make_warmup_fn(bundle: GameBundle) -> Optional[Callable[..., Any]]:
-    """
-    Create a WarmupFn-compatible callable:
-      warmup(game, rng) -> WarmupSpec | None
-
-    - Uses bundle.warmup_prob to gate per episode.
-    - Returns bundle.warmup_spec when applying warmup.
-    """
-    p = float(bundle.warmup_prob)
-    spec = bundle.warmup_spec
-
-    if spec is None or p <= 0.0:
-        return None
-
-    def warmup_fn(*, game: Any, rng: Any) -> Any:
-        # rng is numpy Generator (gymnasium self.np_random)
-        try:
-            u = float(rng.random())
-        except Exception:
-            # ultra defensive fallback
-            u = 0.0
-        return spec if u < p else None
-
-    return warmup_fn
-
-
-def build_env(*, cfg: Dict[str, Any], env_cfg: EnvConfig, game: Any, warmup: Any) -> BuiltEnv:
+def build_env(*, cfg: Dict[str, Any], env_cfg: EnvConfig, game: Any) -> BuiltEnv:
     """
     Build a single env instance.
 
     Invariants:
       - Env emits RAW Dict observations only.
       - Tokenization is model-owned.
-      - Warmup noise is owned by Rust engine; Python only gates whether to apply it per episode.
+      - Warmup noise (and gating) is owned by the Rust engine.
     """
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
@@ -81,8 +55,6 @@ def build_env(*, cfg: Dict[str, Any], env_cfg: EnvConfig, game: Any, warmup: Any
     injected_env: Dict[str, Any] = {
         "game": game,
         "reward_fn": reward_fn,
-        # MacroTetrisEnv supports warmup: WarmupFn | None
-        "warmup": warmup,
     }
 
     env = instantiate(
@@ -101,7 +73,7 @@ def make_env_from_cfg(*, cfg: Dict[str, Any], seed: Optional[int] = None) -> Bui
 
     IMPORTANT:
       - Owns engine creation (one engine per env instance).
-      - Uses cfg.env.game.warmup to build a warmup gate callable (probability) + WarmupSpec.
+      - Warmup is configured inside the Rust engine.
       - Use `seed` to override cfg.env.game.seed for this env instance (useful for VecEnv ranks).
     """
     if not isinstance(cfg, dict):
@@ -132,9 +104,7 @@ def make_env_from_cfg(*, cfg: Dict[str, Any], seed: Optional[int] = None) -> Bui
         cfg_effective = cfg3
         bundle = make_game_bundle_from_cfg(cfg3)
 
-    warmup_fn = _make_warmup_fn(bundle)
-
-    return build_env(cfg=cfg_effective, env_cfg=env_cfg, game=bundle.game, warmup=warmup_fn)
+    return build_env(cfg=cfg_effective, env_cfg=env_cfg, game=bundle.game)
 
 
 __all__ = ["BuiltEnv", "build_env", "make_env_from_cfg"]
