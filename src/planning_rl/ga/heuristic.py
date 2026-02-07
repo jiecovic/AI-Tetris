@@ -274,11 +274,7 @@ class HeuristicGA:
         return policy.predict(env=env)
 
 
-HeuristicGATrainer = HeuristicGA
-
-
 __all__ = [
     "HeuristicGA",
-    "HeuristicGATrainer",
     "HeuristicRunResult",
 ]
