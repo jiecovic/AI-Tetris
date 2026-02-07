@@ -142,9 +142,8 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         int(fitness_cfg.seed),
     )
     logger.info(
-        "[ga] eval mode=%s every=%d steps=%d seed_offset=%d",
-        str(eval_cfg.mode),
-        int(callbacks_cfg.eval_checkpoint.every),
+        "[ga] eval every=%d steps=%d seed_offset=%d",
+        int(callbacks_cfg.eval.every),
         int(eval_cfg.steps),
         int(eval_cfg.seed_offset),
     )
@@ -152,8 +151,8 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         "[ga] callbacks latest_enabled=%s latest_every=%d eval_enabled=%s eval_every=%d",
         bool(callbacks_cfg.latest.enabled),
         int(callbacks_cfg.latest.every),
-        bool(callbacks_cfg.eval_checkpoint.enabled),
-        int(callbacks_cfg.eval_checkpoint.every),
+        bool(callbacks_cfg.eval.enabled),
+        int(callbacks_cfg.eval.every),
     )
     logger.info(
         "[ga] search plies=%d beam_width=%s beam_from_depth=%d",
@@ -210,11 +209,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         seed=int(fitness_cfg.seed),
     ).env
 
-    eval_enabled = (
-        bool(callbacks_cfg.eval_checkpoint.enabled)
-        and int(callbacks_cfg.eval_checkpoint.every) > 0
-        and str(eval_cfg.mode).strip().lower() != "off"
-    )
+    eval_enabled = bool(callbacks_cfg.eval.enabled) and int(callbacks_cfg.eval.every) > 0
     env_eval = None
     if eval_enabled:
         env_eval = make_env_from_cfg(
@@ -278,7 +273,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         core_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
-                eval_every=int(callbacks_cfg.eval_checkpoint.every),
+                eval_every=int(callbacks_cfg.eval.every),
                 run_cfg=run_cfg,
                 eval=eval_cfg,
                 base_seed=int(run_cfg.seed),
@@ -294,7 +289,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         )
         callback_items.append(PlanningCallbackAdapter(core_cb))
     else:
-        logger.info("[eval] disabled (eval.mode=off or callbacks.eval_checkpoint disabled)")
+        logger.info("[eval] disabled (callbacks.eval disabled)")
 
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),

@@ -1,4 +1,4 @@
-# src/tetris_rl/core/training/imitation/collect.py
+# src/tetris_rl/core/training/imitation/data.py
 from __future__ import annotations
 
 from dataclasses import dataclass

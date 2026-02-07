@@ -7,8 +7,6 @@ from pydantic import Field, field_validator, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 
-EvalMode = Literal["off", "rl", "imitation", "both"]
-
 class EvalConfig(ConfigBase):
     """
     Training-time evaluation semantics.
@@ -16,18 +14,11 @@ class EvalConfig(ConfigBase):
     This is a training hook (for TB + best checkpoints), not a benchmarking suite.
     """
 
-    mode: EvalMode = "off"
     steps: int = Field(default=100_000, ge=1)
 
     deterministic: bool = True
     seed_offset: int = 10_000
     num_envs: int = Field(default=1, ge=1)
-
-    @field_validator("mode", mode="before")
-    @classmethod
-    def _mode_lower(cls, v: object) -> str:
-        return str(v).strip().lower()
-
 
 class LatestCallbackConfig(ConfigBase):
     enabled: bool = True
@@ -41,14 +32,12 @@ class EvalCheckpointCallbackConfig(ConfigBase):
 
 class CallbacksConfig(ConfigBase):
     latest: LatestCallbackConfig = LatestCallbackConfig()
-    eval_checkpoint: EvalCheckpointCallbackConfig = EvalCheckpointCallbackConfig()
+    eval: EvalCheckpointCallbackConfig = EvalCheckpointCallbackConfig()
 
 
-class ImitationConfig(ConfigBase):
-    enabled: bool = False
-
-    # offline dataset (required when enabled)
-    dataset_dir: str = ""
+class ImitationAlgoParams(ConfigBase):
+    # offline dataset
+    dataset_dir: Optional[str] = None
 
     # training
     epochs: int = Field(default=1, ge=1)
@@ -64,15 +53,22 @@ class ImitationConfig(ConfigBase):
     save_archive: bool = True
     archive_dir: str = "checkpoints/imitation"
 
-    @model_validator(mode="after")
-    def _validate_dataset_dir(self) -> "ImitationConfig":
-        if self.enabled and not str(self.dataset_dir).strip():
-            raise ValueError("imitation.enabled=true requires imitation.dataset_dir to be set")
-        return self
+    # policy backend used for BC (must match PPO policy class)
+    policy_backend: Literal["ppo", "maskable_ppo"] = "maskable_ppo"
 
+    # optional: initialize from another run/checkpoint
+    resume: Optional[str] = None
+
+    @field_validator("resume", mode="before")
+    @classmethod
+    def _resume_empty_to_none(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s if s else None
 
 class AlgoConfig(ConfigBase):
-    type: Literal["ppo", "maskable_ppo", "dqn"] = "ppo"
+    type: Literal["ppo", "maskable_ppo"] = "ppo"
     params: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("type", mode="before")
@@ -96,13 +92,18 @@ class LearnConfig(ConfigBase):
         return s if s else None
 
 
+class ImitationAlgoConfig(ConfigBase):
+    type: Literal["imitation"] = "imitation"
+    params: ImitationAlgoParams = ImitationAlgoParams()
+
+
 __all__ = [
     "AlgoConfig",
     "CallbacksConfig",
     "EvalConfig",
-    "EvalMode",
     "EvalCheckpointCallbackConfig",
+    "ImitationAlgoConfig",
+    "ImitationAlgoParams",
     "LatestCallbackConfig",
-    "ImitationConfig",
     "LearnConfig",
 ]

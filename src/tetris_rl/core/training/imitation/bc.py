@@ -1,4 +1,4 @@
-# src/tetris_rl/core/training/imitation/bc_train.py
+# src/tetris_rl/core/training/imitation/bc.py
 from __future__ import annotations
 
 from dataclasses import dataclass

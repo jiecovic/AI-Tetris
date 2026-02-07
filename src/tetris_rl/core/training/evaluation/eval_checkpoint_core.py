@@ -24,16 +24,6 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _mode_allows_phase(mode: str, phase: str) -> bool:
-    m = str(mode).strip().lower()
-    p = str(phase).strip().lower()
-    if m == "off":
-        return False
-    if m == "both":
-        return True
-    return m == p
-
-
 @dataclass(frozen=True)
 class EvalCheckpointCoreSpec:
     checkpoint_dir: Path
@@ -168,14 +158,6 @@ class EvalCheckpointCore:
             model: Any,
             extra_metrics_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     ) -> bool:
-        # Gate intermediate eval by config mode, but do NOT print mode in the table (it's static config).
-        mode = str(self.spec.eval.mode).strip().lower()
-        if mode not in {"off", "rl", "imitation", "both"}:
-            raise ValueError(f"EvalConfig.mode must be off|rl|imitation|both (got {self.spec.eval.mode!r})")
-
-        if not _mode_allows_phase(mode, str(phase)):
-            return False
-
         if not self.ticker.should_tick(int(progress_step)):
             return False
 
@@ -207,7 +189,7 @@ class EvalCheckpointCore:
             try:
                 for k, v in metrics.items():
                     if isinstance(k, str) and k.startswith(("tf/", "game/", "episode/", "bc_val/")):
-                        fv = _as_float(v)
+                        fv = as_float(v)
                         if fv is not None:
                             self.log_scalar(f"eval/{k}", float(fv), int(t))
             except Exception:
