@@ -9,3 +9,4 @@ path = "src/lib.rs"
 
 [dependencies]
 rand = "0.8"
+rustc-hash = "2.1"

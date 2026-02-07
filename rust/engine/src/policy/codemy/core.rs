@@ -1,8 +1,6 @@
 // rust/engine/src/policy/codemy/core.rs
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
-
 use crate::engine::{ACTION_DIM, Game, H, Kind, W};
 
 use crate::policy::beam::{BeamConfig, prune_top_n_scores, prune_top_n_scores_inplace};
@@ -212,7 +210,7 @@ impl CodemyCore {
         &self,
         grid: &[[u8; W]; H],
         kind: Kind,
-        cache: &mut HashMap<(u64, u8), (usize, f64, [[u8; W]; H])>,
+        cache: &mut rustc_hash::FxHashMap<(u64, u8), (usize, f64, [[u8; W]; H])>,
     ) -> Option<(usize, f64, [[u8; W]; H])> {
         let key = (Self::hash_grid(grid), kind_idx0_u8(kind));
         if let Some(v) = cache.get(&key) {
@@ -246,7 +244,7 @@ impl CodemyCore {
     pub(crate) fn best_leaf_scores_all_kinds_cached(
         &self,
         grid: &[[u8; W]; H],
-        cache: &mut HashMap<u64, [f64; 7]>,
+        cache: &mut rustc_hash::FxHashMap<u64, [f64; 7]>,
     ) -> [f64; 7] {
         let key = Self::hash_grid(grid);
         if let Some(v) = cache.get(&key) {
@@ -266,7 +264,7 @@ impl CodemyCore {
     pub(crate) fn tail_uniform_cached(
         &self,
         grid: &[[u8; W]; H],
-        cache: &mut HashMap<u64, [f64; 7]>,
+        cache: &mut rustc_hash::FxHashMap<u64, [f64; 7]>,
     ) -> f64 {
         let arr = self.best_leaf_scores_all_kinds_cached(grid, cache);
         let mut sum = 0.0;
