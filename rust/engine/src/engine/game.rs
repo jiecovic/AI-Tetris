@@ -4,7 +4,8 @@
 use crate::engine::constants::{decode_action_id, encode_action_id, ACTION_DIM, H, HIDDEN_ROWS, W};
 use crate::engine::geometry::{bbox_left_to_anchor_x, bbox_params};
 use crate::engine::grid::{
-    clear_lines_grid, fits_on_grid, height_metrics as grid_height_metrics, lock_on_grid,
+    clear_lines_grid, clear_lines_inplace, fits_on_grid, height_metrics as grid_height_metrics,
+    lock_on_grid,
 };
 use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
 use crate::engine::pieces::Kind;
@@ -101,6 +102,46 @@ impl Game {
         false
     }
 
+    #[inline]
+    fn resolve_action_placement(
+        grid: &[[u8; W]; H],
+        kind: Kind,
+        action_id: usize,
+    ) -> Option<(usize, i32, i32)> {
+        // Out-of-range action id => invalid.
+        if action_id >= ACTION_DIM {
+            return None;
+        }
+
+        let (rot_u, col_u) = decode_action_id(action_id);
+
+        // Reject redundant/non-existent rotation slots (prevents duplicate action ids).
+        if rot_u >= kind.num_rots() {
+            return None;
+        }
+
+        let rot = rot_u;
+        let col_left = col_u as i32;
+
+        let (_min_dx, _bbox_w, bbox_left_max) = bbox_params(kind, rot);
+        if bbox_left_max < 0 || col_left < 0 || col_left > bbox_left_max {
+            return None;
+        }
+
+        let x = bbox_left_to_anchor_x(kind, rot, col_left);
+
+        let mut y: i32 = 0;
+        if !fits_on_grid(grid, kind, rot, x, y) {
+            return None;
+        }
+
+        while fits_on_grid(grid, kind, rot, x, y + 1) {
+            y += 1;
+        }
+
+        Some((rot, x, y))
+    }
+
     // -------------------------------------------------------------------------
     // Height metrics (locked grid only)
     // -------------------------------------------------------------------------
@@ -168,56 +209,14 @@ impl Game {
     // -------------------------------------------------------------------------
 
     pub fn apply_action_id_to_grid(grid_in: &[[u8; W]; H], kind: Kind, action_id: usize) -> SimPlacement {
-        // Out-of-range action id => invalid.
-        if action_id >= ACTION_DIM {
+        let Some((rot, x, y)) = Self::resolve_action_placement(grid_in, kind, action_id) else {
             return SimPlacement {
                 grid_after_lock: *grid_in,
                 grid_after_clear: *grid_in,
                 cleared_lines: 0,
                 invalid: true,
             };
-        }
-
-        let (rot_u, col_u) = decode_action_id(action_id);
-
-        // Reject redundant/non-existent rotation slots (prevents duplicate action ids).
-        if rot_u >= kind.num_rots() {
-            return SimPlacement {
-                grid_after_lock: *grid_in,
-                grid_after_clear: *grid_in,
-                cleared_lines: 0,
-                invalid: true,
-            };
-        }
-
-        let rot = rot_u;
-        let col_left = col_u as i32;
-
-        let (_min_dx, _bbox_w, bbox_left_max) = bbox_params(kind, rot);
-        if bbox_left_max < 0 || col_left < 0 || col_left > bbox_left_max {
-            return SimPlacement {
-                grid_after_lock: *grid_in,
-                grid_after_clear: *grid_in,
-                cleared_lines: 0,
-                invalid: true,
-            };
-        }
-
-        let x = bbox_left_to_anchor_x(kind, rot, col_left);
-
-        let mut y: i32 = 0;
-        if !fits_on_grid(grid_in, kind, rot, x, y) {
-            return SimPlacement {
-                grid_after_lock: *grid_in,
-                grid_after_clear: *grid_in,
-                cleared_lines: 0,
-                invalid: true,
-            };
-        }
-
-        while fits_on_grid(grid_in, kind, rot, x, y + 1) {
-            y += 1;
-        }
+        };
 
         let mut grid_lock = *grid_in;
         lock_on_grid(&mut grid_lock, kind, rot, x, y);
@@ -232,12 +231,34 @@ impl Game {
         }
     }
 
+    /// Fast path: apply placement and return ONLY the locked grid (no line clear).
+    pub fn apply_action_id_to_grid_lock_only(
+        grid_in: &[[u8; W]; H],
+        kind: Kind,
+        action_id: usize,
+    ) -> Option<[[u8; W]; H]> {
+        let (rot, x, y) = Self::resolve_action_placement(grid_in, kind, action_id)?;
+
+        let mut grid_lock = *grid_in;
+        lock_on_grid(&mut grid_lock, kind, rot, x, y);
+
+        Some(grid_lock)
+    }
+
     pub fn simulate_action_id(&self, kind: Kind, action_id: usize) -> SimPlacement {
         Self::apply_action_id_to_grid(&self.grid, kind, action_id)
     }
 
     pub fn simulate_action_id_active(&self, action_id: usize) -> SimPlacement {
         Self::apply_action_id_to_grid(&self.grid, self.active, action_id)
+    }
+
+    pub fn simulate_action_id_lock_only(&self, kind: Kind, action_id: usize) -> Option<[[u8; W]; H]> {
+        Self::apply_action_id_to_grid_lock_only(&self.grid, kind, action_id)
+    }
+
+    pub fn simulate_action_id_active_lock_only(&self, action_id: usize) -> Option<[[u8; W]; H]> {
+        Self::apply_action_id_to_grid_lock_only(&self.grid, self.active, action_id)
     }
 
     // -------------------------------------------------------------------------
@@ -259,31 +280,22 @@ impl Game {
             };
         }
 
-        // Out-of-range action id => invalid no-op (engine does not terminate).
-        if action_id >= ACTION_DIM {
+        let Some((rot, x, y)) = Self::resolve_action_placement(&self.grid, self.active, action_id)
+        else {
+            // Invalid placement => no-op.
             return StepResult {
                 terminated: false,
                 cleared_lines: 0,
                 invalid_action: true,
             };
-        }
+        };
 
-        let sim = Self::apply_action_id_to_grid(&self.grid, self.active, action_id);
+        // Valid placement: lock and clear lines in-place.
+        lock_on_grid(&mut self.grid, self.active, rot, x, y);
+        let cleared = clear_lines_inplace(&mut self.grid);
 
-        // Invalid placement => no-op.
-        if sim.invalid {
-            return StepResult {
-                terminated: false,
-                cleared_lines: 0,
-                invalid_action: true,
-            };
-        }
-
-        // Valid placement: commit post-clear grid.
-        self.grid = sim.grid_after_clear;
-
-        self.lines_cleared += sim.cleared_lines as u64;
-        self.score += 100 * sim.cleared_lines as u64;
+        self.lines_cleared += cleared as u64;
+        self.score += 100 * cleared as u64;
         self.steps += 1;
 
         // True game over check: locked blocks in spawn rows.
@@ -291,7 +303,7 @@ impl Game {
             self.game_over = true;
             return StepResult {
                 terminated: true,
-                cleared_lines: sim.cleared_lines,
+                cleared_lines: cleared,
                 invalid_action: false,
             };
         }
@@ -300,7 +312,7 @@ impl Game {
 
         StepResult {
             terminated: false,
-            cleared_lines: sim.cleared_lines,
+            cleared_lines: cleared,
             invalid_action: false,
         }
     }

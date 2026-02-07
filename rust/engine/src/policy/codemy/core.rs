@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use crate::engine::{ACTION_DIM, Game, H, Kind, W};
 
-use crate::policy::beam::{BeamConfig, prune_top_n_scores};
+use crate::policy::beam::{BeamConfig, prune_top_n_scores, prune_top_n_scores_inplace};
 
 use super::empty_cache::{empty_valid_action_ids, kind_idx0_u8};
 use super::score::score_grid;
@@ -39,11 +39,10 @@ impl CodemyCore {
         let mut best = f64::NEG_INFINITY;
 
         for &aid in empty_valid_action_ids(kind) {
-            let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.invalid {
+            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue; // collisions / out-of-bounds on this grid
-            }
-            let s = score_grid(&sim.grid_after_lock);
+            };
+            let s = score_grid(&grid_lock);
             if s > best {
                 best = s;
             }
@@ -60,27 +59,26 @@ impl CodemyCore {
         kind: Kind,
         n: usize,
     ) -> f64 {
-        let mut scores: Vec<(usize, f64)> = Vec::new();
+        let mut scores = [(0usize, f64::NEG_INFINITY); ACTION_DIM];
+        let mut len: usize = 0;
 
         for &aid in empty_valid_action_ids(kind) {
-            let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.invalid {
+            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue;
-            }
-            scores.push((aid, score_grid(&sim.grid_after_lock)));
+            };
+            scores[len] = (aid, score_grid(&grid_lock));
+            len += 1;
         }
 
-        if scores.is_empty() {
+        if len == 0 {
             return f64::NEG_INFINITY;
         }
 
-        let kept = prune_top_n_scores(scores, n);
+        let kept = prune_top_n_scores_inplace(&mut scores, len, n);
 
         let mut best = f64::NEG_INFINITY;
-        for (_aid, s) in kept {
-            if s > best {
-                best = s;
-            }
+        for i in 0..kept {
+            best = best.max(scores[i].1);
         }
         best
     }
@@ -125,23 +123,25 @@ impl CodemyCore {
         // Pruned non-leaf => two phase
         let n = self.should_prune(depth).unwrap_or(ACTION_DIM);
 
-        let mut proxies: Vec<(usize, f64)> = Vec::new();
+        let mut proxies = [(0usize, f64::NEG_INFINITY); ACTION_DIM];
+        let mut len: usize = 0;
         for &aid in empty_valid_action_ids(kind) {
-            let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.invalid {
+            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue;
-            }
-            proxies.push((aid, score_grid(&sim.grid_after_lock)));
+            };
+            proxies[len] = (aid, score_grid(&grid_lock));
+            len += 1;
         }
 
-        if proxies.is_empty() {
+        if len == 0 {
             return f64::NEG_INFINITY;
         }
 
-        let kept = prune_top_n_scores(proxies, n);
+        let kept = prune_top_n_scores_inplace(&mut proxies, len, n);
 
         let mut best = f64::NEG_INFINITY;
-        for (aid, _proxy) in kept {
+        for i in 0..kept {
+            let aid = proxies[i].0;
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.invalid {
                 continue;
@@ -170,17 +170,16 @@ impl CodemyCore {
     /// (Uses Game::action_mask() for the current grid.)
     pub(crate) fn aid0_candidates_with_proxy(&self, g: &Game) -> Vec<(usize, f64)> {
         let mask = g.action_mask();
-        let mut out: Vec<(usize, f64)> = Vec::new();
+        let mut out: Vec<(usize, f64)> = Vec::with_capacity(ACTION_DIM);
 
         for aid0 in 0..ACTION_DIM {
             if !mask[aid0] {
                 continue; // invalid by engine mask (includes redundant rotation slots)
             }
-            let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.invalid {
+            let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
                 continue; // should be rare if mask is correct; keep as safety
-            }
-            out.push((aid0, score_grid(&sim1.grid_after_lock)));
+            };
+            out.push((aid0, score_grid(&grid_lock)));
         }
 
         if let Some(n0) = self.should_prune(0) {

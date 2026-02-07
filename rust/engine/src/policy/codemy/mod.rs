@@ -46,14 +46,16 @@ impl Policy for CodemyPolicyDynamic {
         let mut best: Option<(usize, f64)> = None;
 
         for (aid0, _proxy0) in aid0_cands {
-            let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.invalid {
-                continue;
-            }
-
             let v0 = if self.plies == 1 {
-                score::score_grid(&sim1.grid_after_lock)
+                let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
+                    continue;
+                };
+                score::score_grid(&grid_lock)
             } else {
+                let sim1 = g.simulate_action_id_active(aid0);
+                if sim1.invalid {
+                    continue;
+                }
                 self.core.value_known_piece::<UniformIID>(
                     &sim1.grid_after_clear,
                     g.next,
@@ -102,14 +104,16 @@ impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
         let mut best: Option<(usize, f64)> = None;
 
         for (aid0, _proxy0) in aid0_cands {
-            let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.invalid {
-                continue;
-            }
-
             let v0 = if PLIES == 1 {
-                score::score_grid(&sim1.grid_after_lock)
+                let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
+                    continue;
+                };
+                score::score_grid(&grid_lock)
             } else {
+                let sim1 = g.simulate_action_id_active(aid0);
+                if sim1.invalid {
+                    continue;
+                }
                 self.core
                     .value_known_piece::<M>(&sim1.grid_after_clear, g.next, PLIES - 1, 1)
             };
