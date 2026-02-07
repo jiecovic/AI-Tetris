@@ -1,107 +1,106 @@
-# @package _global_
-model:
-
-  policy_kwargs:
-    net_arch: []
-    activation_fn: GELU   # or whatever mapping you use
+# @package _group_
+policy_kwargs:
+  net_arch: []
+  activation_fn: GELU   # or whatever mapping you use
 
 
-  feature_extractor:
+feature_extractor:
 
-    spatial_preprocessor:
-      type: binary                 # options: binary (later RGB)
-      params: {}                   # binary: no params
-
-
-    stem:
-      type: conv3x3_32_32_64                     # options: none | cnn | conv3x3_32_32_64
-
-      # ------------------------------------------------------------------
-      # if type: conv3x3_32_32_64 (fixed preset, no tuning knobs)
-      # ------------------------------------------------------------------
-      # params: {}                   # preset-defined architecture
-
-      # ------------------------------------------------------------------
-      # if type: cnn (generic configurable CNN stem)
-      # ------------------------------------------------------------------
-      # params:
-      #   channels: [32, 32, 64]     # options: list[int], out_channels per conv layer
-      #   kernel_size: 3             # options: int > 0 (usually 3)
-      #   stride: 1                  # options: int > 0
-      #   padding: same              # options: valid | same | tetris
-      #   activation: relu           # options: relu | gelu | identity
-      #   dropout: 0.0               # options: float >= 0
-      #   use_batchnorm: false       # options: true | false (NOT RL-friendly)
+  spatial_preprocessor:
+    type: binary                 # options: binary (later RGB)
+    params: {}                   # binary: no params
 
 
-    encoder:
-      type: token  # token | spatial
+  stem:
+    type: conv3x3_32_32_64                     # options: none | cnn | conv3x3_32_32_64
 
-      # ------------------------------------------------------------------
-      # token encoder (used when type: token)
-      # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # if type: conv3x3_32_32_64 (fixed preset, no tuning knobs)
+    # ------------------------------------------------------------------
+    # params: {}                   # preset-defined architecture
 
-      tokenizer:
-        d_model: 256                                 # options: int > 0
-        add_active_token: true
-        add_next_token: true
-        share_kind_embedding: true
-        layout:
-          type: column                # options: row | column | patch | row_column
-          params: {}               # patch: patch_h, patch_w, stride_h, stride_w
+    # ------------------------------------------------------------------
+    # if type: cnn (generic configurable CNN stem)
+    # ------------------------------------------------------------------
+    # params:
+    #   channels: [32, 32, 64]     # options: list[int], out_channels per conv layer
+    #   kernel_size: 3             # options: int > 0 (usually 3)
+    #   stride: 1                  # options: int > 0
+    #   padding: same              # options: valid | same | tetris
+    #   activation: relu           # options: relu | gelu | identity
+    #   dropout: 0.0               # options: float >= 0
+    #   use_batchnorm: false       # options: true | false (NOT RL-friendly)
 
-        board_embedding:
-          type: conv1d                                   # options: conv1d | linear | discrete_pattern
-          params:
-            preset: tiny                                 # options: tiny | base | deep | generic
-            dropout: 0.0                                 # options: float >= 0
-            padding: same                               # options: valid | same | tetris
-            coordconv: true
 
-  #      board_embedding:
-  #        type: conv1d                                   # options: conv1d
-  #        params:
-  #          d_model: 256                                 # options: int > 0
-  #          preset: generic                              # options: tiny | base | deep | generic
-  #          dropout: 0.0                                 # options: float >= 0
-  #          padding: same                                # options: valid | same | tetris
-  #          channels: [ 128, 256 ]                         # options: list[int] (required if preset=generic)
-  #          kernel_sizes: [ 3, 3 ]                         # options: list[int] (required if preset=generic)
-  #          strides: [ 1, 1 ]                              # options: list[int] (optional; default all 1 if omitted)
-  #          activation: gelu                             # options: gelu | relu | silu
-  #          use_batchnorm: false                         # options: true | false
+  encoder:
+    type: token  # token | spatial
 
-      mixer:
-        type: transformer          # options: transformer | mlp
+    # ------------------------------------------------------------------
+    # token encoder (used when type: token)
+    # ------------------------------------------------------------------
+
+    tokenizer:
+      d_model: 256                                 # options: int > 0
+      add_active_token: true
+      add_next_token: true
+      share_kind_embedding: true
+      layout:
+        type: column                # options: row | column | patch | row_column
+        params: {}               # patch: patch_h, patch_w, stride_h, stride_w
+
+      board_embedding:
+        type: conv1d                                   # options: conv1d | linear | discrete_pattern
         params:
-          features_dim: 256        # final projected dim after pooling
-          n_layers: 4              # options: int > 0
-          n_heads: 4               # options: int > 0
-          mlp_ratio: 4.0           # options: float > 0
-          dropout: 0.0             # options: float >= 0
-          attn_dropout: 0.0        # options: float >= 0
-          resid_dropout: 0.0       # options: float >= 0
-          use_cls: false            # options: true | false
-          num_cls_tokens: 0        # options: int > 0 (if use_cls)
-          pool: max                # options: cls | cls_mean | cls_max | cls_meanmax | mean | max | meanmax | flatten
-          pre_ln_input: true      # options: true | false
+          preset: tiny                                 # options: tiny | base | deep | generic
+          dropout: 0.0                                 # options: float >= 0
+          padding: same                               # options: valid | same | tetris
+          coordconv: true
 
-  #  encoder:
-  #    type: spatial          # options: token | spatial
+#      board_embedding:
+#        type: conv1d                                   # options: conv1d
+#        params:
+#          d_model: 256                                 # options: int > 0
+#          preset: generic                              # options: tiny | base | deep | generic
+#          dropout: 0.0                                 # options: float >= 0
+#          padding: same                                # options: valid | same | tetris
+#          channels: [ 128, 256 ]                         # options: list[int] (required if preset=generic)
+#          kernel_sizes: [ 3, 3 ]                         # options: list[int] (required if preset=generic)
+#          strides: [ 1, 1 ]                              # options: list[int] (optional; default all 1 if omitted)
+#          activation: gelu                             # options: gelu | relu | silu
+#          use_batchnorm: false                         # options: true | false
 
-      # ------------------------------------------------------------------
-      # spatial encoder (used when type: spatial)
-      # ------------------------------------------------------------------
+    mixer:
+      type: transformer          # options: transformer | mlp
+      params:
+        features_dim: 256        # final projected dim after pooling
+        n_layers: 4              # options: int > 0
+        n_heads: 4               # options: int > 0
+        mlp_ratio: 4.0           # options: float > 0
+        dropout: 0.0             # options: float >= 0
+        attn_dropout: 0.0        # options: float >= 0
+        resid_dropout: 0.0       # options: float >= 0
+        use_cls: false            # options: true | false
+        num_cls_tokens: 0        # options: int > 0 (if use_cls)
+        pool: max                # options: cls | cls_mean | cls_max | cls_meanmax | mean | max | meanmax | flatten
+        pre_ln_input: true      # options: true | false
 
-      # spatial_head:
-      #   type: global_pool        # options: global_pool | flatten_mlp | col_collapse | attn_pool
-      #   params:
-      #     out_dim: 256           # options: int > 0
-      #     pooling: mean          # options: mean | max | meanmax (if applicable)
+#  encoder:
+#    type: spatial          # options: token | spatial
 
-    feature_augmenter:
-      type: null               # options: null | onehot_concat | mlp_joint | mlp_split
+    # ------------------------------------------------------------------
+    # spatial encoder (used when type: spatial)
+    # ------------------------------------------------------------------
+
+    # spatial_head:
+    #   type: global_pool        # options: global_pool | flatten_mlp | col_collapse | attn_pool
+    #   params:
+    #     out_dim: 256           # options: int > 0
+    #     pooling: mean          # options: mean | max | meanmax (if applicable)
+
+  feature_augmenter:
+    type: null               # options: null | onehot_concat | mlp_joint | mlp_split
 #      params:
 ##        use_active: true        # include one-hot of active piece kind
 ###        use_next: true          # include one-hot(s) of next queue
+
 

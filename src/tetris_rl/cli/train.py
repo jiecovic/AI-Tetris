@@ -37,19 +37,14 @@ from tetris_rl.training.reporting import (
     log_ppo_params,
     log_runtime_info,
 )
-from tetris_rl.utils.config_merge import merge_cfg_for_eval
 from tetris_rl.utils.logging import setup_logger
 from tetris_rl.utils.paths import repo_root as find_repo_root
 
 
-def _build_eval_cfg(*, cfg: Dict[str, Any], train_cfg: Any) -> Dict[str, Any]:
-    """
-    Apply train.eval.env_override and return a new cfg mapping.
-    """
-    override = getattr(getattr(train_cfg, "eval", None), "env_override", None) or {}
-    if not isinstance(override, dict) or not override:
-        return cfg
-    return merge_cfg_for_eval(cfg=cfg, env_override=override)
+def _with_env_cfg(*, cfg: Dict[str, Any], env_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(cfg)
+    out["env"] = dict(env_cfg)
+    return out
 
 
 def _resolve_resume_checkpoint(*, resume: str) -> Path:
@@ -112,6 +107,8 @@ def run_from_cfg(cfg: DictConfig) -> int:
 
     run_cfg = exp_cfg.run
     train_cfg = exp_cfg.train
+    env_train_cfg = exp_cfg.env_train
+    env_eval_cfg = exp_cfg.env_eval
 
     paths = make_run_paths(run_cfg=run_cfg)
 
@@ -131,7 +128,8 @@ def run_from_cfg(cfg: DictConfig) -> int:
 
     t0 = time.perf_counter()
     logger.info("[timing] building vec env...")
-    built = make_vec_env_from_cfg(cfg=cfg_dict, run_cfg=run_cfg)
+    cfg_train = _with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg.model_dump(mode="json"))
+    built = make_vec_env_from_cfg(cfg=cfg_train, run_cfg=run_cfg)
     logger.info(f"[timing] vec env built: {time.perf_counter() - t0:.2f}s")
 
     # ==============================================================
@@ -251,7 +249,7 @@ def run_from_cfg(cfg: DictConfig) -> int:
     if bool(train_cfg.imitation.enabled):
         if algo_type in {"ppo", "maskable_ppo"}:
             run_imitation(
-                cfg=cfg_dict,
+                cfg=cfg_train,
                 model=model,
                 train_cfg=train_cfg,
                 run_cfg=run_cfg,
@@ -271,9 +269,9 @@ def run_from_cfg(cfg: DictConfig) -> int:
     # ==============================================================
 
     callbacks: list[BaseCallback] = [
-        InfoLoggerCallback(cfg=cfg_dict, verbose=0),
+        InfoLoggerCallback(cfg=cfg_train, verbose=0),
         LatestCheckpointCallback(
-            cfg=cfg_dict,
+            cfg=cfg_train,
             spec=LatestCheckpointSpec(
                 checkpoint_dir=paths.ckpt_dir,
                 latest_every=int(train_cfg.checkpoints.latest_every),
@@ -285,7 +283,7 @@ def run_from_cfg(cfg: DictConfig) -> int:
     if int(train_cfg.eval.eval_every) > 0 and str(train_cfg.eval.mode).strip().lower() != "off":
         # IMPORTANT: keep EvalCheckpointSpec unchanged by passing an eval-specific cfg
         # into the callback (callback still receives `cfg` and can build eval env as before).
-        eval_cfg = _build_eval_cfg(cfg=cfg_dict, train_cfg=train_cfg)
+        eval_cfg = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
 
         callbacks.append(
             EvalCheckpointCallback(
@@ -295,7 +293,6 @@ def run_from_cfg(cfg: DictConfig) -> int:
                     eval_every=int(train_cfg.eval.eval_every),
                     eval=train_cfg.eval,
                     base_seed=int(run_cfg.seed),
-                    train_cfg=train_cfg,
                     run_cfg=run_cfg,
                     verbose=cb_verbose,
                 ),

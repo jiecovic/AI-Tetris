@@ -23,7 +23,6 @@ from tetris_rl.runs.run_io import choose_config_path
 from tetris_rl.runs.speed_control import RateMeter, SpeedControl
 from tetris_rl.training.model_io import load_model_from_train_config, warn_if_maskable_with_multidiscrete
 from tetris_rl.utils.paths import repo_root, resolve_run_dir
-from tetris_rl.utils.config_merge import merge_cfg_for_eval
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,7 +57,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="eval",
         choices=["eval", "train"],
-        help="Which env config to use: eval applies cfg.train.eval.env_override; train uses cfg.env as-is.",
+        help="Which env config to use: env_train or env_eval from the experiment config.",
     )
 
     # --- action sources (agent) ---
@@ -83,21 +82,16 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         choices=["uniform", "bag7"],
-        help="Override cfg.game.piece_rule for watch (Rust engine).",
+        help="Override cfg.env.game.piece_rule for watch (Rust engine).",
     )
 
     return ap.parse_args()
 
 
-def _build_watch_cfg(*, cfg: dict[str, Any], train_cfg: Any, which: str) -> dict[str, Any]:
-    w = str(which).strip().lower()
-    if w == "train":
-        return cfg
-    cfg_watch: dict[str, Any] = dict(cfg)
-    override = getattr(getattr(train_cfg, "eval", None), "env_override", {}) or {}
-    if not isinstance(override, dict):
-        override = {}
-    return merge_cfg_for_eval(cfg=cfg_watch, env_override=override)
+def _with_env_cfg(*, cfg: dict[str, Any], env_cfg: dict[str, Any]) -> dict[str, Any]:
+    out = dict(cfg)
+    out["env"] = dict(env_cfg)
+    return out
 
 
 def _engine_board_h(env: Any, fallback: int) -> int:
@@ -194,17 +188,26 @@ def main() -> int:
     exp_cfg = load_experiment_config(cfg_path)
     cfg = to_plain_dict(exp_cfg)
     train_cfg = exp_cfg.train
+    env_train_cfg = exp_cfg.env_train
+    env_eval_cfg = exp_cfg.env_eval
 
-    cfg_watch = _build_watch_cfg(cfg=cfg, train_cfg=train_cfg, which=str(args.env))
+    which_env = str(args.env).strip().lower()
+    env_cfg = env_train_cfg if which_env == "train" else env_eval_cfg
+    cfg_watch = _with_env_cfg(cfg=cfg, env_cfg=env_cfg.model_dump(mode="json"))
 
     if args.piece_rule is not None:
         cfg_watch = dict(cfg_watch)
-        game_cfg = cfg_watch.get("game", {}) or {}
+        env_cfg = cfg_watch.get("env", {}) or {}
+        if not isinstance(env_cfg, dict):
+            env_cfg = {}
+        game_cfg = env_cfg.get("game", {}) or {}
         if not isinstance(game_cfg, dict):
             game_cfg = {}
         game_cfg = dict(game_cfg)
         game_cfg["piece_rule"] = str(args.piece_rule).strip().lower()
-        cfg_watch["game"] = game_cfg
+        env_cfg = dict(env_cfg)
+        env_cfg["game"] = game_cfg
+        cfg_watch["env"] = env_cfg
 
     built = make_env_from_cfg(cfg=cfg_watch, seed=int(args.seed))
     env = built.env

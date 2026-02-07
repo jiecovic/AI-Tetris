@@ -119,7 +119,7 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
 
 def _parse_warmup_cfg(obj: Any) -> Tuple[float, Optional[Any]]:
     """
-    Parse cfg.game.warmup in canonical form:
+    Parse cfg.env.game.warmup in canonical form:
 
       warmup: null
       warmup:
@@ -137,19 +137,19 @@ def _parse_warmup_cfg(obj: Any) -> Tuple[float, Optional[Any]]:
         return 1.0, obj
 
     if not isinstance(obj, dict):
-        raise TypeError(f"cfg.game.warmup must be a mapping or null, got {type(obj)!r}")
+        raise TypeError(f"cfg.env.game.warmup must be a mapping or null, got {type(obj)!r}")
 
     prob = float(obj.get("prob", 1.0))
     if prob <= 0.0:
         return 0.0, None
     if prob > 1.0:
-        raise ValueError(f"cfg.game.warmup.prob must be in [0,1], got {prob}")
+        raise ValueError(f"cfg.env.game.warmup.prob must be in [0,1], got {prob}")
 
     spec_obj = obj.get("spec", None)
     if spec_obj is None:
-        raise KeyError("cfg.game.warmup.spec is required when warmup is enabled")
+        raise KeyError("cfg.env.game.warmup.spec is required when warmup is enabled")
     if not isinstance(spec_obj, dict):
-        raise TypeError(f"cfg.game.warmup.spec must be a mapping, got {type(spec_obj)!r}")
+        raise TypeError(f"cfg.env.game.warmup.spec must be a mapping, got {type(spec_obj)!r}")
 
     warmup_spec = _parse_warmup_spec(spec_obj)
     return float(prob), warmup_spec
@@ -167,7 +167,10 @@ def make_game_bundle_from_cfg(cfg: Dict[str, Any]) -> GameBundle:
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
 
-    game_cfg = cfg.get("game", {}) or {}
+    env_cfg = cfg.get("env", {}) or {}
+    if not isinstance(env_cfg, dict):
+        env_cfg = {}
+    game_cfg = env_cfg.get("game", {}) or {}
     if not isinstance(game_cfg, dict):
         game_cfg = {}
 

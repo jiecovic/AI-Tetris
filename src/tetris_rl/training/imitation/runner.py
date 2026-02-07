@@ -196,7 +196,6 @@ def run_imitation(
         spec=EvalCheckpointCoreSpec(
             checkpoint_dir=Path(manager.paths.checkpoint_dir),
             eval_every=int(sched.eval_every),
-            train_cfg=train_cfg,
             run_cfg=run_cfg,
             eval=train_cfg.eval,
             base_seed=int(run_cfg.seed),

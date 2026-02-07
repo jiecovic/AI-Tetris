@@ -27,7 +27,7 @@ def _spawn_env_seeds(base_seed: int, n_envs: int) -> list[int]:
 def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_cfg: RunConfig) -> BuiltVecEnv:
     """
     Build VecEnv using:
-      - raw cfg for env wiring (cfg.env + cfg.game)
+      - raw cfg for env wiring (cfg.env + cfg.env.game)
       - RunConfig for runtime wiring (seed, n_envs, vec backend)
 
     IMPORTANT (Rust engine + Windows spawn):

@@ -35,10 +35,6 @@ class TrainEvalConfig(ConfigBase):
     seed_offset: int = 10_000
     num_envs: int = Field(default=1, ge=1)
 
-    # Optional config patch applied ONLY when building the eval environment.
-    # Intended usage: disable warmup, remove max_steps truncation, etc.
-    env_override: Dict[str, Any] = Field(default_factory=dict)
-
     @field_validator("mode", mode="before")
     @classmethod
     def _mode_lower(cls, v: object) -> str:

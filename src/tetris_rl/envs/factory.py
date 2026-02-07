@@ -102,8 +102,8 @@ def make_env_from_cfg(*, cfg: Dict[str, Any], seed: Optional[int] = None) -> Bui
 
     IMPORTANT:
       - Owns engine creation (one engine per env instance).
-      - Uses cfg.game.warmup to build a warmup gate callable (probability) + WarmupSpec.
-      - Use `seed` to override cfg.game.seed for this env instance (useful for VecEnv ranks).
+      - Uses cfg.env.game.warmup to build a warmup gate callable (probability) + WarmupSpec.
+      - Use `seed` to override cfg.env.game.seed for this env instance (useful for VecEnv ranks).
     """
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
@@ -118,12 +118,17 @@ def make_env_from_cfg(*, cfg: Dict[str, Any], seed: Optional[int] = None) -> Bui
         bundle = make_game_bundle_from_cfg(cfg)
     else:
         cfg3: Dict[str, Any] = dict(cfg)
-        game_cfg = cfg3.get("game", {}) or {}
+        env_cfg3 = cfg3.get("env", {}) or {}
+        if not isinstance(env_cfg3, dict):
+            env_cfg3 = {}
+        game_cfg = env_cfg3.get("game", {}) or {}
         if not isinstance(game_cfg, dict):
             game_cfg = {}
         game_cfg2 = dict(game_cfg)
         game_cfg2["seed"] = int(seed)
-        cfg3["game"] = game_cfg2
+        env_cfg3 = dict(env_cfg3)
+        env_cfg3["game"] = game_cfg2
+        cfg3["env"] = env_cfg3
         cfg_effective = cfg3
         bundle = make_game_bundle_from_cfg(cfg3)
 

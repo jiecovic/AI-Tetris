@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
 from tetris_rl.runs.config import RunConfig
-from tetris_rl.training.config import TrainEvalConfig, TrainConfig
+from tetris_rl.training.config import TrainEvalConfig
 from tetris_rl.runs.checkpoint_manager import CheckpointManager, CheckpointPaths
 from tetris_rl.training.evaluation import evaluate_model
 from tetris_rl.training.evaluation.progress_ticker import ProgressTicker
@@ -50,7 +50,6 @@ def _mode_allows_phase(mode: str, phase: str) -> bool:
 class EvalCheckpointCoreSpec:
     checkpoint_dir: Path
     eval_every: int
-    train_cfg: TrainConfig
     run_cfg: RunConfig
 
     eval: TrainEvalConfig = field(default_factory=TrainEvalConfig)
@@ -322,7 +321,6 @@ class EvalCheckpointCore:
             metrics = evaluate_model(
                 model=model,
                 cfg=self.cfg,  # wiring only
-                train_cfg=self.spec.train_cfg,
                 run_cfg=self.spec.run_cfg,
                 eval_steps=eval_steps,
                 deterministic=deterministic,

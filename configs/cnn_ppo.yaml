@@ -1,9 +1,10 @@
 # @package _global_
 defaults:
   - hydra: default
-  - env_bundles: macro_discrete_warmup
-  - models: cnn1
-  - trains: ppo_bc_eval
+  - envs@env_train: macro_warmup
+  - envs@env_eval: macro_empty
+  - models@model: cnn1
+  - trains@train: ppo_bc_eval
   - _self_
 
 log_level: info

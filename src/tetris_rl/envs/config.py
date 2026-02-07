@@ -5,6 +5,7 @@ from typing import Any, Dict
 from pydantic import Field, field_validator
 
 from tetris_rl.config.base import ConfigBase
+from tetris_rl.game.config import GameConfig
 
 
 class RewardConfig(ConfigBase):
@@ -21,6 +22,7 @@ class EnvConfig(ConfigBase):
     type: str
     params: Dict[str, Any] = Field(default_factory=dict)
     reward: RewardConfig
+    game: GameConfig
 
     @field_validator("type", mode="before")
     @classmethod
