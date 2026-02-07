@@ -16,7 +16,6 @@ class EvalTable:
     _COL_W_EP = 5
 
     _COL_W_RPS = 10
-    _COL_W_SPS = 10
     _COL_W_LPS = 10
     _COL_W_LVM = 8
     _COL_W_EPL = 8
@@ -54,12 +53,12 @@ class EvalTable:
         self.emit(f"[eval] dir={ckpt_dir}  history={paths.history.name}")
         self.emit(
             "[eval] best checkpoints: "
-            f"R={paths.best_reward.name}  S={paths.best_score.name}  N={paths.best_lines.name}  "
+            f"R={paths.best_reward.name}  N={paths.best_lines.name}  "
             f"V={paths.best_level.name}  T={paths.best_survival.name}"
         )
         self.emit(
             "[eval] update legend: "
-            "R=best score/s  S=best final/mean score  N=best lines/s  V=best level_max  "
+            "R=best reward/step  N=best lines/step  V=best level_max  "
             "T=best survival(1-go_rate)  .=no update"
         )
         self.emit(
@@ -79,7 +78,6 @@ class EvalTable:
             f"{'steps':>{self._COL_W_ST}} "
             f"{'ep':>{self._COL_W_EP}} "
             f"{'rwd/s':>{self._COL_W_RPS}} "
-            f"{'score/s':>{self._COL_W_SPS}} "
             f"{'lines/s':>{self._COL_W_LPS}} "
             f"{'lv_max':>{self._COL_W_LVM}} "
             f"{'ep_len':>{self._COL_W_EPL}} "
@@ -97,7 +95,6 @@ class EvalTable:
             f"{'-' * self._COL_W_ST} "
             f"{'-' * self._COL_W_EP} "
             f"{'-' * self._COL_W_RPS} "
-            f"{'-' * self._COL_W_SPS} "
             f"{'-' * self._COL_W_LPS} "
             f"{'-' * self._COL_W_LVM} "
             f"{'-' * self._COL_W_EPL} "
@@ -148,7 +145,6 @@ class EvalTable:
         steps: Optional[int],
         completed_eps: Optional[int],
         reward_per_step: Optional[float],
-        score_per_step: Optional[float],
         lines_per_step: Optional[float],
         level_max: Optional[float],
         ep_len_mean: Optional[float],
@@ -178,7 +174,6 @@ class EvalTable:
             f"{self._fmt_count(steps, self._COL_W_ST)} "
             f"{self._fmt_int(completed_eps, self._COL_W_EP)} "
             f"{self._fmt_float(reward_per_step, self._COL_W_RPS, prec=5)} "
-            f"{self._fmt_float(score_per_step, self._COL_W_SPS, prec=4)} "
             f"{self._fmt_float(lines_per_step, self._COL_W_LPS, prec=5)} "
             f"{self._fmt_float(level_max, self._COL_W_LVM, prec=2)} "
             f"{self._fmt_float(ep_len_mean, self._COL_W_EPL, prec=1)} "

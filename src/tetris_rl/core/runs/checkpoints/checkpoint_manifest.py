@@ -18,7 +18,6 @@ class CheckpointEntry(ConfigBase):
 class CheckpointManifest(ConfigBase):
     latest: Optional[CheckpointEntry] = None
     best_reward: Optional[CheckpointEntry] = None
-    best_score: Optional[CheckpointEntry] = None
     best_lines: Optional[CheckpointEntry] = None
     best_level: Optional[CheckpointEntry] = None
     best_survival: Optional[CheckpointEntry] = None
@@ -29,6 +28,7 @@ def load_checkpoint_manifest(path: Path) -> CheckpointManifest:
     data = read_json(Path(path))
     if not isinstance(data, dict):
         raise TypeError(f"checkpoint manifest must be a mapping: {path}")
+    data.pop("best_score", None)
     return CheckpointManifest.model_validate(data)
 
 
@@ -59,8 +59,6 @@ def resolve_checkpoint_from_manifest(*, run_dir: Path, which: str) -> Path:
         entry = manifest.latest
     elif w in {"best", "reward"}:
         entry = manifest.best_reward
-    elif w == "score":
-        entry = manifest.best_score
     elif w == "lines":
         entry = manifest.best_lines
     elif w == "level":

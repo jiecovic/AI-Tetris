@@ -22,10 +22,6 @@ class CheckpointPaths:
         return self.checkpoint_dir / "best_reward.zip"
 
     @property
-    def best_score(self) -> Path:
-        return self.checkpoint_dir / "best_score.zip"
-
-    @property
     def best_lines(self) -> Path:
         return self.checkpoint_dir / "best_lines.zip"
 
@@ -51,11 +47,10 @@ class CheckpointManager:
     Owns checkpoint filenames and "best" bookkeeping.
 
     State format (state.json):
-      {
+          {
         "latest": {"timesteps": int},
         "best": {
           "reward":   {"value": float, "timesteps": int},
-          "score":    {"value": float, "timesteps": int},
           "lines":    {"value": float, "timesteps": int},
           "level":    {"value": float, "timesteps": int},
           "survival": {"value": float, "timesteps": int}
@@ -80,6 +75,8 @@ class CheckpointManager:
 
         if "best" not in self._state or not isinstance(self._state.get("best"), dict):
             self._state["best"] = {}
+        else:
+            self._state["best"].pop("score", None)
 
     def _write_state(self) -> None:
         write_json(self.paths.state, self._state)
@@ -147,8 +144,6 @@ class CheckpointManager:
     def _metric_to_path(self, metric: str) -> Optional[Path]:
         if metric == "reward":
             return self.paths.best_reward
-        if metric == "score":
-            return self.paths.best_score
         if metric == "lines":
             return self.paths.best_lines
         if metric == "level":
@@ -160,8 +155,6 @@ class CheckpointManager:
     def _metric_to_manifest_field(self, metric: str) -> Optional[str]:
         if metric == "reward":
             return "best_reward"
-        if metric == "score":
-            return "best_score"
         if metric == "lines":
             return "best_lines"
         if metric == "level":
