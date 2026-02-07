@@ -6,6 +6,7 @@ use rand::prelude::*;
 use crate::engine::constants::{H, HIDDEN_ROWS, W};
 use crate::engine::pieces::{Kind, rotations};
 
+#[inline]
 pub fn fits_on_grid(grid: &[[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32) -> bool {
     let cells = rotations(kind)[rot];
     for &(dx, dy) in cells {
@@ -21,6 +22,7 @@ pub fn fits_on_grid(grid: &[[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32)
     true
 }
 
+#[inline]
 pub fn lock_on_grid(grid: &mut [[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32) {
     let v = kind.idx();
     for &(dx, dy) in rotations(kind)[rot] {
