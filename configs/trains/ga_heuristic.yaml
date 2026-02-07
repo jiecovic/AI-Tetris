@@ -24,7 +24,7 @@ callbacks:
 algo:
   type: ga
   params:
-    population_size: 500           # individuals per generation
+    population_size: 1000           # individuals per generation
     selection: tournament           # tournament | elite_pool
     offspring_frac: 0.3             # fraction replaced by offspring
     tournament_frac: 0.1            # fraction sampled per tournament
