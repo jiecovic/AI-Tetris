@@ -16,6 +16,7 @@ except Exception:  # pragma: no cover
 from tetris_rl.core.agents.actions import choose_action
 from tetris_rl.core.runtime.hud_adapter import from_info as hud_from_info
 from tetris_rl.core.runtime.run_context import build_run_context
+from tetris_rl.core.utils.logging import setup_logger
 
 
 def parse_args() -> argparse.Namespace:
@@ -205,16 +206,18 @@ def run_benchmark(args: argparse.Namespace) -> int:
     if ga_policy is not None and (not bool(args.heuristic_agent)) and (not bool(args.random_action)):
         agent_name = "ga_heuristic"
 
+    logger = None
     if not bool(args.json):
-        print(f"[bench] run_dir={spec.run_dir}")
-        print(f"[bench] cfg={spec.cfg_path.name}")
-        print(f"[bench] env={str(args.env).strip().lower()}")
-        print(f"[bench] algo.type={algo_type}")
+        logger = setup_logger(name="tetris_rl.apps.benchmark", use_rich=False, level="info")
+        logger.info("[bench] run_dir=%s", str(spec.run_dir))
+        logger.info("[bench] cfg=%s", str(spec.cfg_path.name))
+        logger.info("[bench] env=%s", str(args.env).strip().lower())
+        logger.info("[bench] algo.type=%s", str(algo_type))
         if ckpt.is_file():
-            print(f"[bench] loaded ckpt={ckpt.name} (mtime={int(ckpt.stat().st_mtime)})")
+            logger.info("[bench] loaded ckpt=%s (mtime=%s)", str(ckpt.name), int(ckpt.stat().st_mtime))
         else:
-            print(f"[bench] loaded ckpt={ckpt.name} (missing on disk)")
-        print(f"[bench] agent={agent_name}")
+            logger.info("[bench] loaded ckpt=%s (missing on disk)", str(ckpt.name))
+        logger.info("[bench] agent=%s", str(agent_name))
 
     poller = ctx.poller
 
@@ -292,15 +295,18 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         ep_len=f"{d['avg_episode_len_including_partial']:.0f}",
                     )
 
-            if print_every > 0 and (totals.steps % print_every) == 0 and (not bool(args.json)):
+            if print_every > 0 and (totals.steps % print_every) == 0 and (not bool(args.json)) and logger is not None:
                 d = totals.to_dict()
-                print(
-                    f"[bench] interim steps={d['steps']} eps_done={d['episodes_done']} "
-                    f"r/step={d['avg_reward_per_step']:.4f} "
-                    f"lines/step={d['avg_lines_per_step']:.4f} "
-                    f"score/step={d['avg_score_per_step']:.2f} "
-                    f"avg_ep_len(done)={d['avg_episode_len_done_only']:.1f} "
-                    f"avg_ep_len(+partial)={d['avg_episode_len_including_partial']:.1f}"
+                logger.info(
+                    "[bench] interim steps=%s eps_done=%s r/step=%.4f lines/step=%.4f score/step=%.2f "
+                    "avg_ep_len(done)=%.1f avg_ep_len(+partial)=%.1f",
+                    str(d["steps"]),
+                    str(d["episodes_done"]),
+                    float(d["avg_reward_per_step"]),
+                    float(d["avg_lines_per_step"]),
+                    float(d["avg_score_per_step"]),
+                    float(d["avg_episode_len_done_only"]),
+                    float(d["avg_episode_len_including_partial"]),
                 )
 
             if bool(terminated or truncated):
