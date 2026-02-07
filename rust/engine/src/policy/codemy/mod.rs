@@ -15,10 +15,11 @@ mod score;
 mod unknown;
 
 pub use fast::Codemy2FastPolicy;
+pub use core::{GridScorer, SearchCore};
 pub use unknown::UniformIID;
 
 // Keep these internal unless you actually want them public later.
-use core::CodemyCore;
+use core::{CodemyCore, CodemyScorer};
 use unknown::UnknownModel;
 
 /// Dynamic (runtime plies) policy.
@@ -77,12 +78,12 @@ impl Policy for CodemyPolicyDynamic {
 
 /// Static (compile-time plies + unknown model) policy.
 /// This is the "Rust templates" fast-path: monomorphized for each (M, PLIES).
-pub struct CodemyPolicyStatic<M: UnknownModel, const PLIES: u8> {
+pub struct CodemyPolicyStatic<M: UnknownModel<CodemyScorer>, const PLIES: u8> {
     core: CodemyCore,
     _m: PhantomData<M>,
 }
 
-impl<M: UnknownModel, const PLIES: u8> CodemyPolicyStatic<M, PLIES> {
+impl<M: UnknownModel<CodemyScorer>, const PLIES: u8> CodemyPolicyStatic<M, PLIES> {
     pub fn new(beam: Option<BeamConfig>) -> Self {
         debug_assert!(PLIES >= 1);
         Self {
@@ -92,7 +93,7 @@ impl<M: UnknownModel, const PLIES: u8> CodemyPolicyStatic<M, PLIES> {
     }
 }
 
-impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
+impl<M: UnknownModel<CodemyScorer>, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
     fn choose_action(&mut self, g: &Game) -> Option<usize> {
         debug_assert!(PLIES >= 1);
 

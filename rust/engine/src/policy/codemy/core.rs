@@ -2,23 +2,41 @@
 #![forbid(unsafe_code)]
 
 use crate::engine::{ACTION_DIM, Game, H, Kind, W};
-
-use crate::policy::beam::{BeamConfig, prune_top_n_scores, prune_top_n_scores_inplace};
+use crate::policy::beam::{prune_top_n_scores, prune_top_n_scores_inplace, BeamConfig};
 
 use super::empty_cache::{empty_valid_action_ids, kind_idx0_u8};
 use super::score::score_grid;
 use super::unknown::UnknownModel;
 
-/// Core implementation shared by dynamic + static policy wrappers.
-/// Holds all knobs (currently only beam pruning).
-#[derive(Clone, Copy, Debug)]
-pub struct CodemyCore {
-    pub(crate) beam: Option<BeamConfig>,
+pub trait GridScorer {
+    fn score(&self, grid: &[[u8; W]; H]) -> f64;
 }
 
-impl CodemyCore {
-    pub(crate) fn new(beam: Option<BeamConfig>) -> Self {
-        Self { beam }
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CodemyScorer;
+
+impl GridScorer for CodemyScorer {
+    fn score(&self, grid: &[[u8; W]; H]) -> f64 {
+        score_grid(grid)
+    }
+}
+
+/// Core implementation shared by dynamic + static policy wrappers.
+/// Holds all knobs (currently only beam pruning) and a scoring function.
+#[derive(Clone, Debug)]
+pub struct SearchCore<S: GridScorer> {
+    scorer: S,
+    beam: Option<BeamConfig>,
+}
+
+impl<S: GridScorer> SearchCore<S> {
+    pub fn new_with_scorer(scorer: S, beam: Option<BeamConfig>) -> Self {
+        Self { scorer, beam }
+    }
+
+    #[inline]
+    pub fn scorer(&self) -> &S {
+        &self.scorer
     }
 
     #[inline]
@@ -31,7 +49,7 @@ impl CodemyCore {
         }
     }
 
-    /// Fast path: maximize score_grid(grid_after_lock) for a known piece on a grid.
+    /// Fast path: maximize score(grid_after_lock) for a known piece on a grid.
     /// Single simulation per candidate aid. No allocations.
     fn best_leaf_score_for_known_piece(&self, grid: &[[u8; W]; H], kind: Kind) -> f64 {
         let mut best = f64::NEG_INFINITY;
@@ -40,7 +58,7 @@ impl CodemyCore {
             let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue; // collisions / out-of-bounds on this grid
             };
-            let s = score_grid(&grid_lock);
+            let s = self.scorer.score(&grid_lock);
             if s > best {
                 best = s;
             }
@@ -64,7 +82,7 @@ impl CodemyCore {
             let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue;
             };
-            scores[len] = (aid, score_grid(&grid_lock));
+            scores[len] = (aid, self.scorer.score(&grid_lock));
             len += 1;
         }
 
@@ -82,7 +100,7 @@ impl CodemyCore {
     }
 
     /// Value when the next piece is known: maximize over placements of `kind` on `grid`.
-    pub(crate) fn value_known_piece<M: UnknownModel>(
+    pub(crate) fn value_known_piece<M: UnknownModel<S>>(
         &self,
         grid: &[[u8; W]; H],
         kind: Kind,
@@ -127,7 +145,7 @@ impl CodemyCore {
             let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue;
             };
-            proxies[len] = (aid, score_grid(&grid_lock));
+            proxies[len] = (aid, self.scorer.score(&grid_lock));
             len += 1;
         }
 
@@ -154,7 +172,7 @@ impl CodemyCore {
     }
 
     #[inline]
-    fn value_after_clear<M: UnknownModel>(
+    fn value_after_clear<M: UnknownModel<S>>(
         &self,
         grid: &[[u8; W]; H],
         plies_left: u8,
@@ -177,7 +195,7 @@ impl CodemyCore {
             let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
                 continue; // should be rare if mask is correct; keep as safety
             };
-            out.push((aid0, score_grid(&grid_lock)));
+            out.push((aid0, self.scorer.score(&grid_lock)));
         }
 
         if let Some(n0) = self.should_prune(0) {
@@ -226,7 +244,7 @@ impl CodemyCore {
             if sim.invalid {
                 continue;
             }
-            let s = score_grid(&sim.grid_after_lock);
+            let s = self.scorer.score(&sim.grid_after_lock);
             if s > best_score {
                 best_score = s;
                 best_aid = Some(aid);
@@ -272,5 +290,13 @@ impl CodemyCore {
             sum += v;
         }
         sum / 7.0
+    }
+}
+
+pub type CodemyCore = SearchCore<CodemyScorer>;
+
+impl SearchCore<CodemyScorer> {
+    pub fn new(beam: Option<BeamConfig>) -> Self {
+        Self::new_with_scorer(CodemyScorer, beam)
     }
 }

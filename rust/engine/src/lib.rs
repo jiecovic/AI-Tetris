@@ -9,4 +9,7 @@ pub use engine::{
     ACTION_DIM, H, HIDDEN_ROWS, W,
 };
 
-pub use policy::{BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, Policy};
+pub use policy::{
+    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, HeuristicFeature,
+    HeuristicPolicy, Policy,
+};

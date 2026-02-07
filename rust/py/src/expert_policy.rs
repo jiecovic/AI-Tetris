@@ -3,7 +3,10 @@
 
 use pyo3::prelude::*;
 
-use tetris_engine::policy::{BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, Policy};
+use tetris_engine::policy::{
+    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, HeuristicFeature, HeuristicPolicy,
+    Policy,
+};
 use tetris_engine::Game;
 
 use crate::engine::TetrisEngine;
@@ -18,6 +21,7 @@ pub(crate) enum ExpertPolicyInner {
     Codemy1(Codemy1),
     Codemy2(Codemy2),
     Codemy2Fast(Codemy2FastPolicy),
+    Heuristic(HeuristicPolicy),
 }
 
 impl ExpertPolicyInner {
@@ -27,6 +31,7 @@ impl ExpertPolicyInner {
             ExpertPolicyInner::Codemy1(p) => Policy::choose_action(p, g),
             ExpertPolicyInner::Codemy2(p) => Policy::choose_action(p, g),
             ExpertPolicyInner::Codemy2Fast(p) => Policy::choose_action(p, g),
+            ExpertPolicyInner::Heuristic(p) => Policy::choose_action(p, g),
         }
     }
 }
@@ -70,6 +75,34 @@ impl ExpertPolicy {
         Self {
             inner: ExpertPolicyInner::Codemy2Fast(Codemy2FastPolicy::new(tail_weight)),
         }
+    }
+
+    /// Heuristic policy with custom features/weights.
+    #[staticmethod]
+    #[pyo3(signature = (features, weights, plies=1, beam_width=None, beam_from_depth=0))]
+    fn heuristic(
+        features: Vec<String>,
+        weights: Vec<f64>,
+        plies: u8,
+        beam_width: Option<usize>,
+        beam_from_depth: u8,
+    ) -> PyResult<Self> {
+        let mut feats: Vec<HeuristicFeature> = Vec::with_capacity(features.len());
+        for name in features {
+            let Some(f) = HeuristicFeature::parse(&name) else {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unknown heuristic feature: {name}"
+                )));
+            };
+            feats.push(f);
+        }
+        let beam = beam_width.map(|w| BeamConfig::new(beam_from_depth, w));
+        let policy = HeuristicPolicy::new(feats, weights, plies, beam).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("heuristic policy: {e}"))
+        })?;
+        Ok(Self {
+            inner: ExpertPolicyInner::Heuristic(policy),
+        })
     }
 
     /// Compute an expert action id for the current state of `engine`.
