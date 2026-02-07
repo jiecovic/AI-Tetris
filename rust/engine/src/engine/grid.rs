@@ -49,8 +49,8 @@ pub fn clear_lines_grid(grid: &[[u8; W]; H]) -> ([[u8; W]; H], u32) {
 }
 
 /// Clear any full lines in-place.
-/// Returns number of cleared lines.
-pub fn clear_lines_inplace(grid: &mut [[u8; W]; H]) -> u32 {
+/// Returns (cleared_lines, spawn_rows_occupied).
+pub fn clear_lines_inplace(grid: &mut [[u8; W]; H]) -> (u32, bool) {
     let mut cleared = 0u32;
     let mut write_row: i32 = (H as i32) - 1;
 
@@ -72,7 +72,15 @@ pub fn clear_lines_inplace(grid: &mut [[u8; W]; H]) -> u32 {
         }
     }
 
-    cleared
+    let mut spawn_occupied = false;
+    for r in 0..HIDDEN_ROWS {
+        if grid[r].iter().any(|&c| c != 0) {
+            spawn_occupied = true;
+            break;
+        }
+    }
+
+    (cleared, spawn_occupied)
 }
 
 /// Fill the bottom `rows` with "garbage": each row is filled except for `holes` empty cells.

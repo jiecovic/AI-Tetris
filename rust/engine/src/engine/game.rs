@@ -91,18 +91,6 @@ impl Game {
     }
 
     #[inline]
-    fn spawn_rows_occupied(grid: &[[u8; W]; H]) -> bool {
-        for r in 0..HIDDEN_ROWS {
-            for c in 0..W {
-                if grid[r][c] != 0 {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    #[inline]
     fn resolve_action_placement(
         grid: &[[u8; W]; H],
         kind: Kind,
@@ -292,14 +280,14 @@ impl Game {
 
         // Valid placement: lock and clear lines in-place.
         lock_on_grid(&mut self.grid, self.active, rot, x, y);
-        let cleared = clear_lines_inplace(&mut self.grid);
+        let (cleared, spawn_occupied) = clear_lines_inplace(&mut self.grid);
 
         self.lines_cleared += cleared as u64;
         self.score += 100 * cleared as u64;
         self.steps += 1;
 
         // True game over check: locked blocks in spawn rows.
-        if Self::spawn_rows_occupied(&self.grid) {
+        if spawn_occupied {
             self.game_over = true;
             return StepResult {
                 terminated: true,
