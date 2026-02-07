@@ -6,7 +6,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-from tetris_rl.training.config import TrainConfig
+from tetris_rl.training.config import AlgoConfig
 
 
 @dataclass(frozen=True)
@@ -51,8 +51,8 @@ def _raise_maskable_load_hint(err: Exception) -> None:
             "MaskablePPO load failed because the checkpoint does not use a maskable policy.\n"
             "\n"
             "This usually happens when training fell back to standard PPO at runtime\n"
-            "(e.g. maskable_ppo + multidiscrete -> PPO), but your TrainConfig still says\n"
-            "train.rl.algo.type='maskable_ppo'.\n"
+            "(e.g. maskable_ppo + multidiscrete -> PPO), but your config still says\n"
+            "algo.type='maskable_ppo'.\n"
             "\n"
             "Fix options:\n"
             "  - Use algo.type='ppo' for this run, OR\n"
@@ -96,9 +96,9 @@ def _try_load_dqn(*, ckpt: Path, device: str) -> LoadedModel:
     return LoadedModel(model=model, algo_type="dqn", ckpt=ckpt)
 
 
-def load_model_from_train_config(*, train_cfg: TrainConfig, ckpt: Path, device: str = "auto") -> LoadedModel:
+def load_model_from_algo_config(*, algo_cfg: AlgoConfig, ckpt: Path, device: str = "auto") -> LoadedModel:
     """
-    Load a trained model checkpoint according to TrainConfig.rl.algo.type.
+    Load a trained model checkpoint according to algo.type.
 
     Supported:
       - ppo
@@ -112,7 +112,7 @@ def load_model_from_train_config(*, train_cfg: TrainConfig, ckpt: Path, device: 
         We detect the common policy mismatch and fall back to PPO loading with a
         clear diagnostic.
     """
-    algo_type = str(train_cfg.rl.algo.type).strip().lower()
+    algo_type = str(algo_cfg.type).strip().lower()
     ckpt = Path(ckpt)
 
     if algo_type == "ppo":
@@ -126,7 +126,7 @@ def load_model_from_train_config(*, train_cfg: TrainConfig, ckpt: Path, device: 
             from sb3_contrib import MaskablePPO  # type: ignore
         except Exception as e:
             raise RuntimeError(
-                "train.rl.algo.type is 'maskable_ppo' but stable-baselines3-contrib is not installed.\n"
+                "algo.type is 'maskable_ppo' but stable-baselines3-contrib is not installed.\n"
                 "Install: pip install -U stable-baselines3-contrib"
             ) from e
 
@@ -151,31 +151,31 @@ def load_model_from_train_config(*, train_cfg: TrainConfig, ckpt: Path, device: 
             raise  # unreachable
 
     raise ValueError(
-        f"unsupported train.rl.algo.type: {algo_type!r} (expected 'ppo' or 'maskable_ppo' or 'dqn')"
+        f"unsupported algo.type: {algo_type!r} (expected 'ppo' or 'maskable_ppo' or 'dqn')"
     )
 
 
-def warn_if_maskable_with_multidiscrete(*, train_cfg: TrainConfig, env: Any) -> None:
+def warn_if_maskable_with_multidiscrete(*, algo_cfg: AlgoConfig, env: Any) -> None:
     """
     Informational warning: action masking in this project is implemented for a flat
     Discrete(rot×col) action space. With MultiDiscrete you cannot enforce joint
     (rot,col) legality via a single mask.
 
     NOTE: This is only a warning. Loader/runtime resolution should ultimately be
-    centralized at the boundary so TrainConfig, model, eval, and watch agree.
+    centralized at the boundary so algo, model, eval, and watch agree.
     """
-    algo_type = str(train_cfg.rl.algo.type).strip().lower()
+    algo_type = str(algo_cfg.type).strip().lower()
     if algo_type != "maskable_ppo":
         return
 
     action_mode = str(getattr(env, "action_mode", "")).strip().lower()
     if action_mode == "multidiscrete":
         print(
-            "[WARN] train.rl.algo.type=maskable_ppo but env.action_mode=multidiscrete.\n"
+            "[WARN] algo.type=maskable_ppo but env.action_mode=multidiscrete.\n"
             "[WARN] MaskablePPO masking is defined over a single Discrete distribution.\n"
             "[WARN] With MultiDiscrete you cannot enforce joint (rot,col) legality via masks.\n"
             "[WARN] Fix: set env.params.action_mode: discrete OR use algo.type=ppo."
         )
 
 
-__all__ = ["LoadedModel", "load_model_from_train_config", "warn_if_maskable_with_multidiscrete"]
+__all__ = ["LoadedModel", "load_model_from_algo_config", "warn_if_maskable_with_multidiscrete"]

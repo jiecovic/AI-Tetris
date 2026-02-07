@@ -7,10 +7,10 @@ from pydantic import Field, field_validator, model_validator
 
 from tetris_rl.config.base import ConfigBase
 
-TrainEvalMode = Literal["off", "rl", "imitation", "both"]
+EvalMode = Literal["off", "rl", "imitation", "both"]
 
 
-class TrainCheckpointsConfig(ConfigBase):
+class CheckpointsConfig(ConfigBase):
     """
     Checkpoint cadence for training.
 
@@ -21,14 +21,14 @@ class TrainCheckpointsConfig(ConfigBase):
     latest_every: int = Field(default=200_000, ge=1)
 
 
-class TrainEvalConfig(ConfigBase):
+class EvalConfig(ConfigBase):
     """
     Training-time evaluation semantics.
 
     This is a training hook (for TB + best checkpoints), not a benchmarking suite.
     """
 
-    mode: TrainEvalMode = "off"
+    mode: EvalMode = "off"
     steps: int = Field(default=100_000, ge=1)
     eval_every: int = Field(default=0, ge=0)
 
@@ -65,11 +65,11 @@ class ImitationConfig(ConfigBase):
     @model_validator(mode="after")
     def _validate_dataset_dir(self) -> "ImitationConfig":
         if self.enabled and not str(self.dataset_dir).strip():
-            raise ValueError("train.imitation.enabled=true requires train.imitation.dataset_dir to be set")
+            raise ValueError("imitation.enabled=true requires imitation.dataset_dir to be set")
         return self
 
 
-class RLAlgoConfig(ConfigBase):
+class AlgoConfig(ConfigBase):
     type: Literal["ppo", "maskable_ppo", "dqn"] = "ppo"
     params: Dict[str, Any] = Field(default_factory=dict)
 
@@ -79,14 +79,11 @@ class RLAlgoConfig(ConfigBase):
         return str(v).strip().lower()
 
 
-class RLConfig(ConfigBase):
-    enabled: bool = True
+class LearnConfig(ConfigBase):
     total_timesteps: int = Field(default=200_000, ge=0)
 
     # Resume training from a previous run folder.
     resume: Optional[str] = None
-
-    algo: RLAlgoConfig = Field(default_factory=RLAlgoConfig)
 
     @field_validator("resume", mode="before")
     @classmethod
@@ -97,19 +94,11 @@ class RLConfig(ConfigBase):
         return s if s else None
 
 
-class TrainConfig(ConfigBase):
-    checkpoints: TrainCheckpointsConfig = Field(default_factory=TrainCheckpointsConfig)
-    eval: TrainEvalConfig = Field(default_factory=TrainEvalConfig)
-    imitation: ImitationConfig = Field(default_factory=ImitationConfig)
-    rl: RLConfig = Field(default_factory=RLConfig)
-
-
 __all__ = [
-    "TrainConfig",
-    "TrainCheckpointsConfig",
-    "TrainEvalConfig",
+    "AlgoConfig",
+    "CheckpointsConfig",
+    "EvalConfig",
+    "EvalMode",
     "ImitationConfig",
-    "RLConfig",
-    "RLAlgoConfig",
-    "TrainEvalMode",
+    "LearnConfig",
 ]

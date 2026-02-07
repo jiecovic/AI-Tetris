@@ -91,7 +91,7 @@ def make_run_paths(*, run_cfg: RunConfig) -> RunPaths:
     Determine run output locations from RunConfig (wiring only).
 
     Responsibilities:
-      - TrainConfig/DataGenConfig own training/datagen semantics.
+      - ExperimentConfig/DataGenConfig own training/datagen semantics.
       - RunConfig owns runtime wiring + filesystem/logging.
       - No other module reads cfg.run directly.
     """

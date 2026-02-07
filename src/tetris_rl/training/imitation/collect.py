@@ -13,7 +13,7 @@ from tetris_rl.datagen.schema import (
     NPZ_NEXT_KIND,
 )
 from tetris_rl.datagen.shard_reader import ShardDataset
-from tetris_rl.utils.seed import seed32_from
+from planning_rl.utils.seed import seed32_from
 
 
 @dataclass(frozen=True)

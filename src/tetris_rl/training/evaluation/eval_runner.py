@@ -137,7 +137,7 @@ def evaluate_model(
     if eval_steps <= 0:
         raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
 
-    # Single knob: run.n_envs controls eval vec env size (train.eval.num_envs is deprecated/ignored here).
+    # Single knob: run.n_envs controls eval vec env size (eval.num_envs is ignored here).
     _ = num_envs
 
     algo_type = _effective_algo_type_from_model(model)

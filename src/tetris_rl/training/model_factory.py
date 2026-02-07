@@ -9,10 +9,10 @@ from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.dqn.policies import DQNPolicy
 
-from tetris_rl.models.config import ModelConfig
+from tetris_rl.policies.sb3.config import SB3PolicyConfig
 from tetris_rl.runs.config import RunConfig
-from tetris_rl.training.config import TrainConfig
-from tetris_rl.models.feature_extractor import TetrisFeatureExtractor
+from tetris_rl.training.config import AlgoConfig
+from tetris_rl.policies.sb3.feature_extractor import TetrisFeatureExtractor
 from tetris_rl.utils.logging import setup_logger
 from tetris_rl.utils.model_params import (
     build_algo_kwargs,
@@ -44,7 +44,7 @@ def _infer_kind_vocab_size_from_obs_space(observation_space: spaces.Space) -> in
 
 def build_policy_kwargs_from_cfg(
     *,
-    model_cfg: ModelConfig,
+    policy_cfg: SB3PolicyConfig,
     observation_space: spaces.Space,
 ) -> Dict[str, Any]:
     """
@@ -53,11 +53,11 @@ def build_policy_kwargs_from_cfg(
       - net_arch
       - activation_fn
     """
-    policy_cfg = dict(model_cfg.policy_kwargs or {})
-    net_arch = parse_net_arch(policy_cfg.get("net_arch", model_cfg.net_arch))
-    activation_fn = parse_activation_fn(policy_cfg.get("activation_fn", model_cfg.activation_fn or "gelu"))
+    policy_kwargs = dict(policy_cfg.policy_kwargs or {})
+    net_arch = parse_net_arch(policy_kwargs.get("net_arch", policy_cfg.net_arch))
+    activation_fn = parse_activation_fn(policy_kwargs.get("activation_fn", policy_cfg.activation_fn or "gelu"))
 
-    fe_cfg = model_cfg.feature_extractor
+    fe_cfg = policy_cfg.feature_extractor
 
     tokenizer = None
     mixer = None
@@ -97,17 +97,17 @@ def build_policy_kwargs_from_cfg(
 
 def make_model_from_cfg(
     *,
-    cfg: ModelConfig,
-    train_cfg: TrainConfig,
+    cfg: SB3PolicyConfig,
+    algo_cfg: AlgoConfig,
     run_cfg: RunConfig,
     vec_env: Any,
     tensorboard_log: Path | None,
 ):
-    algo_type = str(train_cfg.rl.algo.type).strip().lower()
-    algo_params = train_cfg.rl.algo.params or {}
+    algo_type = str(algo_cfg.type).strip().lower()
+    algo_params = algo_cfg.params or {}
 
     policy_kwargs = build_policy_kwargs_from_cfg(
-        model_cfg=cfg,
+        policy_cfg=cfg,
         observation_space=vec_env.observation_space,
     )
 
@@ -124,7 +124,7 @@ def make_model_from_cfg(
             algo_cls=DQN,
             raw=algo_params,
             seed=run_cfg.seed,
-            where="train.rl.algo.params",
+            where="algo.params",
         )
 
         pk = dict(policy_kwargs)
@@ -159,7 +159,7 @@ def make_model_from_cfg(
             algo_cls=Algo,
             raw=algo_params,
             seed=run_cfg.seed,
-            where="train.rl.algo.params",
+            where="algo.params",
         )
 
         model = Algo(
@@ -174,3 +174,4 @@ def make_model_from_cfg(
         return model
 
     raise ValueError(f"unsupported algo type: {algo_type!r}")
+

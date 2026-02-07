@@ -13,7 +13,7 @@ except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
 from tetris_rl.runs.config import RunConfig
-from tetris_rl.training.config import TrainEvalConfig
+from tetris_rl.training.config import EvalConfig
 from tetris_rl.training.evaluation.eval_checkpoint_core import EvalCheckpointCore, EvalCheckpointCoreSpec
 
 
@@ -23,7 +23,7 @@ class EvalCheckpointSpec:
     eval_every: int
     run_cfg: RunConfig
 
-    eval: TrainEvalConfig = field(default_factory=TrainEvalConfig)
+    eval: EvalConfig = field(default_factory=EvalConfig)
     verbose: int = 0
 
     # injected by wiring code (cli/train.py)

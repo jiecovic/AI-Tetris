@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
 from tetris_rl.runs.config import RunConfig
-from tetris_rl.training.config import TrainEvalConfig
+from tetris_rl.training.config import EvalConfig
 from tetris_rl.runs.checkpoint_manager import CheckpointManager, CheckpointPaths
 from tetris_rl.training.evaluation import evaluate_model
 from tetris_rl.training.evaluation.progress_ticker import ProgressTicker
@@ -52,7 +52,7 @@ class EvalCheckpointCoreSpec:
     eval_every: int
     run_cfg: RunConfig
 
-    eval: TrainEvalConfig = field(default_factory=TrainEvalConfig)
+    eval: EvalConfig = field(default_factory=EvalConfig)
 
     # injected by wiring code (cli/train.py)
     base_seed: int = 0
@@ -351,7 +351,7 @@ class EvalCheckpointCore:
         # Gate intermediate eval by config mode, but do NOT print mode in the table (it's static config).
         mode = str(self.spec.eval.mode).strip().lower()
         if mode not in {"off", "rl", "imitation", "both"}:
-            raise ValueError(f"TrainEvalConfig.mode must be off|rl|imitation|both (got {self.spec.eval.mode!r})")
+            raise ValueError(f"EvalConfig.mode must be off|rl|imitation|both (got {self.spec.eval.mode!r})")
 
         if not _mode_allows_phase(mode, str(phase)):
             return False

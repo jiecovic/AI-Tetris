@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 from tqdm.rich import tqdm  # <-- rich tqdm (NOT tqdm.auto)
 
 from tetris_rl.runs.config import RunConfig
-from tetris_rl.training.config import TrainConfig
+from tetris_rl.training.config import CheckpointsConfig, EvalConfig, ImitationConfig
 from tetris_rl.datagen.shard_reader import ShardDataset
 from tetris_rl.runs.checkpoint_manager import CheckpointManager, CheckpointPaths
 from tetris_rl.training.evaluation.eval_checkpoint_core import EvalCheckpointCore, EvalCheckpointCoreSpec
@@ -18,7 +18,7 @@ from tetris_rl.training.imitation.bc_train import BCTrainSpec, bc_eval_stream, b
 from tetris_rl.training.imitation.collect import iter_bc_batches_from_dataset, split_shards_modulo
 from tetris_rl.training.imitation.spec import ImitationRunState, ImitationScheduleSpec, ImitationSplitSpec
 from tetris_rl.utils.paths import repo_root
-from tetris_rl.utils.seed import seed32_from
+from planning_rl.utils.seed import seed32_from
 
 
 @dataclass(frozen=True)
@@ -120,7 +120,9 @@ def run_imitation(
     *,
     cfg: Dict[str, Any],
     model: Any,
-    train_cfg: TrainConfig,
+    imitation_cfg: ImitationConfig,
+    eval_cfg: EvalConfig,
+    checkpoints_cfg: CheckpointsConfig,
     run_cfg: RunConfig,
     run_dir: Path,
     repo: Optional[Path] = None,
@@ -128,7 +130,7 @@ def run_imitation(
 ) -> Dict[str, Any]:
     repo_p = Path(repo) if repo is not None else repo_root()
 
-    im = train_cfg.imitation
+    im = imitation_cfg
     if not bool(im.enabled):
         if logger is not None:
             try:
@@ -178,8 +180,8 @@ def run_imitation(
 
     sched = ImitationScheduleSpec(
         tick_unit="samples",
-        latest_every=int(train_cfg.checkpoints.latest_every),
-        eval_every=int(train_cfg.eval.eval_every),
+        latest_every=int(checkpoints_cfg.latest_every),
+        eval_every=int(eval_cfg.eval_every),
         log_every=50,
     )
 
@@ -197,7 +199,7 @@ def run_imitation(
             checkpoint_dir=Path(manager.paths.checkpoint_dir),
             eval_every=int(sched.eval_every),
             run_cfg=run_cfg,
-            eval=train_cfg.eval,
+            eval=eval_cfg,
             base_seed=int(run_cfg.seed),
             table_header_every=10,
             progress_unit=str(sched.tick_unit),
@@ -231,7 +233,7 @@ def run_imitation(
                 str(sched.tick_unit),
                 int(sched.eval_every),
                 str(sched.tick_unit),
-                str(train_cfg.eval.mode),
+                str(eval_cfg.mode),
             )
         except Exception:
             pass

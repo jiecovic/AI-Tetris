@@ -15,7 +15,7 @@ class RunConfig(ConfigBase):
     """
     RunConfig owns ALL run-time wiring + filesystem/logging semantics.
 
-    This is intentionally NOT "training semantics" (those live in TrainConfig).
+    This is intentionally NOT "training semantics" (those live in ExperimentConfig).
     """
 
     name: str = "run"

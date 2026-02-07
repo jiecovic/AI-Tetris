@@ -9,9 +9,9 @@ from tetris_rl.datagen.config import (
     DataGenRunConfig,
 )
 from tetris_rl.envs.config import EnvConfig
-from tetris_rl.models.config import ModelConfig
+from tetris_rl.policies.sb3.config import SB3PolicyConfig
 from tetris_rl.runs.config import RunConfig
-from tetris_rl.training.config import TrainConfig
+from tetris_rl.training.config import AlgoConfig, CheckpointsConfig, EvalConfig, ImitationConfig, LearnConfig
 
 
 class ExperimentConfig(ConfigBase):
@@ -19,8 +19,12 @@ class ExperimentConfig(ConfigBase):
     run: RunConfig
     env_train: EnvConfig
     env_eval: EnvConfig
-    model: ModelConfig
-    train: TrainConfig
+    policy: SB3PolicyConfig
+    learn: LearnConfig
+    algo: AlgoConfig
+    checkpoints: CheckpointsConfig = CheckpointsConfig()
+    eval: EvalConfig = EvalConfig()
+    imitation: ImitationConfig = ImitationConfig()
 
 
 class DataGenConfig(ConfigBase):
@@ -35,3 +39,4 @@ class DataGenConfig(ConfigBase):
 
 
 __all__ = ["ExperimentConfig", "DataGenConfig"]
+

@@ -21,7 +21,7 @@ from tetris_rl.runs.live_stats import StepWindow
 from tetris_rl.runs.manual_cursor import ManualMacroCursor
 from tetris_rl.runs.run_io import choose_config_path
 from tetris_rl.runs.speed_control import RateMeter, SpeedControl
-from tetris_rl.training.model_io import load_model_from_train_config, warn_if_maskable_with_multidiscrete
+from tetris_rl.training.model_io import load_model_from_algo_config, warn_if_maskable_with_multidiscrete
 from tetris_rl.utils.paths import repo_root, resolve_run_dir
 
 
@@ -187,7 +187,7 @@ def main() -> int:
     cfg_path = choose_config_path(run_dir)
     exp_cfg = load_experiment_config(cfg_path)
     cfg = to_plain_dict(exp_cfg)
-    train_cfg = exp_cfg.train
+    algo_cfg = exp_cfg.algo
     env_train_cfg = exp_cfg.env_train
     env_eval_cfg = exp_cfg.env_eval
 
@@ -216,7 +216,7 @@ def main() -> int:
     if game is None:
         raise RuntimeError("env must expose .game (rust engine wrapper) for watch UI")
 
-    algo_type = str(train_cfg.rl.algo.type).strip().lower()
+    algo_type = str(algo_cfg.type).strip().lower()
 
     expert_policy: Optional[Any] = None
     if bool(args.heuristic_agent):
@@ -235,12 +235,12 @@ def main() -> int:
 
     model = None
     if (not bool(args.heuristic_agent)) and (not bool(args.random_action)):
-        loaded = load_model_from_train_config(train_cfg=train_cfg, ckpt=ckpt, device=str(args.device))
+        loaded = load_model_from_algo_config(algo_cfg=algo_cfg, ckpt=ckpt, device=str(args.device))
         model = loaded.model
         algo_type = loaded.algo_type
         ckpt = loaded.ckpt
         if algo_type == "maskable_ppo":
-            warn_if_maskable_with_multidiscrete(train_cfg=train_cfg, env=env)
+            warn_if_maskable_with_multidiscrete(algo_cfg=algo_cfg, env=env)
 
     print(f"[watch] run_dir={run_dir}")
     print(f"[watch] cfg={cfg_path.name}")
@@ -259,7 +259,7 @@ def main() -> int:
     poller = CheckpointPoller(
         run_dir=run_dir,
         which=str(args.which),
-        train_cfg=train_cfg,
+        algo_cfg=algo_cfg,
         device=str(args.device),
         reload_every_s=float(args.reload),
     )
