@@ -135,7 +135,6 @@ def log_policy_compact(*, model: Any, logger) -> None:
 
     Supports:
       - PPO / MaskablePPO (ActorCriticPolicy-like)
-      - DQN (DQNPolicy-like)
     """
     policy = getattr(model, "policy", None)
     logger.info("============== Policy (compact) ==============")
@@ -155,44 +154,7 @@ def log_policy_compact(*, model: Any, logger) -> None:
 
     logger.info(f"  policy_class: {policy.__class__.__name__}")
 
-    # ---------------------------
-    # DQNPolicy branch
-    # ---------------------------
-    q_net = getattr(policy, "q_net", None)
-    q_net_target = getattr(policy, "q_net_target", None)
-    if q_net is not None or q_net_target is not None:
-        # Many SB3 versions put the extractor on q_net (and sometimes as policy.features_extractor too)
-        _log_module("q_net", q_net)
-        _log_module("q_net_target", q_net_target)
-
-        # Best-effort: extractor + head inside QNetwork
-        q_feat = None
-        if q_net is not None:
-            q_feat = getattr(q_net, "features_extractor", None)
-        if q_feat is None:
-            q_feat = getattr(policy, "features_extractor", None)
-
-        if q_feat is not None:
-            _log_module("features_extractor", q_feat)
-
-        # Q head / MLP inside QNetwork varies by SB3 version
-        q_mlp = None
-        if q_net is not None:
-            # common names across SB3 releases
-            for attr in ("q_net", "net", "mlp_extractor", "q_network"):
-                if hasattr(q_net, attr):
-                    q_mlp = getattr(q_net, attr)
-                    if isinstance(q_mlp, torch.nn.Module):
-                        break
-                    q_mlp = None
-        if q_mlp is not None:
-            _log_module("q_net_body", q_mlp)
-
-        return  # done; do not fall through to actor-critic fields
-
-    # ---------------------------
     # ActorCriticPolicy branch (PPO / MaskablePPO)
-    # ---------------------------
     feat = getattr(policy, "features_extractor", None)
     pi = getattr(policy, "pi_features_extractor", None)
     vf = getattr(policy, "vf_features_extractor", None)
@@ -230,12 +192,6 @@ def log_policy_full(*, model: Any, logger) -> None:
       - mlp_extractor
       - action_net
       - value_net
-
-    DQN-like:
-      - q_net
-      - q_net_target
-      - q_net.features_extractor (if present)
-      - best-effort q_net body module (varies by SB3 version)
     """
     policy = getattr(model, "policy", None)
     logger.info("Policy Network (detailed):")
@@ -244,38 +200,6 @@ def log_policy_full(*, model: Any, logger) -> None:
         return
 
     logger.info(f"  policy_class: {policy.__class__.__name__}")
-
-    # DQNPolicy branch
-    q_net = getattr(policy, "q_net", None)
-    q_net_target = getattr(policy, "q_net_target", None)
-    if q_net is not None or q_net_target is not None:
-        if q_net is not None:
-            _log_block(logger, "  q_net:", q_net)
-        if q_net_target is not None:
-            _log_block(logger, "  q_net_target:", q_net_target)
-
-        # Extractor inside QNetwork (preferred), else policy.features_extractor
-        q_feat = None
-        if q_net is not None:
-            q_feat = getattr(q_net, "features_extractor", None)
-        if q_feat is None:
-            q_feat = getattr(policy, "features_extractor", None)
-        if q_feat is not None:
-            _log_block(logger, "  features_extractor:", q_feat)
-
-        # Best-effort: the Q head / MLP body
-        q_body = None
-        if q_net is not None:
-            for attr in ("q_net", "net", "mlp_extractor", "q_network"):
-                if hasattr(q_net, attr):
-                    cand = getattr(q_net, attr)
-                    if isinstance(cand, torch.nn.Module):
-                        q_body = cand
-                        break
-        if q_body is not None:
-            _log_block(logger, "  q_net_body:", q_body)
-
-        return
 
     # PPO/MaskablePPO branch
     feat = getattr(policy, "features_extractor", None)

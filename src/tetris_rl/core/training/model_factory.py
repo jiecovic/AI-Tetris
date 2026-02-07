@@ -5,9 +5,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 from gymnasium import spaces
-from stable_baselines3 import DQN, PPO
+from stable_baselines3 import PPO
 from stable_baselines3.common.policies import ActorCriticPolicy
-from stable_baselines3.dqn.policies import DQNPolicy
 
 from tetris_rl.core.policies.sb3.config import SB3PolicyConfig
 from tetris_rl.core.runs.config import RunConfig
@@ -16,7 +15,6 @@ from tetris_rl.core.policies.sb3.feature_extractor import TetrisFeatureExtractor
 from tetris_rl.core.utils.logging import setup_logger
 from tetris_rl.core.utils.model_params import (
     build_algo_kwargs,
-    net_arch_for_dqn,
     parse_activation_fn,
     parse_net_arch,
 )
@@ -95,6 +93,41 @@ def build_policy_kwargs_from_cfg(
     )
 
 
+def build_policy_from_cfg(
+    *,
+    policy_cfg: SB3PolicyConfig,
+    policy_backend: str,
+    observation_space: spaces.Space,
+    action_space: spaces.Space,
+    device: str = "cpu",
+):
+    policy_kwargs = build_policy_kwargs_from_cfg(
+        policy_cfg=policy_cfg,
+        observation_space=observation_space,
+    )
+
+    backend = str(policy_backend).strip().lower()
+    if backend == "maskable_ppo":
+        from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
+
+        Policy = MaskableActorCriticPolicy
+    elif backend == "ppo":
+        Policy = ActorCriticPolicy
+    else:
+        raise ValueError(f"unsupported policy_backend for imitation: {backend!r}")
+
+    def _lr_schedule(_progress: float) -> float:
+        return 0.0
+
+    policy = Policy(
+        observation_space,
+        action_space,
+        _lr_schedule,
+        **policy_kwargs,
+    )
+    return policy.to(device)
+
+
 def make_model_from_cfg(
     *,
     cfg: SB3PolicyConfig,
@@ -112,34 +145,6 @@ def make_model_from_cfg(
     )
 
     device = str(run_cfg.device).strip() or "auto"
-
-    # ------------------------------------------------------------------
-    # DQN
-    # ------------------------------------------------------------------
-    if algo_type == "dqn":
-        if not isinstance(vec_env.action_space, spaces.Discrete):
-            raise TypeError("DQN requires Discrete action space")
-
-        model_kwargs = build_algo_kwargs(
-            algo_cls=DQN,
-            raw=algo_params,
-            seed=run_cfg.seed,
-            where="algo.params",
-        )
-
-        pk = dict(policy_kwargs)
-        pk["net_arch"] = net_arch_for_dqn(pk.get("net_arch"))
-
-        model = DQN(
-            policy=DQNPolicy,
-            env=vec_env,
-            device=device,
-            tensorboard_log=str(tensorboard_log) if tensorboard_log else None,
-            policy_kwargs=pk,
-            **model_kwargs,
-        )
-        model._tetris_algo_type = "dqn"
-        return model
 
     # ------------------------------------------------------------------
     # PPO / MaskablePPO

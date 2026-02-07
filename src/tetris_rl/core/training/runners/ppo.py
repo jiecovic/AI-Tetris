@@ -1,4 +1,4 @@
-# src/tetris_rl/core/training/runners/rl.py
+# src/tetris_rl/core/training/runners/ppo.py
 from __future__ import annotations
 
 import time
@@ -27,15 +27,14 @@ from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpoi
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
 from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.core.training.model_factory import make_model_from_cfg
+from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
 from tetris_rl.core.training.reporting import (
     log_policy_compact,
     log_policy_full,
     log_ppo_params,
     log_runtime_info,
 )
-from tetris_rl.core.training.runners.imitation import run_imitation_phase
 from tetris_rl.core.utils.logging import setup_logger
-from tetris_rl.core.utils.paths import repo_root as find_repo_root
 
 
 def _with_env_cfg(*, cfg: Dict[str, Any], env_cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -44,7 +43,7 @@ def _with_env_cfg(*, cfg: Dict[str, Any], env_cfg: Dict[str, Any]) -> Dict[str, 
     return out
 
 
-def run_rl_experiment(cfg: DictConfig) -> int:
+def run_ppo_experiment(cfg: DictConfig) -> int:
     cfg_dict = to_plain_dict(cfg)
     exp_cfg = ExperimentConfig.model_validate(cfg_dict)
 
@@ -53,7 +52,6 @@ def run_rl_experiment(cfg: DictConfig) -> int:
     algo_cfg = exp_cfg.algo
     callbacks_cfg = exp_cfg.callbacks
     eval_cfg = exp_cfg.eval
-    imitation_cfg = exp_cfg.imitation
     env_train_cfg = exp_cfg.env_train
     env_eval_cfg = exp_cfg.env_eval
     policy_cfg = exp_cfg.policy
@@ -86,6 +84,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
     t0 = time.perf_counter()
     resume_target = getattr(learn_cfg, "resume", None)
     is_resume = bool(resume_target and str(resume_target).strip())
+    imitation_resume = False
 
     if is_resume:
         resume_ckpt = resolve_resume_checkpoint(str(resume_target).strip())
@@ -101,38 +100,35 @@ def run_rl_experiment(cfg: DictConfig) -> int:
         algo_type = str(algo_cfg.type).strip().lower()
         device = str(run_cfg.device).strip() or "auto"
 
-        logger.info("[timing] loading model from checkpoint...")
-        if algo_type == "maskable_ppo":
-            from sb3_contrib.ppo_mask import MaskablePPO
-
-            model = MaskablePPO.load(
-                path=str(resume_ckpt),
-                env=built.vec_env,
-                device=device,
+        loaded_policy = try_load_policy_checkpoint(str(resume_ckpt), device=str(device))
+        if loaded_policy is not None:
+            imitation_resume = True
+            logger.info("[timing] building model for imitation resume...")
+            model = make_model_from_cfg(
+                cfg=policy_cfg,
+                algo_cfg=algo_cfg,
+                run_cfg=run_cfg,
+                vec_env=built.vec_env,
+                tensorboard_log=paths.tb_dir,
             )
-            model._tetris_algo_type = "maskable_ppo"
-        elif algo_type == "ppo":
-            from stable_baselines3 import PPO
-
-            model = PPO.load(
-                path=str(resume_ckpt),
-                env=built.vec_env,
-                device=device,
-            )
-            model._tetris_algo_type = "ppo"
-        elif algo_type == "dqn":
-            from stable_baselines3 import DQN
-
-            model = DQN.load(
-                path=str(resume_ckpt),
-                env=built.vec_env,
-                device=device,
-            )
-            model._tetris_algo_type = "dqn"
+            try:
+                model.policy.load_state_dict(loaded_policy.state_dict(), strict=True)
+            except Exception as e:
+                raise RuntimeError(f"failed to load imitation weights from {resume_ckpt}") from e
+            model._tetris_algo_type = algo_type
+            logger.info("[resume] loaded imitation weights (timesteps reset)")
+            logger.info(f"[timing] model initialized: {time.perf_counter() - t0:.2f}s")
         else:
-            raise ValueError(f"unsupported algo type for resume: {algo_type!r}")
-
-        logger.info(f"[timing] model loaded: {time.perf_counter() - t0:.2f}s")
+            logger.info("[timing] loading model from checkpoint...")
+            loaded = load_model_from_algo_config(
+                algo_cfg=algo_cfg,
+                ckpt=resume_ckpt,
+                device=device,
+                env=built.vec_env,
+            )
+            model = loaded.model
+            model._tetris_algo_type = str(loaded.algo_type)
+            logger.info(f"[timing] model loaded: {time.perf_counter() - t0:.2f}s")
     else:
         logger.info("[timing] building model...")
         model = make_model_from_cfg(
@@ -192,23 +188,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
     cb_verbose = 1  # keep existing behavior
 
     # ==============================================================
-    # Imitation phase (optional)
-    # ==============================================================
-    run_imitation_phase(
-        cfg=cfg_train,
-        model=model,
-        imitation_cfg=imitation_cfg,
-        eval_cfg=eval_cfg,
-        callbacks_cfg=callbacks_cfg,
-        run_cfg=run_cfg,
-        run_dir=paths.run_dir,
-        repo=find_repo_root(),
-        logger=logger,
-        algo_type=algo_type,
-    )
-
-    # ==============================================================
-    # Callbacks (RL phase only)
+    # Callbacks
     # ==============================================================
     callbacks: list[BaseCallback] = [
         InfoLoggerCallback(cfg=cfg_train, verbose=0),
@@ -229,11 +209,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
             )
         )
 
-    if (
-        bool(callbacks_cfg.eval_checkpoint.enabled)
-        and int(callbacks_cfg.eval_checkpoint.every) > 0
-        and str(eval_cfg.mode).strip().lower() != "off"
-    ):
+    if bool(callbacks_cfg.eval.enabled) and int(callbacks_cfg.eval.every) > 0:
         # IMPORTANT: keep EvalCheckpointCoreSpec eval as EvalConfig while passing
         # an eval-specific cfg dict for env wiring.
         eval_cfg_plain = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
@@ -263,7 +239,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
         eval_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
-                eval_every=int(callbacks_cfg.eval_checkpoint.every),
+                eval_every=int(callbacks_cfg.eval.every),
                 run_cfg=run_cfg,
                 eval=eval_cfg,
                 base_seed=int(run_cfg.seed),
@@ -272,13 +248,13 @@ def run_rl_experiment(cfg: DictConfig) -> int:
             cfg=eval_cfg_plain,
             event="step",
             progress_key="num_timesteps",
-            phase="rl",
+            phase=str(algo_cfg.type),
             emit=_emit,
             log_scalar=_log_scalar,
         )
         core_callbacks.append(eval_cb)
     else:
-        logger.info("[eval] disabled (eval.mode=off or callbacks.eval_checkpoint disabled)")
+        logger.info("[eval] disabled (callbacks.eval disabled)")
 
     if core_callbacks:
         callbacks.append(SB3CallbackAdapter(core_callbacks))
@@ -290,7 +266,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
             total_timesteps=int(learn_cfg.total_timesteps),
             callback=cb_list,
             progress_bar=True,
-            reset_num_timesteps=not is_resume,
+            reset_num_timesteps=(not is_resume) or imitation_resume,
         )
         final_path = paths.ckpt_dir / "final.zip"
         model.save(str(final_path))
@@ -304,7 +280,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
             ),
         )
     else:
-        logger.info("[rl] skipped (learn.total_timesteps <= 0)")
+        logger.info("[ppo] skipped (learn.total_timesteps <= 0)")
 
     built.vec_env.close()
 
@@ -312,4 +288,4 @@ def run_rl_experiment(cfg: DictConfig) -> int:
     return 0
 
 
-__all__ = ["run_rl_experiment"]
+__all__ = ["run_ppo_experiment"]

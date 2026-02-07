@@ -15,7 +15,9 @@ from tetris_rl.core.runs.run_resolver import (
     resolve_env_cfg,
     resolve_inference_artifact,
 )
+from tetris_rl.core.training.model_factory import build_policy_from_cfg
 from tetris_rl.core.training.model_io import load_model_from_algo_config, warn_if_maskable_with_multidiscrete
+from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 
 
 @dataclass(frozen=True)
@@ -95,8 +97,23 @@ def build_run_context(
 
     model = None
     if (not bool(use_expert)) and (not bool(random_action)):
-        if spec.algo_type != "ga":
-            loaded = load_model_from_algo_config(algo_cfg=spec.algo_cfg, ckpt=ckpt, device=str(device))
+        if spec.algo_type == "imitation":
+            if spec.exp_cfg is None:
+                raise RuntimeError("imitation run missing exp_cfg")
+            model = ImitationAlgorithm.load(
+                ckpt,
+                env=env,
+                params=spec.exp_cfg.algo.params,
+                device=str(device),
+            )
+            algo_type = getattr(model, "_tetris_algo_type", "ppo")
+        elif spec.algo_type != "ga":
+            loaded = load_model_from_algo_config(
+                algo_cfg=spec.algo_cfg,
+                ckpt=ckpt,
+                device=str(device),
+                env=env,
+            )
             model = loaded.model
             algo_type = loaded.algo_type
             ckpt = loaded.ckpt
@@ -104,7 +121,11 @@ def build_run_context(
                 warn_if_maskable_with_multidiscrete(algo_cfg=spec.algo_cfg, env=env)
 
     poller = None
-    if spec.algo_type != "ga" and model is not None and float(reload_every_s) > 0.0:
+    if (
+        spec.algo_type not in {"ga", "imitation"}
+        and model is not None
+        and float(reload_every_s) > 0.0
+    ):
         poller = CheckpointPoller(
             run_dir=spec.run_dir,
             which=str(which),

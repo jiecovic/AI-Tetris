@@ -12,7 +12,7 @@ from tetris_rl.core.training.config import AlgoConfig
 @dataclass(frozen=True)
 class LoadedModel:
     model: Any
-    algo_type: str  # "ppo" | "maskable_ppo" | "dqn"
+    algo_type: str  # "ppo" | "maskable_ppo"
     ckpt: Path
 
 
@@ -82,28 +82,29 @@ def _raise_maskable_load_hint(err: Exception) -> None:
     raise RuntimeError(msg) from err
 
 
-def _try_load_ppo(*, ckpt: Path, device: str) -> LoadedModel:
+def _try_load_ppo(*, ckpt: Path, device: str, env: Any | None = None) -> LoadedModel:
     from stable_baselines3 import PPO
 
-    model = PPO.load(str(ckpt), device=str(device))
+    if env is None:
+        model = PPO.load(str(ckpt), device=str(device))
+    else:
+        model = PPO.load(str(ckpt), env=env, device=str(device))
     return LoadedModel(model=model, algo_type="ppo", ckpt=ckpt)
 
 
-def _try_load_dqn(*, ckpt: Path, device: str) -> LoadedModel:
-    from stable_baselines3 import DQN
-
-    model = DQN.load(str(ckpt), device=str(device))
-    return LoadedModel(model=model, algo_type="dqn", ckpt=ckpt)
-
-
-def load_model_from_algo_config(*, algo_cfg: AlgoConfig, ckpt: Path, device: str = "auto") -> LoadedModel:
+def load_model_from_algo_config(
+    *,
+    algo_cfg: AlgoConfig,
+    ckpt: Path,
+    device: str = "auto",
+    env: Any | None = None,
+) -> LoadedModel:
     """
     Load a trained model checkpoint according to algo.type.
 
     Supported:
       - ppo
       - maskable_ppo (sb3_contrib)
-      - dqn
 
     Notes:
       - Some training configurations may fall back to PPO at runtime even if the
@@ -116,10 +117,7 @@ def load_model_from_algo_config(*, algo_cfg: AlgoConfig, ckpt: Path, device: str
     ckpt = Path(ckpt)
 
     if algo_type == "ppo":
-        return _try_load_ppo(ckpt=ckpt, device=str(device))
-
-    if algo_type == "dqn":
-        return _try_load_dqn(ckpt=ckpt, device=str(device))
+        return _try_load_ppo(ckpt=ckpt, device=str(device), env=env)
 
     if algo_type == "maskable_ppo":
         try:
@@ -132,14 +130,17 @@ def load_model_from_algo_config(*, algo_cfg: AlgoConfig, ckpt: Path, device: str
 
         # First try the requested loader.
         try:
-            model = MaskablePPO.load(str(ckpt), device=str(device))
+            if env is None:
+                model = MaskablePPO.load(str(ckpt), device=str(device))
+            else:
+                model = MaskablePPO.load(str(ckpt), env=env, device=str(device))
             return LoadedModel(model=model, algo_type="maskable_ppo", ckpt=ckpt)
         except Exception as e:
             # If this is the common "wrong loader" case, fall back to PPO and return
             # the effective algo used by the checkpoint.
             if _looks_like_policy_mismatch(e):
                 try:
-                    loaded = _try_load_ppo(ckpt=ckpt, device=str(device))
+                    loaded = _try_load_ppo(ckpt=ckpt, device=str(device), env=env)
                 except Exception:
                     # PPO also failed; surface the real MaskablePPO error with guidance.
                     _raise_maskable_load_hint(e)
@@ -151,7 +152,7 @@ def load_model_from_algo_config(*, algo_cfg: AlgoConfig, ckpt: Path, device: str
             raise  # unreachable
 
     raise ValueError(
-        f"unsupported algo.type: {algo_type!r} (expected 'ppo' or 'maskable_ppo' or 'dqn')"
+        f"unsupported algo.type: {algo_type!r} (expected 'ppo' or 'maskable_ppo')"
     )
 
 
@@ -178,4 +179,24 @@ def warn_if_maskable_with_multidiscrete(*, algo_cfg: AlgoConfig, env: Any) -> No
         )
 
 
-__all__ = ["LoadedModel", "load_model_from_algo_config", "warn_if_maskable_with_multidiscrete"]
+def try_load_policy_checkpoint(path: str | Path, *, device: str = "cpu") -> Any | None:
+    try:
+        from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
+
+        return MaskableActorCriticPolicy.load(str(path), device=str(device))
+    except Exception:
+        pass
+    try:
+        from stable_baselines3.common.policies import ActorCriticPolicy
+
+        return ActorCriticPolicy.load(str(path), device=str(device))
+    except Exception:
+        return None
+
+
+__all__ = [
+    "LoadedModel",
+    "load_model_from_algo_config",
+    "try_load_policy_checkpoint",
+    "warn_if_maskable_with_multidiscrete",
+]

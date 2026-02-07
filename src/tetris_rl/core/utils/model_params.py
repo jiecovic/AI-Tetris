@@ -70,27 +70,6 @@ def parse_net_arch(obj: Any) -> list[int] | dict[str, list[int]]:
     raise TypeError("net_arch must be list[int] or dict(pi=[...], vf=[...])")
 
 
-def net_arch_for_dqn(obj: Any) -> list[int]:
-    """
-    Why this exists:
-      - PPO ActorCriticPolicy allows dict(pi=[...], vf=[...]) because it has separate policy/value MLPs.
-      - DQN has ONE Q-network MLP, so SB3 expects list[int].
-
-    Convenience:
-      - If user provided dict(pi/vf), we treat `pi` as the Q MLP and ignore `vf`.
-    """
-    if obj is None:
-        return []
-    if isinstance(obj, (list, tuple)):
-        return [int(x) for x in obj if x is not None]
-    if isinstance(obj, dict):
-        pi = obj.get("pi", [])
-        if isinstance(pi, (list, tuple)):
-            return [int(x) for x in pi if x is not None]
-        return []
-    raise TypeError("DQN net_arch must be list[int] (or dict(pi=[...]) for convenience)")
-
-
 def parse_activation_fn(name: str) -> Type[nn.Module]:
     """
     Map config strings to torch activation *classes* (SB3 expects a class).
@@ -225,7 +204,6 @@ def format_sb3_param_report(model: Any) -> str:
 
 __all__ = [
     "parse_net_arch",
-    "net_arch_for_dqn",
     "parse_activation_fn",
     "build_algo_kwargs",
     "format_sb3_param_summary",
