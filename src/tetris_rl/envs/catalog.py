@@ -4,17 +4,12 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from tetris_rl.envs.macro_env import MacroTetrisEnv
-from tetris_rl.envs.rewards.holes import HolesDeltaReward
 from tetris_rl.envs.rewards.heuristic_delta import HeuristicDeltaReward
-from tetris_rl.envs.rewards.heuristic_softplus import HeuristicSoftplusReward
 from tetris_rl.envs.rewards.lines import LinesReward
-from tetris_rl.envs.rewards.learned_ridge_delta import LearnedRidgeDeltaReward
-from tetris_rl.envs.rewards.shaped import ShapedMacroReward
-from tetris_rl.envs.rewards.sparse_reward import SparseReward
-from tetris_rl.envs.rewards.heuristic_delta_piecewise import HeuristicDeltaPiecewiseReward
-from tetris_rl.envs.rewards.heuristic_linear import HeuristicLinear
-from tetris_rl.envs.rewards.heuristic_expert_shaping import HeuristicExpertShaping
-from tetris_rl.envs.rewards.heuristic_phi_window import HeuristicPhiWindowReward
+from tetris_rl.envs.rewards.params import (
+    HeuristicDeltaRewardParams,
+    LinesRewardParams,
+)
 
 
 # - imports + plain dicts only
@@ -27,14 +22,10 @@ ENV_REGISTRY: Mapping[str, Any] = {
 
 REWARD_REGISTRY: Mapping[str, Any] = {
     "lines": LinesReward,
-    "shaped": ShapedMacroReward,
     "heuristic_delta": HeuristicDeltaReward,
-    "heuristic_delta_piecewise": HeuristicDeltaPiecewiseReward,
-    "heuristic_softplus": HeuristicSoftplusReward,
-    "holes": HolesDeltaReward,
-    "learned_ridge": LearnedRidgeDeltaReward,
-    "heuristic_linear": HeuristicLinear,
-    "sparse_reward": SparseReward,
-    "heuristic_expert": HeuristicExpertShaping,
-    "heuristic_window": HeuristicPhiWindowReward,
+}
+
+REWARD_PARAMS_REGISTRY: Mapping[str, Any] = {
+    "lines": LinesRewardParams,
+    "heuristic_delta": HeuristicDeltaRewardParams,
 }

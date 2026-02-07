@@ -6,7 +6,7 @@ params:
   invalid_action_policy: noop   # noop | terminate
 
 reward:
-  type: heuristic_window
+  type: heuristic_delta
   params: { }
 
 game:

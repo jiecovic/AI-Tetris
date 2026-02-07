@@ -1,13 +1,12 @@
 # src/tetris_rl/env_bundles/rewards/heuristic_delta.py
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Dict
 
 from tetris_rl.envs.api import RewardFn, TransitionFeatures
+from tetris_rl.envs.rewards.params import HeuristicDeltaRewardParams
 
 
-@dataclass(frozen=True)
 class HeuristicDeltaReward(RewardFn):
     """
     Placement-level reward shaping using CodemyRoad's classic 4-feature heuristic
@@ -33,24 +32,20 @@ class HeuristicDeltaReward(RewardFn):
       - Terminal penalty is still subtracted if game_over is True.
     """
 
-    # === CodemyRoad weights (magnitudes for penalty terms) ===
-    # b (Complete Lines) is positive
-    w_lines: float = 0.760666
+    # CodemyRoad weights (fixed constants).
+    _W_LINES = 0.760666
+    _W_HOLES = -0.35663
+    _W_BUMPINESS = -0.184483
+    _W_AGG_HEIGHT = -0.510066
+    _SURVIVAL_BONUS = 0.0
 
-    # a, c, d are negative in the original score; we store magnitudes and subtract
-    w_holes: float = -0.35663
-    w_bumpiness: float = -0.184483
-    w_agg_height: float = -0.510066
+    # Penalties (POSITIVE magnitudes).
+    illegal_penalty: float
+    terminal_penalty: float
 
-    # Not part of CodemyRoad's 4-feature score (keep for interface compatibility)
-    w_max_height: float = 0.0
-
-    # CodemyRoad score has no constant bias (scale-invariant comparison)
-    survival_bonus: float = 0.0
-
-    # Penalties (POSITIVE magnitudes)
-    illegal_penalty: float = 10.0
-    terminal_penalty: float = 10.0
+    def __init__(self, *, spec: HeuristicDeltaRewardParams) -> None:
+        self.illegal_penalty = float(spec.illegal_penalty)
+        self.terminal_penalty = float(spec.terminal_penalty)
 
     def __call__(
             self,
@@ -85,13 +80,13 @@ class HeuristicDeltaReward(RewardFn):
         # dmh = float(getattr(features, "delta_max_height", 0) or 0)
 
         # CodemyRoad delta-shaped reward
-        r += float(self.w_lines) * float(cl)
-        r += float(self.w_holes) * float(dh)
-        r += float(self.w_bumpiness) * float(db)
-        r += float(self.w_agg_height) * float(dah)
+        r += float(self._W_LINES) * float(cl)
+        r += float(self._W_HOLES) * float(dh)
+        r += float(self._W_BUMPINESS) * float(db)
+        r += float(self._W_AGG_HEIGHT) * float(dah)
 
         # bias (kept for compatibility; default 0.0)
-        r += float(self.survival_bonus)
+        r += float(self._SURVIVAL_BONUS)
 
         # terminal penalty
         if bool(getattr(features, "game_over", False)):

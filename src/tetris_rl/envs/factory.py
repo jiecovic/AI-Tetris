@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional
 
 from tetris_rl.config.instantiate import instantiate
 from tetris_rl.envs.catalog import ENV_REGISTRY, REWARD_REGISTRY
+from tetris_rl.envs.config import EnvConfig
 from tetris_rl.game.factory import GameBundle, make_game_bundle_from_cfg
 
 
@@ -50,7 +51,7 @@ def _make_warmup_fn(bundle: GameBundle) -> Optional[Callable[..., Any]]:
     return warmup_fn
 
 
-def build_env(*, cfg: Dict[str, Any], env_cfg: Dict[str, Any], game: Any, warmup: Any) -> BuiltEnv:
+def build_env(*, cfg: Dict[str, Any], env_cfg: EnvConfig, game: Any, warmup: Any) -> BuiltEnv:
     """
     Build a single env instance.
 
@@ -61,16 +62,14 @@ def build_env(*, cfg: Dict[str, Any], env_cfg: Dict[str, Any], game: Any, warmup
     """
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
-    if not isinstance(env_cfg, dict):
-        raise TypeError(f"env_cfg must be a mapping, got {type(env_cfg)!r}")
-    if "reward" not in env_cfg:
-        raise KeyError("env.reward missing")
+    if not isinstance(env_cfg, EnvConfig):
+        raise TypeError(f"env_cfg must be an EnvConfig, got {type(env_cfg)!r}")
 
     # ------------------------------------------------------------------
     # reward
     # ------------------------------------------------------------------
     reward_fn = instantiate(
-        spec_obj=env_cfg["reward"],
+        spec_obj=env_cfg.reward,
         registry=REWARD_REGISTRY,
         where="env.reward",
         injected={},
@@ -108,9 +107,10 @@ def make_env_from_cfg(*, cfg: Dict[str, Any], seed: Optional[int] = None) -> Bui
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
 
-    env_cfg = cfg.get("env", None)
-    if not isinstance(env_cfg, dict):
+    env_cfg_raw = cfg.get("env", None)
+    if not isinstance(env_cfg_raw, dict):
         raise TypeError("cfg.env must be a mapping")
+    env_cfg = EnvConfig.model_validate(env_cfg_raw)
 
     # Build a fresh engine per env instance (VecEnv-safe).
     cfg_effective = cfg
