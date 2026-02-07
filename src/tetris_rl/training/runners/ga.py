@@ -8,12 +8,12 @@ from typing import Any
 from omegaconf import DictConfig, OmegaConf
 from rich.progress import (
     BarColumn,
-    MofNCompleteColumn,
     Progress,
     TextColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+from tqdm.rich import FractionColumn, RateColumn
 
 from planning_rl.ga import GAConfig, GAEvalConfig, HeuristicGA
 from planning_rl.ga.types import GAStats
@@ -117,7 +117,58 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     eval_cfg = _parse_eval_config(learn_block.get("eval", None))
 
     logger.info(f"[run] dir: {paths.run_dir}")
-    logger.info(f"[ga] pop={ga_cfg.population_size} elite={ga_cfg.elite_frac} seed={ga_cfg.seed}")
+    logger.info(
+        "[ga] pop=%d elite=%.2f selection=%s crossover=%s mutation=%s normalize=%s workers=%d",
+        int(ga_cfg.population_size),
+        float(ga_cfg.elite_frac),
+        str(ga_cfg.selection),
+        str(ga_cfg.crossover_kind),
+        str(ga_cfg.mutation_kind),
+        bool(ga_cfg.normalize_weights),
+        int(run_cfg.workers),
+    )
+    logger.info(
+        "[ga] eval episodes=%d max_steps=%d fitness=%s seed=%d",
+        int(eval_cfg.episodes),
+        int(eval_cfg.max_steps),
+        str(eval_cfg.fitness_metric),
+        int(eval_cfg.seed),
+    )
+    logger.info(
+        "[ga] search plies=%d beam_width=%s beam_from_depth=%d",
+        int(search.plies),
+        str(search.beam_width),
+        int(search.beam_from_depth),
+    )
+    logger.info("[ga] features=%s", ",".join(str(f) for f in features))
+    if ga_cfg.selection == "tournament":
+        logger.info(
+            "[ga] tournament frac=%.2f winners=%d offspring=%.2f",
+            float(ga_cfg.tournament_frac),
+            int(ga_cfg.tournament_winners),
+            float(ga_cfg.offspring_frac),
+        )
+    if ga_cfg.selection == "elite_pool":
+        logger.info(
+            "[ga] elite_pool parent_pool=%.2f",
+            float(ga_cfg.parent_pool()),
+        )
+    if ga_cfg.crossover_kind == "weighted_avg":
+        logger.info("[ga] crossover=weighted_avg rate=%.2f", float(ga_cfg.crossover_rate))
+    if ga_cfg.crossover_kind == "uniform_mask":
+        logger.info("[ga] crossover=uniform_mask rate=%.2f", float(ga_cfg.crossover_rate))
+    if ga_cfg.mutation_kind == "single_component":
+        logger.info(
+            "[ga] mutation=single_component rate=%.2f delta=%.2f",
+            float(ga_cfg.mutation_rate),
+            float(ga_cfg.mutation_delta),
+        )
+    if ga_cfg.mutation_kind == "gaussian":
+        logger.info(
+            "[ga] mutation=gaussian rate=%.2f sigma=%.2f",
+            float(ga_cfg.mutation_rate),
+            float(ga_cfg.mutation_sigma),
+        )
 
     env_train_cfg = cfg_dict.get("env_train", None)
     env_eval_cfg = cfg_dict.get("env_eval", None)
@@ -144,6 +195,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         env_eval=env_eval,
         ga=ga_cfg,
         eval_cfg=eval_cfg,
+        workers=int(run_cfg.workers),
     )
 
     generations = int(learn_block.get("generations", 1))
@@ -151,35 +203,86 @@ def run_ga_experiment(cfg: DictConfig) -> int:
 
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>4.0f}%"),
+        BarColumn(bar_width=None),
+        FractionColumn(),
+        TextColumn("["),
         TimeElapsedColumn(),
+        TextColumn("<"),
         TimeRemainingColumn(),
+        TextColumn(","),
+        RateColumn(unit="it"),
+        TextColumn("]"),
+        TextColumn("{task.fields[tail]}"),
     )
     with progress:
-        gen_task = progress.add_task("GA generations", total=generations)
-        cand_task = progress.add_task("Individuals", total=pop_size)
+        gen_task = progress.add_task(
+            "GA generations",
+            total=generations,
+            tail="gen_best=- gen_w=-",
+        )
+        cand_task = progress.add_task(
+            "Individuals (gen 1)",
+            total=pop_size,
+            tail="best_ind=- best_w=-",
+        )
         current_gen = 0
+        best_ind: float | None = None
+        best_ind_weights: list[float] | None = None
+        gen_best: float | None = None
+        gen_best_weights: list[float] | None = None
+
+        def _fmt(v: float | None) -> str:
+            return "-" if v is None else f"{float(v):.3f}"
+
+        def _fmt_weights(weights: list[float] | None) -> str:
+            if not weights:
+                return "-"
+            items = [f"{float(w):.3f}" for w in weights]
+            return "[" + ",".join(items) + "]"
 
         def _on_generation(stats: GAStats) -> None:
+            nonlocal gen_best
+            nonlocal gen_best_weights
             label = f"GA gen {int(stats.generation) + 1}"
             progress.update(gen_task, advance=1, description=label)
+            gen_best = float(stats.best_score)
+            gen_best_weights = stats.best_weights
             progress.update(
                 cand_task,
                 description=f"Individuals (gen {int(stats.generation) + 1})",
             )
+            progress.update(
+                gen_task,
+                tail=f"gen_best={_fmt(gen_best)} gen_w={_fmt_weights(gen_best_weights)}",
+            )
+            progress.update(
+                cand_task,
+                tail=f"best_ind={_fmt(best_ind)} best_w={_fmt_weights(best_ind_weights)}",
+            )
 
         def _on_candidate(idx: int, score: float) -> None:
             nonlocal current_gen
+            nonlocal best_ind
+            nonlocal best_ind_weights
             if idx == 0:
                 current_gen += 1
+                best_ind = None
+                best_ind_weights = None
                 progress.update(
                     cand_task,
                     completed=0,
                     total=pop_size,
                     description=f"Individuals (gen {current_gen})",
+                    tail=f"best_ind={_fmt(best_ind)} best_w={_fmt_weights(best_ind_weights)}",
                 )
-            _ = score
+            if best_ind is None or float(score) > float(best_ind):
+                best_ind = float(score)
+                best_ind_weights = [float(w) for w in ga.algo.population[int(idx)].tolist()]
+                progress.update(
+                    cand_task,
+                    tail=f"best_ind={_fmt(best_ind)} best_w={_fmt_weights(best_ind_weights)}",
+                )
             progress.update(cand_task, advance=1)
 
         result = ga.learn(

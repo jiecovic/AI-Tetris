@@ -10,6 +10,7 @@ class GAStats:
     best_score: float
     mean_score: float
     best_index: int
+    best_weights: list[float] | None = None
     eval_best_score: float | None = None
 
 
