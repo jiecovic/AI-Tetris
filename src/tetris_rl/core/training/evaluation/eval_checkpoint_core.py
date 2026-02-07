@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.training.config import EvalCheckpointCallbackConfig
 from tetris_rl.core.runs.checkpoints.checkpoint_manager import CheckpointManager, CheckpointPaths
-from tetris_rl.core.training.evaluation import evaluate_model
+from tetris_rl.core.training.evaluation import evaluate_model, evaluate_model_parallel
 from tetris_rl.core.training.evaluation.eval_metrics import as_float, pick_best_values, safe_int
 from tetris_rl.core.training.evaluation.eval_table import EvalTable
 from tetris_rl.core.training.evaluation.progress_ticker import ProgressTicker
@@ -97,6 +97,8 @@ class EvalCheckpointCore:
         eval_steps = int(self.spec.eval.steps)
         deterministic = bool(self.spec.eval.deterministic)
         num_envs = max(1, int(self.spec.eval.num_envs))
+        mode = str(self.spec.eval.mode).strip().lower()
+        workers = max(1, int(self.spec.eval.workers))
 
         pbar: Optional[tqdm] = None
         if int(self.spec.verbose) >= 1:
@@ -128,17 +130,32 @@ class EvalCheckpointCore:
                     _on_step if pbar is not None else None,
                 )
             else:
-                metrics = evaluate_model(
-                    model=model,
-                    cfg=self.cfg,  # wiring only
-                    run_cfg=self.spec.run_cfg,
-                    eval_steps=eval_steps,
-                    deterministic=deterministic,
-                    seed_base=seed_base,
-                    num_envs=num_envs,
-                    on_episode=_on_episode if pbar is not None else None,
-                    on_step=_on_step if pbar is not None else None,
-                )
+                if mode == "workers":
+                    metrics = evaluate_model_parallel(
+                        model=model,
+                        cfg=self.cfg,  # wiring only
+                        run_cfg=self.spec.run_cfg,
+                        eval_steps=eval_steps,
+                        deterministic=deterministic,
+                        seed_base=seed_base,
+                        workers=workers,
+                        on_episode=_on_episode if pbar is not None else None,
+                        on_step=_on_step if pbar is not None else None,
+                    )
+                elif mode == "vectorized":
+                    metrics = evaluate_model(
+                        model=model,
+                        cfg=self.cfg,  # wiring only
+                        run_cfg=self.spec.run_cfg,
+                        eval_steps=eval_steps,
+                        deterministic=deterministic,
+                        seed_base=seed_base,
+                        num_envs=num_envs,
+                        on_episode=_on_episode if pbar is not None else None,
+                        on_step=_on_step if pbar is not None else None,
+                    )
+                else:
+                    raise ValueError(f"eval_checkpoint.mode must be 'vectorized' or 'workers' (got {mode!r})")
         finally:
             if pbar is not None:
                 pbar.close()

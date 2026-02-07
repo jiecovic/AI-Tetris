@@ -9,7 +9,9 @@ callbacks:
     steps: 100_000                    # eval step budget (episodes * max_steps)
     deterministic: true               # SB3 eval uses deterministic actions
     seed_offset: 10_000               # offset from run.seed for eval seeds
+    mode: vectorized                  # vectorized | workers
     num_envs: 1                       # eval env count
+    workers: 1                        # parallel workers (workers mode)
 
 learn:
   total_timesteps: 800_000_000        # total env steps for RL training

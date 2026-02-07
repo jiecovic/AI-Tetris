@@ -127,11 +127,11 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     eval_cfg = callbacks_cfg.eval_checkpoint
 
     logger.info(f"[run] dir: {paths.run_dir}")
-    train_workers = int(learn_block.get("train_workers", 1))
-    eval_workers = int(learn_block.get("eval_workers", train_workers))
+    train_workers = int(learn_block.get("workers", learn_block.get("train_workers", 1)))
+    eval_workers = int(eval_cfg.workers)
 
     logger.info(
-        "[ga] pop=%d elite=%.2f selection=%s crossover=%s mutation=%s normalize=%s train_workers=%d eval_workers=%d",
+        "[ga] pop=%d elite=%.2f selection=%s crossover=%s mutation=%s normalize=%s workers=%d eval_workers=%d",
         int(ga_cfg.population_size),
         float(ga_cfg.elite_frac),
         str(ga_cfg.selection),
@@ -153,6 +153,11 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         int(callbacks_cfg.eval_checkpoint.every),
         int(eval_cfg.steps),
         int(eval_cfg.seed_offset),
+    )
+    logger.info(
+        "[ga] eval mode=%s workers=%d",
+        str(eval_cfg.mode),
+        int(eval_workers),
     )
     logger.info(
         "[ga] callbacks latest_enabled=%s latest_every=%d eval_enabled=%s eval_every=%d",
@@ -217,6 +222,8 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     ).env
 
     eval_enabled = bool(callbacks_cfg.eval_checkpoint.enabled) and int(callbacks_cfg.eval_checkpoint.every) > 0
+    if eval_enabled and str(eval_cfg.mode).strip().lower() != "workers":
+        raise ValueError("GA eval requires callbacks.eval_checkpoint.mode='workers'")
     env_eval = None
     if eval_enabled and int(eval_workers) <= 1:
         env_eval = make_env_from_cfg(

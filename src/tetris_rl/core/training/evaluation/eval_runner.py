@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from multiprocessing import get_context
+from pathlib import Path
+import signal
+import tempfile
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, cast
 
 import numpy as np
@@ -10,6 +14,10 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.training.metrics import StatsAccumulator, StatsAccumulatorConfig
 from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
+from tetris_rl.core.training.config import AlgoConfig, ImitationAlgoParams
+from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
+from tetris_rl.core.training.model_io import load_model_from_algo_config
+from planning_rl.utils.seed import seed32_from
 
 
 def _obs_set(obs: Any, idx: int, value: Any) -> Any:
@@ -116,36 +124,23 @@ def _build_eval_vec_env(
     return built.vec_env, built  # keep built alive for any held refs
 
 
-def evaluate_model(
-        *,
-        model: Any,
-        cfg: Dict[str, Any],
-        run_cfg: RunConfig,
-        eval_steps: int,
-        deterministic: bool,
-        seed_base: int,
-        num_envs: int = 1,
-        on_episode: Optional[Callable[[int, Optional[float]], None]] = None,
-        on_step: Optional[Callable[[int], None]] = None,
+def _eval_state_loop(
+    *,
+    model: Any,
+    vec_env: VecEnv,
+    eval_steps: int,
+    deterministic: bool,
+    seed_base: int,
+    on_episode: Optional[Callable[[int, Optional[float]], None]] = None,
+    on_step: Optional[Callable[[int], None]] = None,
 ) -> Dict[str, Any]:
-    """
-    Step-budget evaluation (canonical).
-
-    Runs until we have collected >= eval_steps total env steps across all VecEnv slots.
-    Aggregates per-step metric contract from info["tf"]/info["game"] via StatsAccumulator.
-
-    Episode-level metrics are computed only over episodes that happen to complete within the step budget.
-    """
     eval_steps = int(eval_steps)
     if eval_steps <= 0:
         raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
 
-    num_envs = max(1, int(num_envs))
-
     algo_type = _effective_algo_type_from_model(model)
     want_masking = algo_type == "maskable_ppo"
 
-    vec_env, _built = _build_eval_vec_env(cfg=cfg, run_cfg=run_cfg, num_envs=num_envs)
     obs = vec_env.reset()
 
     # Infer n_envs from the built VecEnv.
@@ -188,85 +183,154 @@ def evaluate_model(
     next_seed = int(seed_base) + n_envs
     warned_no_masks = False
 
-    try:
-        while acc.steps < eval_steps:
-            masks: Optional[np.ndarray] = None
-            if want_masking:
-                masks = _vec_action_masks(vec_env, n_envs=n_envs)
-                if masks is not None:
-                    actions, _ = model.predict(obs, deterministic=bool(deterministic), action_masks=masks)
-                else:
-                    if not warned_no_masks:
-                        warned_no_masks = True
-                        print(
-                            "[eval] WARN: maskable_ppo model but eval env did not provide action masks.\n"
-                            "[eval] WARN: falling back to unmasked predict()."
-                        )
-                    actions, _ = model.predict(obs, deterministic=bool(deterministic))
+    while acc.steps < eval_steps:
+        masks: Optional[np.ndarray] = None
+        if want_masking:
+            masks = _vec_action_masks(vec_env, n_envs=n_envs)
+            if masks is not None:
+                actions, _ = model.predict(obs, deterministic=bool(deterministic), action_masks=masks)
             else:
+                if not warned_no_masks:
+                    warned_no_masks = True
+                    print(
+                        "[eval] WARN: maskable_ppo model but eval env did not provide action masks.\n"
+                        "[eval] WARN: falling back to unmasked predict()."
+                    )
                 actions, _ = model.predict(obs, deterministic=bool(deterministic))
+        else:
+            actions, _ = model.predict(obs, deterministic=bool(deterministic))
 
-            obs, step_rewards, dones, infos = vec_env.step(actions)
+        obs, step_rewards, dones, infos = vec_env.step(actions)
 
-            step_rewards = np.asarray(step_rewards, dtype=np.float64).reshape((n_envs,))
-            dones = np.asarray(dones, dtype=bool).reshape((n_envs,))
-            infos_list = cast(list[dict], infos)
+        step_rewards = np.asarray(step_rewards, dtype=np.float64).reshape((n_envs,))
+        dones = np.asarray(dones, dtype=bool).reshape((n_envs,))
+        infos_list = cast(list[dict], infos)
 
-            for i in range(n_envs):
-                if acc.steps >= eval_steps:
-                    break
+        for i in range(n_envs):
+            if acc.steps >= eval_steps:
+                break
 
-                info_i = infos_list[i] if i < len(infos_list) and isinstance(infos_list[i], dict) else {}
-                acc.ingest_info(info_i)
-                if on_step is not None:
-                    on_step(1)
+            info_i = infos_list[i] if i < len(infos_list) and isinstance(infos_list[i], dict) else {}
+            acc.ingest_info(info_i)
+            if on_step is not None:
+                on_step(1)
 
-                # Secondary episode stats
-                slots[i].ep_reward += float(step_rewards[i])
-                slots[i].ep_steps += 1
+            # Secondary episode stats
+            slots[i].ep_reward += float(step_rewards[i])
+            slots[i].ep_steps += 1
 
-                if not dones[i]:
-                    continue
+            if not dones[i]:
+                continue
 
-                completed_episodes += 1
-                ep_returns.append(float(slots[i].ep_reward))
-                ep_steps.append(int(slots[i].ep_steps))
+            completed_episodes += 1
+            ep_returns.append(float(slots[i].ep_reward))
+            ep_steps.append(int(slots[i].ep_steps))
 
-                game = info_i.get("game") if isinstance(info_i, dict) else None
-                if isinstance(game, Mapping):
-                    ep_final_scores.append(_as_float(game.get("score")))
-                    ep_final_lines.append(_as_float(game.get("lines_total")))
-                    ep_max_levels.append(_as_float(game.get("level")))
+            game = info_i.get("game") if isinstance(info_i, dict) else None
+            if isinstance(game, Mapping):
+                ep_final_scores.append(_as_float(game.get("score")))
+                ep_final_lines.append(_as_float(game.get("lines_total")))
+                ep_max_levels.append(_as_float(game.get("level")))
+            else:
+                ep_final_scores.append(None)
+                ep_final_lines.append(None)
+                ep_max_levels.append(None)
+
+            if on_episode is not None:
+                on_episode(completed_episodes, float(ep_returns[-1]))
+
+            # Reset this slot and reseed deterministically
+            new_seed = int(next_seed)
+            next_seed += 1
+
+            ret = vec_env.env_method("reset", seed=int(new_seed), indices=i)
+
+            obs_i = None
+            try:
+                x = ret[0]
+                if isinstance(x, tuple) and len(x) == 2:
+                    obs_i = x[0]
                 else:
-                    ep_final_scores.append(None)
-                    ep_final_lines.append(None)
-                    ep_max_levels.append(None)
+                    obs_i = x
+            except Exception:
+                obs_i = ret[0] if ret else None
 
-                if on_episode is not None:
-                    on_episode(completed_episodes, float(ep_returns[-1]))
+            if obs_i is not None:
+                obs = _obs_set(obs, i, obs_i)
 
-                # Reset this slot and reseed deterministically
-                new_seed = int(next_seed)
-                next_seed += 1
+            slots[i] = _SlotState(seed=int(new_seed))
 
-                ret = vec_env.env_method("reset", seed=int(new_seed), indices=i)
+    return {
+        "acc_state": acc.to_state(),
+        "completed_episodes": int(completed_episodes),
+        "ep_returns": list(ep_returns),
+        "ep_steps": list(ep_steps),
+        "ep_final_scores": list(ep_final_scores),
+        "ep_final_lines": list(ep_final_lines),
+        "ep_max_levels": list(ep_max_levels),
+        "cur_ep_steps": [int(s.ep_steps) for s in slots if int(s.ep_steps) > 0],
+        "n_envs": int(n_envs),
+        "algo_type": str(algo_type),
+    }
 
-                obs_i = None
-                try:
-                    x = ret[0]
-                    if isinstance(x, tuple) and len(x) == 2:
-                        obs_i = x[0]
-                    else:
-                        obs_i = x
-                except Exception:
-                    obs_i = ret[0] if ret else None
 
-                if obs_i is not None:
-                    obs = _obs_set(obs, i, obs_i)
-
-                slots[i] = _SlotState(seed=int(new_seed))
+def _eval_state(
+    *,
+    model: Any,
+    cfg: Dict[str, Any],
+    run_cfg: RunConfig,
+    eval_steps: int,
+    deterministic: bool,
+    seed_base: int,
+    num_envs: int,
+    on_episode: Optional[Callable[[int, Optional[float]], None]] = None,
+    on_step: Optional[Callable[[int], None]] = None,
+) -> Dict[str, Any]:
+    vec_env, _built = _build_eval_vec_env(cfg=cfg, run_cfg=run_cfg, num_envs=num_envs)
+    try:
+        return _eval_state_loop(
+            model=model,
+            vec_env=vec_env,
+            eval_steps=eval_steps,
+            deterministic=deterministic,
+            seed_base=seed_base,
+            on_episode=on_episode,
+            on_step=on_step,
+        )
     finally:
         vec_env.close()
+
+
+def _summarize_eval_states(
+    *,
+    states: Sequence[Mapping[str, Any]],
+    eval_steps: int,
+    seed_base: int,
+    deterministic: bool,
+    num_envs: int,
+    algo_type: str,
+    cfg: Dict[str, Any],
+) -> Dict[str, Any]:
+    acc = StatsAccumulator(cfg=StatsAccumulatorConfig(log_action_histograms=False))
+    completed_episodes = 0
+    ep_returns: list[float] = []
+    ep_steps: list[int] = []
+    ep_final_scores: list[Optional[float]] = []
+    ep_final_lines: list[Optional[float]] = []
+    ep_max_levels: list[Optional[float]] = []
+    cur_steps: list[int] = []
+
+    for state in states:
+        acc_state = state.get("acc_state", {})
+        if isinstance(acc_state, Mapping):
+            acc.merge_state(acc_state)
+        completed_episodes += int(state.get("completed_episodes", 0))
+        ep_returns.extend(state.get("ep_returns", []) or [])
+        ep_steps.extend(state.get("ep_steps", []) or [])
+        ep_final_scores.extend(state.get("ep_final_scores", []) or [])
+        ep_final_lines.extend(state.get("ep_final_lines", []) or [])
+        ep_max_levels.extend(state.get("ep_max_levels", []) or [])
+        cur_steps.extend(state.get("cur_ep_steps", []) or [])
 
     out: Dict[str, Any] = {}
     out.update(acc.summarize())
@@ -274,7 +338,7 @@ def evaluate_model(
     out["eval/steps"] = int(acc.steps)
     out["eval/deterministic"] = bool(deterministic)
     out["eval/seed_base"] = int(seed_base)
-    out["eval/num_envs"] = int(n_envs)
+    out["eval/num_envs"] = int(num_envs)
     out["eval/algo_type"] = str(algo_type)
 
     out["episode/completed_episodes"] = int(completed_episodes)
@@ -297,8 +361,7 @@ def evaluate_model(
     if m is not None:
         out["episode/steps_completed_mean"] = float(m)
 
-    partial_steps = [float(s.ep_steps) for s in slots if int(s.ep_steps) > 0]
-    steps_all = [float(x) for x in ep_steps] + partial_steps
+    steps_all = [float(x) for x in ep_steps] + [float(x) for x in cur_steps if int(x) > 0]
     m = _mean(steps_all)
     if m is not None:
         out["episode/steps_mean"] = float(m)
@@ -326,4 +389,232 @@ def evaluate_model(
     return out
 
 
-__all__ = ["evaluate_model"]
+def evaluate_model(
+    *,
+    model: Any,
+    cfg: Dict[str, Any],
+    run_cfg: RunConfig,
+    eval_steps: int,
+    deterministic: bool,
+    seed_base: int,
+    num_envs: int = 1,
+    on_episode: Optional[Callable[[int, Optional[float]], None]] = None,
+    on_step: Optional[Callable[[int], None]] = None,
+) -> Dict[str, Any]:
+    """
+    Step-budget evaluation (canonical).
+
+    Runs until we have collected >= eval_steps total env steps across all VecEnv slots.
+    Aggregates per-step metric contract from info["tf"]/info["game"] via StatsAccumulator.
+
+    Episode-level metrics are computed only over episodes that happen to complete within the step budget.
+    """
+    eval_steps = int(eval_steps)
+    if eval_steps <= 0:
+        raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
+
+    num_envs = max(1, int(num_envs))
+    algo_type = _effective_algo_type_from_model(model)
+
+    state = _eval_state(
+        model=model,
+        cfg=cfg,
+        run_cfg=run_cfg,
+        eval_steps=eval_steps,
+        deterministic=deterministic,
+        seed_base=seed_base,
+        num_envs=num_envs,
+        on_episode=on_episode,
+        on_step=on_step,
+    )
+
+    return _summarize_eval_states(
+        states=[state],
+        eval_steps=eval_steps,
+        seed_base=seed_base,
+        deterministic=deterministic,
+        num_envs=int(state.get("n_envs", num_envs)),
+        algo_type=str(algo_type),
+        cfg=cfg,
+    )
+
+
+_WORKER_CFG: Dict[str, Any] | None = None
+_WORKER_RUN_CFG: Dict[str, Any] | None = None
+_WORKER_MODEL_PATH: str | None = None
+_WORKER_ALGO_BLOCK: Dict[str, Any] | None = None
+_WORKER_DEVICE: str = "cpu"
+
+
+def _init_eval_worker(
+    cfg: Dict[str, Any],
+    run_cfg: Dict[str, Any],
+    model_path: str,
+    algo_block: Dict[str, Any],
+    device: str,
+) -> None:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    global _WORKER_CFG, _WORKER_RUN_CFG, _WORKER_MODEL_PATH, _WORKER_ALGO_BLOCK, _WORKER_DEVICE
+    _WORKER_CFG = cfg
+    _WORKER_RUN_CFG = run_cfg
+    _WORKER_MODEL_PATH = model_path
+    _WORKER_ALGO_BLOCK = algo_block
+    _WORKER_DEVICE = device
+
+
+def _load_worker_model(*, env: Any) -> Any:
+    if _WORKER_MODEL_PATH is None or _WORKER_ALGO_BLOCK is None:
+        raise RuntimeError("worker not initialized")
+
+    algo_type = str(_WORKER_ALGO_BLOCK.get("type", "")).strip().lower()
+    if algo_type == "imitation":
+        params = ImitationAlgoParams.model_validate(_WORKER_ALGO_BLOCK.get("params", {}) or {})
+        return ImitationAlgorithm.load(
+            _WORKER_MODEL_PATH,
+            env=env,
+            params=params,
+            device=str(_WORKER_DEVICE),
+        )
+
+    algo_cfg = AlgoConfig.model_validate(_WORKER_ALGO_BLOCK)
+    loaded = load_model_from_algo_config(
+        algo_cfg=algo_cfg,
+        ckpt=Path(_WORKER_MODEL_PATH),
+        device=str(_WORKER_DEVICE),
+        env=env,
+    )
+    return loaded.model
+
+
+def _worker_eval(args: tuple[int, int, int]) -> Dict[str, Any]:
+    eval_steps, seed_base, deterministic = args
+    if _WORKER_CFG is None or _WORKER_RUN_CFG is None:
+        raise RuntimeError("worker not initialized")
+
+    run_cfg = RunConfig.model_validate(_WORKER_RUN_CFG)
+    vec_env, _built = _build_eval_vec_env(cfg=_WORKER_CFG, run_cfg=run_cfg, num_envs=1)
+    try:
+        model = _load_worker_model(env=vec_env)
+        return _eval_state_loop(
+            model=model,
+            vec_env=vec_env,
+            eval_steps=int(eval_steps),
+            deterministic=bool(deterministic),
+            seed_base=int(seed_base),
+            on_episode=None,
+            on_step=None,
+        )
+    finally:
+        vec_env.close()
+
+
+def evaluate_model_parallel(
+    *,
+    model: Any,
+    cfg: Dict[str, Any],
+    run_cfg: RunConfig,
+    eval_steps: int,
+    deterministic: bool,
+    seed_base: int,
+    workers: int,
+    on_episode: Optional[Callable[[int, Optional[float]], None]] = None,
+    on_step: Optional[Callable[[int], None]] = None,
+) -> Dict[str, Any]:
+    workers = max(1, int(workers))
+    eval_steps = int(eval_steps)
+    if eval_steps <= 0:
+        raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
+
+    if workers <= 1:
+        return evaluate_model(
+            model=model,
+            cfg=cfg,
+            run_cfg=run_cfg,
+            eval_steps=eval_steps,
+            deterministic=deterministic,
+            seed_base=seed_base,
+            num_envs=1,
+            on_episode=on_episode,
+            on_step=on_step,
+        )
+
+    algo_type = _effective_algo_type_from_model(model)
+
+    per_worker = eval_steps // workers
+    remainder = eval_steps % workers
+    tasks: list[tuple[int, int, int]] = []
+    for i in range(int(workers)):
+        steps_i = int(per_worker + (1 if i < remainder else 0))
+        if steps_i <= 0:
+            continue
+        seed_i = int(seed32_from(base_seed=int(seed_base), stream_id=int(0xE9A1 + i)))
+        tasks.append((steps_i, seed_i, int(deterministic)))
+
+    if not tasks:
+        raise ValueError("no eval tasks to run")
+
+    algo_block = cfg.get("algo", {}) if isinstance(cfg, dict) else {}
+    if not isinstance(algo_block, dict):
+        raise TypeError("algo config must be a mapping")
+
+    with tempfile.TemporaryDirectory(prefix="tetris_eval_") as tmpdir:
+        tmp_path = Path(tmpdir) / "eval_model.zip"
+        model.save(str(tmp_path))
+
+        ctx = get_context("spawn")
+        states: list[Dict[str, Any]] = []
+        pool = None
+        terminated = False
+        prev_handler = signal.getsignal(signal.SIGINT)
+
+        def _sigint_handler(_signum, _frame) -> None:
+            if pool is not None:
+                pool.terminate()
+            raise KeyboardInterrupt
+
+        signal.signal(signal.SIGINT, _sigint_handler)
+        try:
+            pool = ctx.Pool(
+                processes=len(tasks),
+                initializer=_init_eval_worker,
+                initargs=(
+                    dict(cfg),
+                    run_cfg.model_dump(),
+                    str(tmp_path),
+                    dict(algo_block),
+                    str(run_cfg.device),
+                ),
+            )
+            for state in pool.imap(_worker_eval, tasks):
+                states.append(state)
+                if on_step is not None:
+                    acc_state = state.get("acc_state", {})
+                    steps = int(acc_state.get("n_steps", 0)) if isinstance(acc_state, Mapping) else 0
+                    if steps > 0:
+                        on_step(int(steps))
+        except KeyboardInterrupt:
+            terminated = True
+            if pool is not None:
+                pool.terminate()
+                pool.join()
+            raise
+        finally:
+            signal.signal(signal.SIGINT, prev_handler)
+            if pool is not None and not terminated:
+                pool.close()
+                pool.join()
+
+    _ = on_episode
+
+    return _summarize_eval_states(
+        states=states,
+        eval_steps=eval_steps,
+        seed_base=seed_base,
+        deterministic=deterministic,
+        num_envs=len(tasks),
+        algo_type=str(algo_type),
+        cfg=cfg,
+    )
+
+
+__all__ = ["evaluate_model", "evaluate_model_parallel"]

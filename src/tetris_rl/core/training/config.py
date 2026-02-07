@@ -21,6 +21,8 @@ class EvalCheckpointCallbackConfig(ConfigBase):
     deterministic: bool = True
     seed_offset: int = 10_000
     num_envs: int = Field(default=1, ge=1)
+    workers: int = Field(default=1, ge=1)
+    mode: Literal["vectorized", "workers"] = "vectorized"
 
 class LatestCallbackConfig(ConfigBase):
     enabled: bool = True

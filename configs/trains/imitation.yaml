@@ -9,7 +9,9 @@ callbacks:
     steps: 100_000                    # eval step budget (episodes * max_steps)
     deterministic: true               # imitation eval uses deterministic actions
     seed_offset: 10_000               # offset from run.seed for eval seeds
-    num_envs: 1                       # ignored for imitation eval
+    mode: vectorized                  # vectorized | workers
+    num_envs: 1                       # eval env count (vectorized mode)
+    workers: 1                        # parallel workers (workers mode)
 
 learn:
   dataset_dir: datasets/bc/codemy2_uniform_noise
