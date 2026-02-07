@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional, List
 
 from tetris_rl.datagen.schema import ShardInfo
-from tetris_rl.utils.seed import seed32_from
+from planning_rl.utils.seed import seed32_from
 
 
 def build_expected_shard_infos(

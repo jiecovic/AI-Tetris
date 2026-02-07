@@ -1,0 +1,17 @@
+# @package _global_
+defaults:
+  - hydra: default
+  - envs@env_train: eval_empty
+  - rewards@env_train.reward: heuristic_delta
+  - envs@env_eval: eval_empty
+  - rewards@env_eval.reward: heuristic_delta
+  - planning_policies@policy: heuristic
+  - trains@_global_: ga_heuristic
+  - _self_
+
+log_level: info
+
+run:
+  name: ga_heuristic_run          # run folder prefix
+  seed: 0                         # base seed
+  out_root: experiments           # output root

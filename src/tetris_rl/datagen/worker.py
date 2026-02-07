@@ -12,7 +12,7 @@ from tetris_rl.datagen.expert_factory import make_expert_from_config
 from tetris_rl.datagen.schema import ShardInfo
 from tetris_rl.datagen.writer import append_shard_to_manifest
 from tetris_rl.envs.factory import make_env_from_cfg
-from tetris_rl.utils.seed import seed32_from
+from planning_rl.utils.seed import seed32_from
 
 # Injected once per spawned worker process via ProcessPoolExecutor(initializer=..., initargs=...)
 _WORKER_PROGRESS_QUEUE: Any = None

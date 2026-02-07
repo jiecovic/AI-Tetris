@@ -1,0 +1,21 @@
+# @package _group_
+features:                       # heuristic feature names
+  # agg_h: sum of column heights
+  # max_h: max column height
+  # mean_h: average column height
+  # std_h: std dev of column heights
+  # var_h: variance of column heights
+  # holes: total empty cells below top blocks
+  # holes_std_col: std dev of holes per column
+  # holes_std_row: std dev of holes per row
+  # bump: sum of abs diffs between adjacent heights
+  # complete_lines: filled rows (visible grid)
+  - agg_h
+  - holes
+  - bump
+  - complete_lines
+
+search:
+  plies: 1                      # lookahead depth (1 = current piece only)
+  beam_width: null              # null disables beam search
+  beam_from_depth: 0            # apply beam after this depth

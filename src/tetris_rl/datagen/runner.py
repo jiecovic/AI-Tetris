@@ -176,7 +176,7 @@ def _ensure_manifest(
     """
     from tetris_rl.datagen.schema import DatasetManifest
     from tetris_rl.datagen.writer import init_manifest, read_manifest, write_manifest
-    from tetris_rl.utils.seed import seed32_from
+    from planning_rl.utils.seed import seed32_from
 
     manifest_path = dataset_dir / "manifest.json"
     index_path = dataset_dir / "index.json"
@@ -380,7 +380,7 @@ def run_datagen(
     """
     from tetris_rl.datagen.worker import worker_generate_shards
     from tetris_rl.envs.factory import make_env_from_cfg
-    from tetris_rl.utils.seed import seed32_from
+    from planning_rl.utils.seed import seed32_from
 
     if not isinstance(cfg, dict):
         raise TypeError(f"run_datagen(cfg=...) must be dict, got {type(cfg)!r}")
