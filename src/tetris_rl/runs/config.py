@@ -24,6 +24,7 @@ class RunConfig(ConfigBase):
     device: str = "auto"
     tensorboard: bool = True
     n_envs: int = Field(default=8, ge=1)
+    workers: int = Field(default=1, ge=1)
     vec: VecKind = "subproc"
 
     @field_validator("name")
