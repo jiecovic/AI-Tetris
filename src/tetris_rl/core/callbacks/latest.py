@@ -30,8 +30,6 @@ class LatestCallback(CoreCallback):
 
     def on_start(self, **kwargs: Any) -> None:
         progress = int(kwargs.get(self.progress_key, 0))
-        if self.progress_offset:
-            progress += int(self.progress_offset)
         self.core.init(progress_step=progress)
 
     def on_event(self, *, event: str, **kwargs: Any) -> None:
