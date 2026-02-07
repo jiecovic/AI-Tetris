@@ -3,7 +3,7 @@ defaults:
   - hydra: default
   - envs@env_train: macro_warmup
   - envs@env_eval: macro_empty
-  - models@model: vit_plus_mlp
+  - models@model: vit
   - trains@train: ppo_bc_eval
   - _self_
 
@@ -15,5 +15,5 @@ run:
   out_root: experiments
   tensorboard: true
   device: cuda
-  n_envs: 32
+  n_envs: 12
   vec: subproc

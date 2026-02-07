@@ -1,14 +1,14 @@
 # @package _group_
-type: macro                 # MacroTetrisEnv (raw Dict obs only)
+type: macro                     # MacroTetrisEnv (raw Dict obs only)
 params:
-  action_mode: discrete     # discrete | multidiscrete
-  max_steps: null           # no truncation for eval/watch
-  invalid_action_policy: noop   # noop | terminate | closest_legal | random_legal
+  action_mode: discrete         # discrete | multidiscrete
+  max_steps: null               # no truncation for eval/watch
+  invalid_action_policy: noop   # noop | terminate
 
 reward:
   type: heuristic_window
   params: { }
 
 game:
-  piece_rule: uniform          # uniform | bag7
-  warmup: null                 # disable warmup for eval/watch
+  piece_rule: uniform           # uniform | bag7
+  warmup: null                  # disable warmup for eval/watch

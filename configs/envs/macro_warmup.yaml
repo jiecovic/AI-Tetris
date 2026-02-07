@@ -1,21 +1,21 @@
 # @package _group_
-type: macro                 # MacroTetrisEnv (raw Dict obs only)
+type: macro                      # MacroTetrisEnv (raw Dict obs only)
 params:
-  action_mode: discrete     # discrete | multidiscrete
-  max_steps: 500            # null disables truncation
-  invalid_action_policy: noop   # noop | terminate | closest_legal | random_legal
+  action_mode: discrete          # discrete | multidiscrete
+  max_steps: 500                 # null disables truncation
+  invalid_action_policy: noop    # noop | terminate
 
 reward:
   type: heuristic_window
   params: { }
 
 game:
-  piece_rule: uniform          # uniform | bag7
+  piece_rule: uniform            # uniform | bag7
   warmup:
-    prob: 0.9                  # apply warmup on reset with this probability
+    prob: 0.9                    # apply warmup on reset with this probability
     spec:
       type: uniform_rows
       params:
-        min_rows: 2             # lower bound of initialized rows
+        min_rows: 2              # lower bound of initialized rows
         max_rows: 18             # upper bound (engine will clamp to spawn-safe max)
         holes: 3                 # fixed holes per row (current rust support)
