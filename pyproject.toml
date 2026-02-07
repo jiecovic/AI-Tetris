@@ -28,8 +28,8 @@ viz = ["opencv-python>=4.8,<5.0"]
 [project.scripts]
 tetris-train = "tetris_rl.cli.train:main"
 tetris-watch = "tetris_rl.cli.watch:main"
-tetris-gen-expert-data = "tetris_rl.cli.gen_expert_data:main"
-tetris-smoke-rust = "tetris_rl.cli.smoke_rust_engine:main"
+tetris-datagen = "tetris_rl.cli.datagen:main"
+tetris-engine-speedtest = "tetris_rl.cli.engine_speedtest:main"
 
 
 [tool.maturin]

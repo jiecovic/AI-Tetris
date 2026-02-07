@@ -129,7 +129,7 @@ After installation, the following commands are available:
 
 * `tetris-train` – train an RL or imitation model
 * `tetris-watch` – watch a trained agent play (pygame)
-* `tetris-gen-expert-data` – generate heuristic expert datasets
+* `tetris-datagen` – generate heuristic expert datasets
 
 All training and evaluation is driven via YAML configs.
 
