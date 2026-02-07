@@ -11,13 +11,12 @@ callbacks:
   latest:
     enabled: true                 # save latest checkpoints
     every: 1                      # save latest every N generations
-  eval_checkpoint:
+  eval:
     enabled: true                 # run eval + save best checkpoints
     every: 1                      # eval cadence in generations
 
 eval:
-  mode: both                      # off | rl | imitation | both (use both for GA)
-  steps: 50000                    # eval step budget (episodes * max_steps)
+  steps: 100_000                    # eval step budget (episodes * max_steps)
   deterministic: true             # planning policies are deterministic
   seed_offset: 10000              # offset from run.seed for eval seeds
   num_envs: 1                     # ignored for planning eval

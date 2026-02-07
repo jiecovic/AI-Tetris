@@ -6,7 +6,7 @@ defaults:
   - envs@env_eval: eval_empty
   - rewards@env_eval.reward: heuristic_delta
   - sb3_policies@policy: cnn1
-  - trains@_global_: ppo_bc_eval
+  - trains@_global_: ppo_eval
   - _self_
 
 log_level: info
