@@ -1,3 +1,4 @@
+# src/tetris_rl/models/spatial_heads/config.py
 from __future__ import annotations
 
 from typing import Literal, Optional

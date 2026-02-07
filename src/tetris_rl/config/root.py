@@ -1,3 +1,4 @@
+# src/tetris_rl/config/root.py
 from __future__ import annotations
 
 from tetris_rl.config.base import ConfigBase

@@ -1,3 +1,4 @@
+# src/tetris_rl/models/tokenizers/config.py
 from __future__ import annotations
 
 from typing import Literal
