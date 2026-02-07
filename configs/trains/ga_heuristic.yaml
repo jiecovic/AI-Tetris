@@ -19,7 +19,6 @@ callbacks:
     deterministic: true           # planning policies are deterministic
     seed_offset: 10000            # offset from run.seed for eval seeds
     mode: workers                 # vectorized | workers (GA requires workers)
-    num_envs: 1                   # SB3/imitation eval only (planning uses workers)
     workers: 12                   # parallel workers for planning eval
 
 algo:
