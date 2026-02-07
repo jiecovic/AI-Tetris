@@ -16,6 +16,6 @@ features:                       # heuristic feature names
   - complete_lines
 
 search:
-  plies: 1                      # lookahead depth (1 = current piece only)
+  plies: 2                      # lookahead depth (2 = current + next piece)
   beam_width: null              # null disables beam search
   beam_from_depth: 0            # apply beam after this depth

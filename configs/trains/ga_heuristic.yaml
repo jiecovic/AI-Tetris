@@ -4,18 +4,26 @@ learn:
   eval:
     episodes: 100                 # episodes per candidate
     max_steps: 500                # max steps per episode
-    return_metric: total_reward   # total_reward | reward_per_step
+    fitness_metric: total_reward  # total_reward | reward_per_step
     seed: 12345                   # eval seed base
 
 algo:
   type: ga
   params:
-    population_size: 100            # individuals per generation
-    elite_frac: 0.1                 # keep top fraction unchanged
-    parent_pool_frac: null          # null -> use elite_frac
-    crossover_rate: 0.9             # probability of crossover
-    mutation_rate: 0.1              # per-weight mutation chance
-    mutation_sigma: 0.1             # mutation noise std
+    population_size: 1000           # individuals per generation
+    selection: tournament           # tournament | elite_pool
+    offspring_frac: 0.3             # fraction replaced by offspring
+    tournament_frac: 0.1            # fraction sampled per tournament
+    tournament_winners: 2           # top-K in tournament pool
+    elite_frac: 0.1                 # elite fraction (elite_pool only)
+    parent_pool_frac: null          # null -> use elite_frac (elite_pool only)
+    crossover_kind: weighted_avg    # weighted_avg | uniform_mask
+    crossover_rate: 1.0             # probability of crossover
+    mutation_kind: single_component # single_component | gaussian
+    mutation_rate: 0.05             # mutation probability
+    mutation_delta: 0.2             # single_component delta magnitude
+    mutation_sigma: 0.1             # gaussian noise std
     weight_init_range: [-1.0, 1.0]  # init range for params
     weight_clip: null               # optional clip range
+    normalize_weights: true         # enforce unit sphere constraint
     seed: 12345                     # GA RNG seed
