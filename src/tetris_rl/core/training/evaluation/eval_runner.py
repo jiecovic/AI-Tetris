@@ -508,7 +508,7 @@ def _worker_eval(args: tuple[int, int, int]) -> Dict[str, Any]:
         vec_env.close()
 
 
-def evaluate_model_parallel(
+def evaluate_model_workers(
     *,
     model: Any,
     cfg: Dict[str, Any],
@@ -617,4 +617,4 @@ def evaluate_model_parallel(
     )
 
 
-__all__ = ["evaluate_model", "evaluate_model_parallel"]
+__all__ = ["evaluate_model", "evaluate_model_workers"]

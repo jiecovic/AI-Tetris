@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.training.config import EvalCheckpointCallbackConfig
 from tetris_rl.core.runs.checkpoints.checkpoint_manager import CheckpointManager, CheckpointPaths
-from tetris_rl.core.training.evaluation import evaluate_model, evaluate_model_parallel
+from tetris_rl.core.training.evaluation import evaluate_model, evaluate_model_workers
 from tetris_rl.core.training.evaluation.eval_metrics import as_float, pick_best_values, safe_int
 from tetris_rl.core.training.evaluation.eval_table import EvalTable
 from tetris_rl.core.training.evaluation.progress_ticker import ProgressTicker
@@ -131,7 +131,7 @@ class EvalCheckpointCore:
                 )
             else:
                 if mode == "workers":
-                    metrics = evaluate_model_parallel(
+                    metrics = evaluate_model_workers(
                         model=model,
                         cfg=self.cfg,  # wiring only
                         run_cfg=self.spec.run_cfg,
