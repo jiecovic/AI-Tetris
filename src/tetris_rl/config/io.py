@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 from pydantic import BaseModel
@@ -24,8 +24,6 @@ def to_plain_dict(cfg: Any) -> dict[str, Any]:
         if not isinstance(data, dict):
             raise TypeError("config must resolve to a mapping")
         return _strip_hydra_key(data)
-    if isinstance(cfg, Mapping):
-        return dict(cfg)
     raise TypeError(f"unsupported config type: {type(cfg).__name__}")
 
 

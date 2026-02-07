@@ -9,8 +9,7 @@ from tetris_rl.config.base import ConfigBase
 from tetris_rl.config.typed_params import parse_typed_params
 from tetris_rl.envs.invalid_action import InvalidActionPolicy
 from tetris_rl.envs.macro_actions import ActionMode
-from tetris_rl.envs.catalog import REWARD_PARAMS_REGISTRY
-from tetris_rl.envs.rewards.params import RewardParams
+from tetris_rl.envs.rewards.params import REWARD_PARAMS_REGISTRY, RewardParams
 from tetris_rl.game.config import GameConfig
 
 

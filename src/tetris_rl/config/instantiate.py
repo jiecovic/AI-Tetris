@@ -7,24 +7,9 @@ Config instantiation helpers.
 This module turns Pydantic "{type, params}" specs into concrete Python objects
 via simple registries.
 
-Constructor styles:
+Constructor style:
 
-(A) kwargs-style constructors (classic):
-    class Foo:
-        def __init__(self, *, a: int, b: float = 0.0): ...
-
-    YAML:
-      foo:
-        type: foo
-        params: {a: 1, b: 0.2}
-
-    Registry:
-      {"foo": Foo}
-
-    Call performed:
-      Foo(**injected, **params_model_dump)
-
-(B) spec-style constructors (preferred):
+(A) spec-style constructors (required):
     class Bar:
         def __init__(self, *, spec: BarParams): ...
 
@@ -40,8 +25,8 @@ Constructor styles:
       Bar(**injected, spec=<params_model>)
 
 Key rules (STRICT):
+- spec_obj must be a Pydantic model with fields {type, params}.
 - injected kwargs are derived by code and must not be overrideable via params.
-- Overlap between injected keys and params keys is forbidden (kwargs-style).
 - Returning None is treated as an error (catches mis-registered procedures).
 """
 
@@ -96,12 +81,6 @@ def _signature_str(fn: Any) -> str:
 
 
 def _accepts_kwarg(fn: Any, name: str) -> bool:
-    """
-    True if fn signature contains a parameter named `name`.
-
-    Note: we intentionally do NOT treat **kwargs as accepting everything here,
-    because in SB3-style factories you typically want explicitness.
-    """
     try:
         sig = inspect.signature(fn)
     except Exception:
@@ -160,26 +139,17 @@ def instantiate(
     ctor = ctor_or_obj
 
     # ------------------------------------------------------------------
-    # BaseModel params
+    # BaseModel params (spec-only)
     # ------------------------------------------------------------------
     params_any = _normalize_params(spec.params, where=where)
     if isinstance(params_any, BaseModel):
         kwargs: dict[str, Any] = dict(inj)
 
-        # If ctor supports spec=..., prefer passing the model as spec directly.
-        if _accepts_kwarg(ctor, "spec"):
-            kwargs["spec"] = params_any
-        else:
-            # Fall back: expand model into kwargs-style.
-            params_dict = params_any.model_dump()
-            overlap = sorted(set(inj.keys()) & set(params_dict.keys()))
-            if overlap:
-                overlap_s = ", ".join(overlap)
-                raise TypeError(
-                    f"{where} type={spec.type!r} has injected/params key overlap: [{overlap_s}]. "
-                    f"Remove these keys from {where}.params; they are injected/derived."
-                )
-            kwargs.update(params_dict)
+        if not _accepts_kwarg(ctor, "spec"):
+            raise TypeError(
+                f"{where} type={spec.type!r} ctor={_callable_name(ctor)!r} must accept a 'spec' kwarg"
+            )
+        kwargs["spec"] = params_any
 
         try:
             result = ctor(**kwargs)

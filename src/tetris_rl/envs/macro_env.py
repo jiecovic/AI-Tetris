@@ -9,6 +9,7 @@ from gymnasium import spaces
 
 from tetris_rl.envs.api import RewardFn, WarmupFn
 from tetris_rl.envs.invalid_action import InvalidActionPolicy
+from tetris_rl.envs.config import MacroEnvParams
 from tetris_rl.envs.macro_actions import ActionMode
 from tetris_rl.envs.macro_info import (
     build_reset_info,
@@ -40,20 +41,18 @@ class MacroTetrisEnv(gym.Env):
             *,
             game: Any,  # PyO3 TetrisEngine
             reward_fn: RewardFn,
-            max_steps: Optional[int] = None,
-            action_mode: ActionMode = "discrete",
-            invalid_action_policy: InvalidActionPolicy = "noop",
+            spec: MacroEnvParams,
             warmup: WarmupFn | None = None,
     ) -> None:
         super().__init__()
         self.game = game
         self.reward_fn = reward_fn
-        self.max_steps = int(max_steps) if max_steps is not None else None
-        self.action_mode = action_mode
+        self.max_steps = int(spec.max_steps) if spec.max_steps is not None else None
+        self.action_mode = spec.action_mode
 
-        self.invalid_action_policy = str(invalid_action_policy).strip().lower()
+        self.invalid_action_policy = str(spec.invalid_action_policy).strip().lower()
         if self.invalid_action_policy not in {"noop", "terminate"}:
-            raise ValueError(f"unknown invalid_action_policy: {invalid_action_policy!r}")
+            raise ValueError(f"unknown invalid_action_policy: {spec.invalid_action_policy!r}")
 
         self._warmup: WarmupFn | None = warmup
 

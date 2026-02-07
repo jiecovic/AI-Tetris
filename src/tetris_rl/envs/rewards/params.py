@@ -1,6 +1,8 @@
 # src/tetris_rl/envs/rewards/params.py
 from __future__ import annotations
 
+from typing import Mapping
+
 from tetris_rl.config.base import ConfigBase
 
 
@@ -16,8 +18,14 @@ class HeuristicDeltaRewardParams(ConfigBase):
 
 RewardParams = LinesRewardParams | HeuristicDeltaRewardParams
 
+REWARD_PARAMS_REGISTRY: Mapping[str, type[ConfigBase]] = {
+    "lines": LinesRewardParams,
+    "heuristic_delta": HeuristicDeltaRewardParams,
+}
+
 __all__ = [
     "LinesRewardParams",
     "HeuristicDeltaRewardParams",
     "RewardParams",
+    "REWARD_PARAMS_REGISTRY",
 ]
