@@ -64,7 +64,7 @@ class EvalTable:
         )
         self.emit(
             "[eval] cols: "
-            f"{self._t_col_name()}=progress  phase=caller(rl|imitation)  upd=best updates  "
+            f"{self._t_col_name()}=progress  algo=caller(rl|imitation|ga)  upd=best updates  "
             "steps=eval budget used  ep=episodes finished in budget  "
             "rwd/s=return_mean/steps_mean  ep_len=steps_mean (done=go or trunc)  ill%=invalid_action_rate  "
         )
@@ -74,7 +74,7 @@ class EvalTable:
         tname = self._t_col_name()
         return (
             f"{tname:>{self._COL_W_T}} "
-            f"{'phase':<{self._COL_W_PH}} "
+            f"{'algo':<{self._COL_W_PH}} "
             f"{'upd':<{self._COL_W_UPD}} "
             f"{'steps':>{self._COL_W_ST}} "
             f"{'ep':>{self._COL_W_EP}} "
