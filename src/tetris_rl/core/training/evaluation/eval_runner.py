@@ -99,15 +99,18 @@ def _build_eval_vec_env(
     *,
     cfg: Dict[str, Any],
     run_cfg: RunConfig,
+    num_envs: int,
 ) -> Tuple[VecEnv, Any]:
     """
     Build a fresh eval VecEnv.
 
     Semantics:
-      - uses run.n_envs (single knob)
+      - uses num_envs for eval parallelism
       - forces vec="dummy"
     """
-    eval_run: RunConfig = run_cfg.model_copy(update={"vec": "dummy"})
+    eval_run: RunConfig = run_cfg.model_copy(
+        update={"vec": "dummy", "n_envs": int(num_envs)},
+    )
 
     built = make_vec_env_from_cfg(cfg=cfg, run_cfg=eval_run)
     return built.vec_env, built  # keep built alive for any held refs
@@ -137,13 +140,12 @@ def evaluate_model(
     if eval_steps <= 0:
         raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
 
-    # Single knob: run.n_envs controls eval vec env size (eval.num_envs is ignored here).
-    _ = num_envs
+    num_envs = max(1, int(num_envs))
 
     algo_type = _effective_algo_type_from_model(model)
     want_masking = algo_type == "maskable_ppo"
 
-    vec_env, _built = _build_eval_vec_env(cfg=cfg, run_cfg=run_cfg)
+    vec_env, _built = _build_eval_vec_env(cfg=cfg, run_cfg=run_cfg, num_envs=num_envs)
     obs = vec_env.reset()
 
     # Infer n_envs from the built VecEnv.

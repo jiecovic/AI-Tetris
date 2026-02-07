@@ -25,7 +25,10 @@ from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
 from tetris_rl.core.runs.run_manifest import write_run_manifest
 from tetris_rl.core.training.config import CallbacksConfig
-from tetris_rl.core.training.evaluation import evaluate_planning_policy
+from tetris_rl.core.training.evaluation import (
+    evaluate_planning_policy,
+    evaluate_planning_policy_parallel,
+)
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
 from tetris_rl.core.utils.logging import setup_logger
@@ -124,15 +127,19 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     eval_cfg = callbacks_cfg.eval_checkpoint
 
     logger.info(f"[run] dir: {paths.run_dir}")
+    train_workers = int(learn_block.get("train_workers", 1))
+    eval_workers = int(learn_block.get("eval_workers", train_workers))
+
     logger.info(
-        "[ga] pop=%d elite=%.2f selection=%s crossover=%s mutation=%s normalize=%s workers=%d",
+        "[ga] pop=%d elite=%.2f selection=%s crossover=%s mutation=%s normalize=%s train_workers=%d eval_workers=%d",
         int(ga_cfg.population_size),
         float(ga_cfg.elite_frac),
         str(ga_cfg.selection),
         str(ga_cfg.crossover_kind),
         str(ga_cfg.mutation_kind),
         bool(ga_cfg.normalize_weights),
-        int(run_cfg.workers),
+        int(train_workers),
+        int(eval_workers),
     )
     logger.info(
         "[ga] fitness episodes=%d max_steps=%d fitness=%s seed=%d",
@@ -211,7 +218,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
 
     eval_enabled = bool(callbacks_cfg.eval_checkpoint.enabled) and int(callbacks_cfg.eval_checkpoint.every) > 0
     env_eval = None
-    if eval_enabled:
+    if eval_enabled and int(eval_workers) <= 1:
         env_eval = make_env_from_cfg(
             cfg=_with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg),
             seed=int(fitness_cfg.seed),
@@ -224,7 +231,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         env_train=env_train,
         ga=ga_cfg,
         fitness_cfg=fitness_cfg,
-        workers=int(run_cfg.workers),
+        workers=int(train_workers),
     )
 
     generations = int(learn_block.get("generations", 1))
@@ -249,8 +256,6 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         eval_seed_base = int(run_cfg.seed) + int(eval_cfg.seed_offset)
 
         def _eval_fn(model: Any, _t: int, on_episode, on_step) -> dict[str, Any]:
-            if env_eval is None:
-                raise RuntimeError("eval env not initialized")
             policy = getattr(model, "policy", None)
             if policy is None:
                 raise RuntimeError("GA eval requires algo.policy")
@@ -260,6 +265,20 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                     policy.set_params(weights.tolist())
                 except Exception:
                     policy.set_params(list(weights))
+            if int(eval_workers) > 1:
+                spec = policy.build_spec(policy.get_params())
+                return evaluate_planning_policy_parallel(
+                    spec=spec,
+                    env_cfg=env_eval_cfg,
+                    eval_steps=int(eval_cfg.steps),
+                    seed_base=int(eval_seed_base),
+                    deterministic=bool(eval_cfg.deterministic),
+                    workers=int(eval_workers),
+                    on_episode=on_episode,
+                    on_step=on_step,
+                )
+            if env_eval is None:
+                raise RuntimeError("eval env not initialized")
             return evaluate_planning_policy(
                 policy=policy,
                 env=env_eval,

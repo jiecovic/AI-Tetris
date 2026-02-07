@@ -1,6 +1,8 @@
 # @package _global_
 learn:
   generations: 10                 # number of generations to run
+  train_workers: 12              # parallel workers for fitness eval
+  eval_workers: 12               # parallel workers for eval checkpoints
   fitness:
     episodes: 100                 # episodes per candidate (fitness eval)
     max_steps: 500                # max steps per episode (fitness eval)
@@ -17,7 +19,7 @@ callbacks:
     steps: 100_000                # eval step budget (episodes * max_steps)
     deterministic: true           # planning policies are deterministic
     seed_offset: 10000            # offset from run.seed for eval seeds
-    num_envs: 1                   # ignored for planning eval
+    num_envs: 1                   # ignored for planning eval (use learn.eval_workers)
 
 algo:
   type: ga

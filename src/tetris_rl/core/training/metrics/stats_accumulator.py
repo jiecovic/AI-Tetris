@@ -345,6 +345,100 @@ class StatsAccumulator:
 
         return out
 
+    def to_state(self) -> Dict[str, Any]:
+        """
+        Export internal counters for cross-process aggregation.
+        """
+        return {
+            "n_steps": int(self._n_steps),
+            "sum_cleared_lines": float(self._sum_cleared_lines),
+            "cnt_cleared_lines": int(self._cnt_cleared_lines),
+            "sum_delta_holes": float(self._sum_delta_holes),
+            "cnt_delta_holes": int(self._cnt_delta_holes),
+            "sum_delta_max_height": float(self._sum_delta_max_height),
+            "cnt_delta_max_height": int(self._cnt_delta_max_height),
+            "sum_delta_bumpiness": float(self._sum_delta_bumpiness),
+            "cnt_delta_bumpiness": int(self._cnt_delta_bumpiness),
+            "sum_delta_agg_height": float(self._sum_delta_agg_height),
+            "cnt_delta_agg_height": int(self._cnt_delta_agg_height),
+            "sum_placed_cells_cleared": float(self._sum_placed_cells_cleared),
+            "cnt_placed_cells_cleared": int(self._cnt_placed_cells_cleared),
+            "sum_holes": float(self._sum_holes),
+            "cnt_holes": int(self._cnt_holes),
+            "sum_max_height": float(self._sum_max_height),
+            "cnt_max_height": int(self._cnt_max_height),
+            "sum_bumpiness": float(self._sum_bumpiness),
+            "cnt_bumpiness": int(self._cnt_bumpiness),
+            "sum_agg_height": float(self._sum_agg_height),
+            "cnt_agg_height": int(self._cnt_agg_height),
+            "sum_all_cells_cleared": float(self._sum_all_cells_cleared),
+            "cnt_all_cells_cleared": int(self._cnt_all_cells_cleared),
+            "sum_invalid_action": float(self._sum_invalid_action),
+            "cnt_invalid_action": int(self._cnt_invalid_action),
+            "sum_game_over": float(self._sum_game_over),
+            "cnt_game_over": int(self._cnt_game_over),
+            "sum_score": float(self._sum_score),
+            "cnt_score": int(self._cnt_score),
+            "sum_delta_score": float(self._sum_delta_score),
+            "cnt_delta_score": int(self._cnt_delta_score),
+            "sum_level": float(self._sum_level),
+            "cnt_level": int(self._cnt_level),
+            "max_level": None if self._max_level is None else float(self._max_level),
+            "sum_lines_total": float(self._sum_lines_total),
+            "cnt_lines_total": int(self._cnt_lines_total),
+            "sum_lines_for_rate": float(self._sum_lines_for_rate),
+        }
+
+    def merge_state(self, state: Mapping[str, Any]) -> None:
+        """
+        Merge a previously exported state into this accumulator.
+        """
+        self._n_steps += int(state.get("n_steps", 0))
+
+        self._sum_cleared_lines += float(state.get("sum_cleared_lines", 0.0))
+        self._cnt_cleared_lines += int(state.get("cnt_cleared_lines", 0))
+        self._sum_delta_holes += float(state.get("sum_delta_holes", 0.0))
+        self._cnt_delta_holes += int(state.get("cnt_delta_holes", 0))
+        self._sum_delta_max_height += float(state.get("sum_delta_max_height", 0.0))
+        self._cnt_delta_max_height += int(state.get("cnt_delta_max_height", 0))
+        self._sum_delta_bumpiness += float(state.get("sum_delta_bumpiness", 0.0))
+        self._cnt_delta_bumpiness += int(state.get("cnt_delta_bumpiness", 0))
+        self._sum_delta_agg_height += float(state.get("sum_delta_agg_height", 0.0))
+        self._cnt_delta_agg_height += int(state.get("cnt_delta_agg_height", 0))
+        self._sum_placed_cells_cleared += float(state.get("sum_placed_cells_cleared", 0.0))
+        self._cnt_placed_cells_cleared += int(state.get("cnt_placed_cells_cleared", 0))
+
+        self._sum_holes += float(state.get("sum_holes", 0.0))
+        self._cnt_holes += int(state.get("cnt_holes", 0))
+        self._sum_max_height += float(state.get("sum_max_height", 0.0))
+        self._cnt_max_height += int(state.get("cnt_max_height", 0))
+        self._sum_bumpiness += float(state.get("sum_bumpiness", 0.0))
+        self._cnt_bumpiness += int(state.get("cnt_bumpiness", 0))
+        self._sum_agg_height += float(state.get("sum_agg_height", 0.0))
+        self._cnt_agg_height += int(state.get("cnt_agg_height", 0))
+
+        self._sum_all_cells_cleared += float(state.get("sum_all_cells_cleared", 0.0))
+        self._cnt_all_cells_cleared += int(state.get("cnt_all_cells_cleared", 0))
+        self._sum_invalid_action += float(state.get("sum_invalid_action", 0.0))
+        self._cnt_invalid_action += int(state.get("cnt_invalid_action", 0))
+        self._sum_game_over += float(state.get("sum_game_over", 0.0))
+        self._cnt_game_over += int(state.get("cnt_game_over", 0))
+
+        self._sum_score += float(state.get("sum_score", 0.0))
+        self._cnt_score += int(state.get("cnt_score", 0))
+        self._sum_delta_score += float(state.get("sum_delta_score", 0.0))
+        self._cnt_delta_score += int(state.get("cnt_delta_score", 0))
+        self._sum_level += float(state.get("sum_level", 0.0))
+        self._cnt_level += int(state.get("cnt_level", 0))
+        max_level = state.get("max_level", None)
+        if max_level is not None:
+            if self._max_level is None or float(max_level) > float(self._max_level):
+                self._max_level = float(max_level)
+
+        self._sum_lines_total += float(state.get("sum_lines_total", 0.0))
+        self._cnt_lines_total += int(state.get("cnt_lines_total", 0))
+        self._sum_lines_for_rate += float(state.get("sum_lines_for_rate", 0.0))
+
     def histograms(self) -> Dict[str, np.ndarray]:
         if not self._log_hists:
             return {}
