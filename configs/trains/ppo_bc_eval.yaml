@@ -1,11 +1,15 @@
 # @package _global_
-checkpoints:
-  latest_every: 20_000                # save latest checkpoint every N env steps
+callbacks:
+  latest:
+    enabled: true                     # save latest checkpoints
+    every: 20_000                     # save latest every N env steps
+  eval_checkpoint:
+    enabled: true                     # run eval + save best checkpoints
+    every: 5_000_000                  # eval cadence in training env steps
 
 eval:
   mode: both                          # off | rl | imitation | both
   steps: 100_000                      # evaluation step budget (env steps)
-  eval_every: 5_000_000               # run eval every N training env steps
   deterministic: true                 # use deterministic policy during eval
   seed_offset: 10_000                 # seed offset added to training base seed
 

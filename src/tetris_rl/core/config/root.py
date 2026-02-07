@@ -11,7 +11,7 @@ from tetris_rl.core.datagen.config import (
 from tetris_rl.core.envs.config import EnvConfig
 from tetris_rl.core.policies.sb3.config import SB3PolicyConfig
 from tetris_rl.core.runs.config import RunConfig
-from tetris_rl.core.training.config import AlgoConfig, CheckpointsConfig, EvalConfig, ImitationConfig, LearnConfig
+from tetris_rl.core.training.config import AlgoConfig, CallbacksConfig, EvalConfig, ImitationConfig, LearnConfig
 
 
 class ExperimentConfig(ConfigBase):
@@ -22,7 +22,7 @@ class ExperimentConfig(ConfigBase):
     policy: SB3PolicyConfig
     learn: LearnConfig
     algo: AlgoConfig
-    checkpoints: CheckpointsConfig = CheckpointsConfig()
+    callbacks: CallbacksConfig = CallbacksConfig()
     eval: EvalConfig = EvalConfig()
     imitation: ImitationConfig = ImitationConfig()
 

@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 from tqdm.rich import tqdm  # <-- rich tqdm (NOT tqdm.auto)
 
 from tetris_rl.core.runs.config import RunConfig
-from tetris_rl.core.training.config import CheckpointsConfig, EvalConfig, ImitationConfig
+from tetris_rl.core.training.config import CallbacksConfig, EvalConfig, ImitationConfig
 from tetris_rl.core.datagen.io.shard_reader import ShardDataset
 from tetris_rl.core.runs.checkpoints.checkpoint_manager import CheckpointManager, CheckpointPaths
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCore, EvalCheckpointCoreSpec
@@ -122,7 +122,7 @@ def run_imitation(
     model: Any,
     imitation_cfg: ImitationConfig,
     eval_cfg: EvalConfig,
-    checkpoints_cfg: CheckpointsConfig,
+    callbacks_cfg: CallbacksConfig,
     run_cfg: RunConfig,
     run_dir: Path,
     repo: Optional[Path] = None,
@@ -178,10 +178,13 @@ def run_imitation(
     manager.ensure_dir()
     manager.load_state()
 
+    eval_every = int(callbacks_cfg.eval_checkpoint.every) if bool(callbacks_cfg.eval_checkpoint.enabled) else 0
+    latest_every = int(callbacks_cfg.latest.every) if bool(callbacks_cfg.latest.enabled) else 0
+
     sched = ImitationScheduleSpec(
         tick_unit="samples",
-        latest_every=int(checkpoints_cfg.latest_every),
-        eval_every=int(eval_cfg.eval_every),
+        latest_every=latest_every,
+        eval_every=eval_every,
         log_every=50,
     )
 
@@ -228,13 +231,13 @@ def run_imitation(
                 int(im.max_samples),
             )
             logger.info(
-                "[imitation] cadences: latest_every=%d (%s)  eval_every=%d (%s)  eval_mode=%s",
-                int(sched.latest_every),
-                str(sched.tick_unit),
-                int(sched.eval_every),
-                str(sched.tick_unit),
-                str(eval_cfg.mode),
-            )
+            "[imitation] cadences: latest_every=%d (%s)  eval_every=%d (%s)  eval_mode=%s",
+            int(sched.latest_every),
+            str(sched.tick_unit),
+            int(sched.eval_every),
+            str(sched.tick_unit),
+            str(eval_cfg.mode),
+        )
         except Exception:
             pass
 

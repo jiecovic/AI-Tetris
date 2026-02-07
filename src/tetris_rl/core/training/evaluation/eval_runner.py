@@ -293,6 +293,12 @@ def evaluate_model(
         out["episode/return_mean"] = float(m)
     m = _mean([float(x) for x in ep_steps])
     if m is not None:
+        out["episode/steps_completed_mean"] = float(m)
+
+    partial_steps = [float(s.ep_steps) for s in slots if int(s.ep_steps) > 0]
+    steps_all = [float(x) for x in ep_steps] + partial_steps
+    m = _mean(steps_all)
+    if m is not None:
         out["episode/steps_mean"] = float(m)
     m = _mean_opt(ep_final_lines)
     if m is not None:

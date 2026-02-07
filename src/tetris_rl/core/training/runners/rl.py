@@ -51,7 +51,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
     run_cfg = exp_cfg.run
     learn_cfg = exp_cfg.learn
     algo_cfg = exp_cfg.algo
-    checkpoints_cfg = exp_cfg.checkpoints
+    callbacks_cfg = exp_cfg.callbacks
     eval_cfg = exp_cfg.eval
     imitation_cfg = exp_cfg.imitation
     env_train_cfg = exp_cfg.env_train
@@ -199,7 +199,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
         model=model,
         imitation_cfg=imitation_cfg,
         eval_cfg=eval_cfg,
-        checkpoints_cfg=checkpoints_cfg,
+        callbacks_cfg=callbacks_cfg,
         run_cfg=run_cfg,
         run_dir=paths.run_dir,
         repo=find_repo_root(),
@@ -216,12 +216,12 @@ def run_rl_experiment(cfg: DictConfig) -> int:
 
     core_callbacks = []
 
-    if int(checkpoints_cfg.latest_every) > 0:
+    if bool(callbacks_cfg.latest.enabled) and int(callbacks_cfg.latest.every) > 0:
         core_callbacks.append(
             LatestCallback(
                 spec=LatestCheckpointCoreSpec(
                     checkpoint_dir=paths.ckpt_dir,
-                    latest_every=int(checkpoints_cfg.latest_every),
+                    latest_every=int(callbacks_cfg.latest.every),
                     verbose=0,
                 ),
                 event="step",
@@ -229,7 +229,11 @@ def run_rl_experiment(cfg: DictConfig) -> int:
             )
         )
 
-    if int(eval_cfg.eval_every) > 0 and str(eval_cfg.mode).strip().lower() != "off":
+    if (
+        bool(callbacks_cfg.eval_checkpoint.enabled)
+        and int(callbacks_cfg.eval_checkpoint.every) > 0
+        and str(eval_cfg.mode).strip().lower() != "off"
+    ):
         # IMPORTANT: keep EvalCheckpointCoreSpec eval as EvalConfig while passing
         # an eval-specific cfg dict for env wiring.
         eval_cfg_plain = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
@@ -259,7 +263,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
         eval_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
-                eval_every=int(eval_cfg.eval_every),
+                eval_every=int(callbacks_cfg.eval_checkpoint.every),
                 run_cfg=run_cfg,
                 eval=eval_cfg,
                 base_seed=int(run_cfg.seed),
@@ -274,7 +278,7 @@ def run_rl_experiment(cfg: DictConfig) -> int:
         )
         core_callbacks.append(eval_cb)
     else:
-        logger.info("[eval] disabled (eval.mode=off or eval.eval_every<=0)")
+        logger.info("[eval] disabled (eval.mode=off or callbacks.eval_checkpoint disabled)")
 
     if core_callbacks:
         callbacks.append(SB3CallbackAdapter(core_callbacks))

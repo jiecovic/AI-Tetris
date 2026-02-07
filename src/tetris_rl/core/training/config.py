@@ -9,18 +9,6 @@ from tetris_rl.core.config.base import ConfigBase
 
 EvalMode = Literal["off", "rl", "imitation", "both"]
 
-
-class CheckpointsConfig(ConfigBase):
-    """
-    Checkpoint cadence for training.
-
-    Semantics:
-      - latest_every: save checkpoints/latest.zip every N environment steps.
-    """
-
-    latest_every: int = Field(default=200_000, ge=1)
-
-
 class EvalConfig(ConfigBase):
     """
     Training-time evaluation semantics.
@@ -30,7 +18,6 @@ class EvalConfig(ConfigBase):
 
     mode: EvalMode = "off"
     steps: int = Field(default=100_000, ge=1)
-    eval_every: int = Field(default=0, ge=0)
 
     deterministic: bool = True
     seed_offset: int = 10_000
@@ -40,6 +27,21 @@ class EvalConfig(ConfigBase):
     @classmethod
     def _mode_lower(cls, v: object) -> str:
         return str(v).strip().lower()
+
+
+class LatestCallbackConfig(ConfigBase):
+    enabled: bool = True
+    every: int = Field(default=200_000, ge=1)
+
+
+class EvalCheckpointCallbackConfig(ConfigBase):
+    enabled: bool = False
+    every: int = Field(default=0, ge=0)
+
+
+class CallbacksConfig(ConfigBase):
+    latest: LatestCallbackConfig = LatestCallbackConfig()
+    eval_checkpoint: EvalCheckpointCallbackConfig = EvalCheckpointCallbackConfig()
 
 
 class ImitationConfig(ConfigBase):
@@ -96,9 +98,11 @@ class LearnConfig(ConfigBase):
 
 __all__ = [
     "AlgoConfig",
-    "CheckpointsConfig",
+    "CallbacksConfig",
     "EvalConfig",
     "EvalMode",
+    "EvalCheckpointCallbackConfig",
+    "LatestCallbackConfig",
     "ImitationConfig",
     "LearnConfig",
 ]

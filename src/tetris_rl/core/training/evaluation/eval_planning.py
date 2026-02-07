@@ -119,6 +119,13 @@ def evaluate_planning_policy(
         out["episode/return_mean"] = float(m)
     m = _mean([float(x) for x in ep_steps])
     if m is not None:
+        out["episode/steps_completed_mean"] = float(m)
+
+    steps_all = [float(x) for x in ep_steps]
+    if int(cur_ep_steps) > 0:
+        steps_all.append(float(cur_ep_steps))
+    m = _mean(steps_all)
+    if m is not None:
         out["episode/steps_mean"] = float(m)
     m = _mean_opt(ep_final_lines)
     if m is not None:

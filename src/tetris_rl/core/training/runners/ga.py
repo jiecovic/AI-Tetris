@@ -24,7 +24,7 @@ from tetris_rl.core.policies.spec import HeuristicSearch, save_heuristic_spec
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
 from tetris_rl.core.runs.run_manifest import write_run_manifest
-from tetris_rl.core.training.config import CheckpointsConfig, EvalConfig
+from tetris_rl.core.training.config import CallbacksConfig, EvalConfig
 from tetris_rl.core.training.evaluation import evaluate_planning_policy
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
@@ -120,7 +120,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
 
     ga_cfg = _parse_ga_config(algo_block.get("params", None))
     fitness_cfg = _parse_eval_config(learn_block.get("eval", None))
-    checkpoints_cfg = CheckpointsConfig.model_validate(cfg_dict.get("checkpoints", {}) or {})
+    callbacks_cfg = CallbacksConfig.model_validate(cfg_dict.get("callbacks", {}) or {})
     eval_cfg = EvalConfig.model_validate(cfg_dict.get("eval", {}) or {})
 
     logger.info(f"[run] dir: {paths.run_dir}")
@@ -144,11 +144,17 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     logger.info(
         "[ga] eval mode=%s every=%d steps=%d seed_offset=%d",
         str(eval_cfg.mode),
-        int(eval_cfg.eval_every),
+        int(callbacks_cfg.eval_checkpoint.every),
         int(eval_cfg.steps),
         int(eval_cfg.seed_offset),
     )
-    logger.info("[ga] checkpoints latest_every=%d", int(checkpoints_cfg.latest_every))
+    logger.info(
+        "[ga] callbacks latest_enabled=%s latest_every=%d eval_enabled=%s eval_every=%d",
+        bool(callbacks_cfg.latest.enabled),
+        int(callbacks_cfg.latest.every),
+        bool(callbacks_cfg.eval_checkpoint.enabled),
+        int(callbacks_cfg.eval_checkpoint.every),
+    )
     logger.info(
         "[ga] search plies=%d beam_width=%s beam_from_depth=%d",
         int(search.plies),
@@ -204,7 +210,11 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         seed=int(fitness_cfg.seed),
     ).env
 
-    eval_enabled = int(eval_cfg.eval_every) > 0 and str(eval_cfg.mode).strip().lower() != "off"
+    eval_enabled = (
+        bool(callbacks_cfg.eval_checkpoint.enabled)
+        and int(callbacks_cfg.eval_checkpoint.every) > 0
+        and str(eval_cfg.mode).strip().lower() != "off"
+    )
     env_eval = None
     if eval_enabled:
         env_eval = make_env_from_cfg(
@@ -226,8 +236,8 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     pop_size = int(ga_cfg.population_size)
 
     callback_items: list[PlanningCallbackAdapter] = []
-    latest_every = int(checkpoints_cfg.latest_every)
-    if latest_every > 0:
+    latest_every = int(callbacks_cfg.latest.every)
+    if bool(callbacks_cfg.latest.enabled) and latest_every > 0:
         core_cb = LatestCallback(
             spec=LatestCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
@@ -268,7 +278,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         core_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
-                eval_every=int(eval_cfg.eval_every),
+                eval_every=int(callbacks_cfg.eval_checkpoint.every),
                 run_cfg=run_cfg,
                 eval=eval_cfg,
                 base_seed=int(run_cfg.seed),
@@ -284,7 +294,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         )
         callback_items.append(PlanningCallbackAdapter(core_cb))
     else:
-        logger.info("[eval] disabled (eval.mode=off or eval.eval_every<=0)")
+        logger.info("[eval] disabled (eval.mode=off or callbacks.eval_checkpoint disabled)")
 
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),
