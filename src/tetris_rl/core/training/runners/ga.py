@@ -31,6 +31,7 @@ from tetris_rl.core.training.evaluation import (
 )
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
+from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 
 
@@ -96,6 +97,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     OmegaConf.save(config=OmegaConf.create(cfg_dict), f=config_path)
     write_run_manifest(run_dir=paths.run_dir, config_path=config_path)
     logger.info(f"[timing] paths+snapshot: {time.perf_counter() - t0:.2f}s")
+    tb_logger = maybe_tb_logger(paths.tb_dir)
 
     policy_cfg = cfg_dict.get("policy", {}) or {}
     if not isinstance(policy_cfg, dict):
@@ -296,23 +298,25 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                 on_step=on_step,
             )
 
-        core_cb = EvalCallback(
-            spec=EvalCheckpointCoreSpec(
-                checkpoint_dir=paths.ckpt_dir,
-                eval_every=int(callbacks_cfg.eval_checkpoint.every),
-                run_cfg=run_cfg,
-                eval=eval_cfg,
-                base_seed=int(run_cfg.seed),
-                progress_unit="generations",
-                verbose=1,
-            ),
-            cfg=cfg_dict,
-            event="generation_end",
-            progress_key="generation",
-            progress_offset=1,
-            phase="ga",
-            eval_fn=_eval_fn,
-        )
+            core_cb = EvalCallback(
+                spec=EvalCheckpointCoreSpec(
+                    checkpoint_dir=paths.ckpt_dir,
+                    eval_every=int(callbacks_cfg.eval_checkpoint.every),
+                    run_cfg=run_cfg,
+                    eval=eval_cfg,
+                    base_seed=int(run_cfg.seed),
+                    progress_unit="generations",
+                    verbose=1,
+                ),
+                cfg=cfg_dict,
+                event="generation_end",
+                progress_key="generation",
+                progress_offset=1,
+                phase="ga",
+                emit=logger.info,
+                eval_fn=_eval_fn,
+                log_scalar=(tb_logger.log_scalar if tb_logger is not None else None),
+            )
         callback_items.append(PlanningCallbackAdapter(core_cb))
     else:
         logger.info("[eval] disabled (callbacks.eval_checkpoint disabled)")
@@ -385,6 +389,12 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                     tail=f"best_ind={_fmt(best_ind)} best_w={_fmt_weights(best_ind_weights)}",
                 )
                 _save_best(intermediate_path)
+                if tb_logger is not None:
+                    step = int(stats.generation) + 1
+                    tb_logger.log_scalar("ga/best_score", float(stats.best_score), step)
+                    tb_logger.log_scalar("ga/mean_score", float(stats.mean_score), step)
+                    if stats.eval_best_score is not None:
+                        tb_logger.log_scalar("ga/eval_best_score", float(stats.eval_best_score), step)
 
             def _on_candidate(idx: int, score: float) -> None:
                 nonlocal current_gen
@@ -419,6 +429,9 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     finally:
         if env_eval is not None:
             env_eval.close()
+        if tb_logger is not None:
+            tb_logger.flush()
+            tb_logger.close()
     _log_stats(logger=logger, stats=result.stats)
 
     ga.save_best(path=best_path, result=result)

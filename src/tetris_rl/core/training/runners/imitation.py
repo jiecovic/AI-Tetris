@@ -22,6 +22,7 @@ from tetris_rl.core.training.config import AlgoConfig
 from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 from tetris_rl.core.training.model_factory import build_policy_from_cfg
 from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
+from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 from tetris_rl.core.utils.paths import repo_root as find_repo_root
 
@@ -119,6 +120,7 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     logger.info(f"[train] action_space={built.vec_env.action_space}")
 
     cfg_eval = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
+    tb_logger = maybe_tb_logger(paths.tb_dir)
     model.learn(
         cfg=cfg_eval,
         learn_cfg=learn_cfg,
@@ -127,6 +129,7 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
         run_dir=paths.run_dir,
         repo=find_repo_root(),
         logger=logger,
+        tb_logger=tb_logger,
     )
 
     final_path = paths.ckpt_dir / "final.zip"
@@ -138,6 +141,8 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     )
 
     built.vec_env.close()
+    if tb_logger is not None:
+        tb_logger.close()
     logger.info("[done]")
     return 0
 

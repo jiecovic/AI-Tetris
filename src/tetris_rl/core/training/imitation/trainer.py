@@ -18,6 +18,7 @@ from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 from tetris_rl.core.training.imitation.bc import BCTrainSpec, bc_eval_stream, bc_train_stream
 from tetris_rl.core.training.imitation.data import iter_bc_batches_from_dataset, split_shards_modulo
 from tetris_rl.core.training.imitation.types import ImitationRunState, ImitationScheduleSpec, ImitationSplitSpec
+from tetris_rl.core.training.tb_logger import TensorboardLogger
 from tetris_rl.core.utils.paths import repo_root
 from planning_rl.utils.seed import seed32_from
 
@@ -105,6 +106,7 @@ class ImitationTrainer:
         run_dir: Path,
         repo: Optional[Path] = None,
         logger: Any = None,
+        tb_logger: Optional[TensorboardLogger] = None,
     ) -> None:
         self.cfg = cfg
         self.algo = algo
@@ -114,6 +116,7 @@ class ImitationTrainer:
         self.run_dir = Path(run_dir)
         self.repo = Path(repo) if repo is not None else repo_root()
         self.logger = logger
+        self.tb_logger = tb_logger
 
     def run(self) -> Dict[str, Any]:
         learn = self.learn_cfg
@@ -266,7 +269,7 @@ class ImitationTrainer:
                     phase="imitation",
                     model_getter=(lambda algo: algo),
                     emit=(lambda s: self.logger.info(s)) if self.logger is not None else None,
-                    log_scalar=None,
+                    log_scalar=(self.tb_logger.log_scalar if self.tb_logger is not None else None),
                     eval_fn=_eval_fn,
                 )
             )
@@ -419,6 +422,15 @@ class ImitationTrainer:
                             updates=int(state.updates),
                         )
 
+                    if self.tb_logger is not None:
+                        step = int(state.samples_seen)
+                        if loss is not None:
+                            self.tb_logger.log_scalar("train/bc_loss", float(loss), step)
+                        if acc is not None:
+                            self.tb_logger.log_scalar("train/bc_acc_top1", float(acc), step)
+                        if ent is not None:
+                            self.tb_logger.log_scalar("train/bc_entropy", float(ent), step)
+
                 stats = bc_train_stream(
                     model=self.algo,
                     batch_iter=_counting_iter(),
@@ -442,6 +454,9 @@ class ImitationTrainer:
 
         if callbacks is not None:
             callbacks.on_end(samples_seen=int(state.samples_seen), updates=int(state.updates))
+
+        if self.tb_logger is not None:
+            self.tb_logger.flush()
 
         return {
             "dataset_dir": str(ds_dir),

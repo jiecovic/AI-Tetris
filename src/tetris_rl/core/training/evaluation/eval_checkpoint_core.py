@@ -90,6 +90,18 @@ class EvalCheckpointCore:
         self.manager.ensure_dir()
         self.manager.load_state()
         self.ticker.init_from_progress(int(progress_step))
+        if self.log_scalar is not None:
+            step = int(progress_step)
+            try:
+                self.log_scalar("eval/every", float(self.spec.eval_every), step)
+                self.log_scalar("eval/steps", float(self.spec.eval.steps), step)
+                self.log_scalar("eval/num_envs", float(self.spec.eval.num_envs), step)
+                self.log_scalar("eval/workers", float(self.spec.eval.workers), step)
+                mode = str(self.spec.eval.mode).strip().lower()
+                self.log_scalar("eval/mode_vectorized", 1.0 if mode == "vectorized" else 0.0, step)
+                self.log_scalar("eval/mode_workers", 1.0 if mode == "workers" else 0.0, step)
+            except Exception:
+                pass
 
     def _run_eval(self, *, model: Any, progress_step: int) -> Dict[str, Any]:
         seed_base = int(self.spec.base_seed) + int(self.spec.eval.seed_offset)

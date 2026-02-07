@@ -10,6 +10,7 @@ from stable_baselines3.common.type_aliases import GymEnv
 
 from tetris_rl.core.training.algorithms.base import BaseAlgorithm
 from tetris_rl.core.training.config import ImitationAlgoParams, ImitationLearnConfig
+from tetris_rl.core.training.tb_logger import TensorboardLogger
 
 
 PolicySpec = Union[ActorCriticPolicy, MaskableActorCriticPolicy]
@@ -51,6 +52,7 @@ class ImitationAlgorithm(BaseAlgorithm):
         run_dir: Path,
         repo: Optional[Path] = None,
         logger: Any = None,
+        tb_logger: Optional[TensorboardLogger] = None,
     ) -> Dict[str, Any]:
         from tetris_rl.core.training.imitation.trainer import ImitationTrainer
 
@@ -63,6 +65,7 @@ class ImitationAlgorithm(BaseAlgorithm):
             run_dir=run_dir,
             repo=repo,
             logger=logger,
+            tb_logger=tb_logger,
         )
         return trainer.run()
 
