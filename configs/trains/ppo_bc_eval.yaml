@@ -1,4 +1,4 @@
-# @package _group_
+# @package _global_
 checkpoints:
   latest_every: 20_000                # save latest checkpoint every N env steps
 
@@ -21,18 +21,18 @@ imitation:
   save_archive: true                  # archive final imitation checkpoint
   archive_dir: checkpoints/imitation  # directory for BC archives
 
-rl:
-  enabled: true                       # enable reinforcement learning phase
+learn:
   total_timesteps: 800_000_000        # total env steps for RL training
 #  resume: experiments/cnn_run_013
-  algo:
-    type: maskable_ppo                # ppo | maskable_ppo
-    params:
-      learning_rate: 1.0e-4           # optimizer learning rate
-      n_steps: 8192                   # rollout length per environment
-      batch_size: 512                 # minibatch size for updates
-      n_epochs: 2                     # number of optimization epochs per rollout
-      gamma: 0.994                    # discount factor
-      ent_coef: 0.03                  # entropy regularization coefficient
-#      target_kl: 0.02             # KL divergence target (optional)
-#      clip_range: 0.1             # PPO clip range (optional)
+
+algo:
+  type: maskable_ppo                  # ppo | maskable_ppo
+  params:
+    learning_rate: 1.0e-4             # optimizer learning rate
+    n_steps: 8192                     # rollout length per environment
+    batch_size: 512                   # minibatch size for updates
+    n_epochs: 2                       # number of optimization epochs per rollout
+    gamma: 0.994                      # discount factor
+    ent_coef: 0.03                    # entropy regularization coefficient
+#    target_kl: 0.02                   # KL divergence target (optional)
+#    clip_range: 0.1                   # PPO clip range (optional)

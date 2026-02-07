@@ -5,10 +5,6 @@ params:
   max_steps: null               # no truncation for eval/watch
   invalid_action_policy: noop   # noop | terminate
 
-reward:
-  type: heuristic_delta
-  params: { }
-
 game:
   piece_rule: uniform           # uniform | bag7
   warmup: null                  # disable warmup for eval/watch

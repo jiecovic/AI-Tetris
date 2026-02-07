@@ -1,10 +1,12 @@
 # @package _global_
 defaults:
   - hydra: default
-  - envs@env_train: macro_warmup
-  - envs@env_eval: macro_empty
-  - models@model: vit
-  - trains@train: ppo_bc_eval
+  - envs@env_train: train_warmup
+  - rewards@env_train.reward: heuristic_delta
+  - envs@env_eval: eval_empty
+  - rewards@env_eval.reward: heuristic_delta
+  - sb3_policies@policy: vit
+  - trains@_global_: ppo_bc_eval
   - _self_
 
 log_level: info

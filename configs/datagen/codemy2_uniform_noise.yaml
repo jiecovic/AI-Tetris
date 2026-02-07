@@ -1,7 +1,8 @@
 # @package _global_
 defaults:
   - /hydra: default
-  - envs@env: macro_warmup
+  - envs@env: train_warmup
+  - rewards@env.reward: heuristic_delta
   - _self_
 
 # ------------------------------------------------------------------
