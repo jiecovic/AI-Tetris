@@ -1,0 +1,171 @@
+# src/tetris_rl/core/runs/run_resolver.py
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Literal
+
+from tetris_rl.core.config.io import load_experiment_config, load_yaml, to_plain_dict
+from tetris_rl.core.policies.planning_policies.heuristic_policy import HeuristicPlanningPolicy
+from tetris_rl.core.policies.spec import HeuristicSearch
+from tetris_rl.core.runs.checkpoints.checkpoint_manifest import resolve_checkpoint_from_manifest
+from tetris_rl.core.runs.run_io import choose_config_path
+from tetris_rl.core.utils.paths import repo_root, resolve_run_dir
+
+from planning_rl.ga.algorithm import GAAlgorithm
+
+
+@dataclass(frozen=True)
+class RunSpec:
+    run_dir: Path
+    cfg_path: Path
+    cfg_raw: dict[str, Any]
+    cfg_plain: dict[str, Any]
+    algo_type: str
+    exp_cfg: Any | None
+    algo_cfg: Any | None
+    env_train_cfg: Any
+    env_eval_cfg: Any
+    ga_features: list[str] | None = None
+    ga_search: HeuristicSearch | None = None
+
+
+@dataclass(frozen=True)
+class InferenceArtifact:
+    kind: Literal["sb3_ckpt", "ga_policy", "ga_zip"]
+    path: Path
+    note: str | None = None
+
+
+def load_run_spec(run_name: str | Path) -> RunSpec:
+    repo = repo_root()
+    run_dir = resolve_run_dir(repo, str(run_name))
+    cfg_path = choose_config_path(run_dir)
+    cfg_raw = load_yaml(cfg_path)
+    algo_type = str(cfg_raw.get("algo", {}).get("type", "")).strip().lower()
+
+    exp_cfg = None
+    cfg_plain = cfg_raw
+    algo_cfg = None
+    env_train_cfg = cfg_raw.get("env_train", None) or cfg_raw.get("env", None)
+    env_eval_cfg = cfg_raw.get("env_eval", None) or env_train_cfg
+    ga_features: list[str] | None = None
+    ga_search: HeuristicSearch | None = None
+
+    if algo_type != "ga":
+        exp_cfg = load_experiment_config(cfg_path)
+        cfg_plain = to_plain_dict(exp_cfg)
+        algo_cfg = exp_cfg.algo
+        env_train_cfg = exp_cfg.env_train
+        env_eval_cfg = exp_cfg.env_eval
+    else:
+        policy_cfg = cfg_raw.get("policy", {}) or {}
+        features = policy_cfg.get("features", []) or []
+        if not isinstance(features, list) or not features:
+            raise ValueError("policy.features must be a non-empty list for GA runs")
+        search_cfg = policy_cfg.get("search", {}) or {}
+        if not isinstance(search_cfg, dict):
+            raise TypeError("policy.search must be a mapping for GA runs")
+        ga_features = list(features)
+        ga_search = HeuristicSearch.model_validate(search_cfg)
+
+        if not isinstance(env_train_cfg, dict):
+            raise TypeError("env_train must be a mapping for GA runs")
+        if not isinstance(env_eval_cfg, dict):
+            raise TypeError("env_eval must be a mapping for GA runs")
+
+    return RunSpec(
+        run_dir=run_dir,
+        cfg_path=cfg_path,
+        cfg_raw=cfg_raw,
+        cfg_plain=cfg_plain,
+        algo_type=algo_type,
+        exp_cfg=exp_cfg,
+        algo_cfg=algo_cfg,
+        env_train_cfg=env_train_cfg,
+        env_eval_cfg=env_eval_cfg,
+        ga_features=ga_features,
+        ga_search=ga_search,
+    )
+
+
+def resolve_env_cfg(*, spec: RunSpec, which_env: str) -> dict[str, Any]:
+    which_env = str(which_env).strip().lower()
+    env_cfg = spec.env_train_cfg if which_env == "train" else spec.env_eval_cfg
+    if spec.exp_cfg is not None:
+        return env_cfg.model_dump(mode="json")
+    if not isinstance(env_cfg, dict):
+        raise TypeError("env config must be a mapping")
+    return dict(env_cfg)
+
+
+def _find_latest_ga_ckpt(run_dir: Path) -> Path | None:
+    ckpt_dir = Path(run_dir) / "checkpoints"
+    latest = ckpt_dir / "latest.zip"
+    if latest.is_file():
+        return latest
+    candidates = sorted(ckpt_dir.glob("ga_gen_*.zip"))
+    if candidates:
+        return candidates[-1]
+    return None
+
+
+def resolve_inference_artifact(*, spec: RunSpec, which: str) -> InferenceArtifact:
+    if spec.algo_type != "ga":
+        path = resolve_checkpoint_from_manifest(run_dir=spec.run_dir, which=str(which))
+        return InferenceArtifact(kind="sb3_ckpt", path=path)
+
+    ga_ckpt = _find_latest_ga_ckpt(spec.run_dir)
+    if ga_ckpt is not None:
+        return InferenceArtifact(kind="ga_zip", path=ga_ckpt)
+
+    policy_path = spec.run_dir / "best_policy.yaml"
+    if policy_path.is_file():
+        return InferenceArtifact(kind="ga_policy", path=policy_path)
+
+    intermediate_path = spec.run_dir / "intermediate_best_policy.yaml"
+    if intermediate_path.is_file():
+        return InferenceArtifact(kind="ga_policy", path=intermediate_path, note="intermediate")
+
+    raise FileNotFoundError(
+        "GA run missing checkpoints/latest.zip and policy specs.\n"
+        f"run_dir={spec.run_dir}"
+    )
+
+
+def load_ga_policy_from_artifact(
+    *,
+    spec: RunSpec,
+    artifact: InferenceArtifact,
+    env: Any,
+) -> HeuristicPlanningPolicy:
+    if artifact.kind == "ga_policy":
+        return HeuristicPlanningPolicy.from_yaml(artifact.path)
+
+    if artifact.kind != "ga_zip":
+        raise ValueError(f"unsupported artifact kind for GA: {artifact.kind}")
+    if spec.ga_features is None or spec.ga_search is None:
+        raise ValueError("GA run spec missing features/search")
+
+    ga_stub = HeuristicPlanningPolicy(features=spec.ga_features, search=spec.ga_search)
+    algo = GAAlgorithm.load(artifact.path, policy=ga_stub, env=env, eval_env=None)
+    algo.policy.set_params(algo.best_weights.tolist())
+    return algo.policy
+
+
+def resolve_resume_checkpoint(target: str | Path) -> Path:
+    p = Path(str(target)).expanduser()
+    if p.is_file():
+        return p
+    return p / "checkpoints" / "latest.zip"
+
+
+__all__ = [
+    "InferenceArtifact",
+    "RunSpec",
+    "load_ga_policy_from_artifact",
+    "load_run_spec",
+    "resolve_env_cfg",
+    "resolve_inference_artifact",
+    "resolve_resume_checkpoint",
+]
