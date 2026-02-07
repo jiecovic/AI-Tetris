@@ -194,14 +194,12 @@ class GAAlgorithm(PlanningAlgorithm):
         *,
         policy: VectorParamPolicy,
         env: Any,
-        eval_env: Any | None = None,
         cfg: GAConfig,
         eval_cfg: GAEvalConfig | None = None,
         seed: int | None = None,
     ) -> None:
         super().__init__(policy=policy)
         self.env = env
-        self.eval_env = eval_env
         self.cfg = cfg
         self.eval_cfg = eval_cfg or GAEvalConfig()
         self.episode_seeds = _episode_seeds(
@@ -325,12 +323,7 @@ class GAAlgorithm(PlanningAlgorithm):
                     population=self.population,
                 )
             scores = self.evaluate_population(on_candidate=on_candidate, callback=cb)
-            eval_best_score = None
-            if self.eval_env is not None:
-                best_idx = int(np.argmax(scores))
-                best_weights = self.population[best_idx].tolist()
-                eval_best_score = float(self.evaluate_weights(weights=best_weights, env=self.eval_env))
-            stats = self.tell(scores, eval_best_score=eval_best_score)
+            stats = self.tell(scores)
             if on_generation is not None:
                 on_generation(stats)
             if cb is not None:
@@ -383,7 +376,6 @@ class GAAlgorithm(PlanningAlgorithm):
         *,
         policy: VectorParamPolicy,
         env: Any,
-        eval_env: Any | None = None,
     ) -> "GAAlgorithm":
         path = Path(path)
         with zipfile.ZipFile(path, "r") as zf:
@@ -394,7 +386,7 @@ class GAAlgorithm(PlanningAlgorithm):
 
             cfg = GAConfig(**meta["cfg"])
             eval_cfg = GAEvalConfig(**meta["eval_cfg"])
-            algo = cls(policy=policy, env=env, eval_env=eval_env, cfg=cfg, eval_cfg=eval_cfg)
+            algo = cls(policy=policy, env=env, cfg=cfg, eval_cfg=eval_cfg)
 
             with zf.open("population.npy") as fh:
                 algo.population = np.load(fh)

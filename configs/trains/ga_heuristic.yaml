@@ -2,10 +2,21 @@
 learn:
   generations: 10                 # number of generations to run
   eval:
-    episodes: 100                 # episodes per candidate
-    max_steps: 500                # max steps per episode
+    episodes: 100                 # episodes per candidate (fitness eval)
+    max_steps: 500                # max steps per episode (fitness eval)
     fitness_metric: total_reward  # total_reward | reward_per_step
-    seed: 12345                   # eval seed base
+    seed: 12345                   # fitness eval seed base
+
+checkpoints:
+  latest_every: 1                 # save latest every N generations
+
+eval:
+  mode: both                      # off | rl | imitation | both (use both for GA)
+  eval_every: 1                   # eval cadence in generations
+  steps: 50000                    # eval step budget (episodes * max_steps)
+  deterministic: true             # planning policies are deterministic
+  seed_offset: 10000              # offset from run.seed for eval seeds
+  num_envs: 1                     # ignored for planning eval
 
 algo:
   type: ga

@@ -6,6 +6,10 @@ from typing import Any, Dict
 
 from omegaconf import DictConfig, OmegaConf
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
+try:
+    from tqdm.rich import tqdm  # type: ignore
+except Exception:  # pragma: no cover
+    from tqdm.auto import tqdm  # type: ignore
 
 from tetris_rl.core.config.io import to_plain_dict
 from tetris_rl.core.config.root import ExperimentConfig
@@ -18,15 +22,9 @@ from tetris_rl.core.runs.checkpoints.checkpoint_manifest import (
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
 from tetris_rl.core.runs.run_resolver import resolve_resume_checkpoint
 from tetris_rl.core.runs.run_manifest import write_run_manifest
-from tetris_rl.core.training.callbacks.eval_checkpoint import (
-    EvalCheckpointCallback,
-    EvalCheckpointSpec,
-)
-from tetris_rl.core.training.callbacks.info_logger import InfoLoggerCallback
-from tetris_rl.core.training.callbacks.latest_checkpoint import (
-    LatestCheckpointCallback,
-    LatestCheckpointSpec,
-)
+from tetris_rl.core.callbacks import EvalCallback, InfoLoggerCallback, LatestCallback, SB3CallbackAdapter
+from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
+from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
 from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.core.training.model_factory import make_model_from_cfg
 from tetris_rl.core.training.reporting import (
@@ -214,36 +212,72 @@ def run_rl_experiment(cfg: DictConfig) -> int:
     # ==============================================================
     callbacks: list[BaseCallback] = [
         InfoLoggerCallback(cfg=cfg_train, verbose=0),
-        LatestCheckpointCallback(
-            cfg=cfg_train,
-            spec=LatestCheckpointSpec(
-                checkpoint_dir=paths.ckpt_dir,
-                latest_every=int(checkpoints_cfg.latest_every),
-                verbose=0,
-            ),
-        ),
     ]
 
-    if int(eval_cfg.eval_every) > 0 and str(eval_cfg.mode).strip().lower() != "off":
-        # IMPORTANT: keep EvalCheckpointSpec unchanged by passing an eval-specific cfg
-        # into the callback (callback still receives `cfg` and can build eval env as before).
-        eval_cfg = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
+    core_callbacks = []
 
-        callbacks.append(
-            EvalCheckpointCallback(
-                cfg=eval_cfg,
-                spec=EvalCheckpointSpec(
+    if int(checkpoints_cfg.latest_every) > 0:
+        core_callbacks.append(
+            LatestCallback(
+                spec=LatestCheckpointCoreSpec(
                     checkpoint_dir=paths.ckpt_dir,
-                    eval_every=int(eval_cfg.eval_every),
-                    eval=eval_cfg,
-                    base_seed=int(run_cfg.seed),
-                    run_cfg=run_cfg,
-                    verbose=cb_verbose,
+                    latest_every=int(checkpoints_cfg.latest_every),
+                    verbose=0,
                 ),
+                event="step",
+                progress_key="num_timesteps",
             )
         )
+
+    if int(eval_cfg.eval_every) > 0 and str(eval_cfg.mode).strip().lower() != "off":
+        # IMPORTANT: keep EvalCheckpointCoreSpec eval as EvalConfig while passing
+        # an eval-specific cfg dict for env wiring.
+        eval_cfg_plain = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
+
+        eval_cb: EvalCallback | None = None
+
+        def _emit(line: str) -> None:
+            try:
+                tqdm.write(line)
+            except Exception:
+                print(line, flush=True)
+
+        def _log_scalar(name: str, value: float, _step: int) -> None:
+            if eval_cb is None:
+                return
+            algo = eval_cb.algo
+            if algo is None:
+                return
+            logger_ref = getattr(algo, "logger", None)
+            if logger_ref is None:
+                return
+            try:
+                logger_ref.record(str(name), float(value))
+            except Exception:
+                pass
+
+        eval_cb = EvalCallback(
+            spec=EvalCheckpointCoreSpec(
+                checkpoint_dir=paths.ckpt_dir,
+                eval_every=int(eval_cfg.eval_every),
+                run_cfg=run_cfg,
+                eval=eval_cfg,
+                base_seed=int(run_cfg.seed),
+                verbose=cb_verbose,
+            ),
+            cfg=eval_cfg_plain,
+            event="step",
+            progress_key="num_timesteps",
+            phase="rl",
+            emit=_emit,
+            log_scalar=_log_scalar,
+        )
+        core_callbacks.append(eval_cb)
     else:
         logger.info("[eval] disabled (eval.mode=off or eval.eval_every<=0)")
+
+    if core_callbacks:
+        callbacks.append(SB3CallbackAdapter(core_callbacks))
 
     cb_list = CallbackList(callbacks)
 

@@ -1,4 +1,4 @@
-# src/tetris_rl/core/training/callbacks/info_logger.py
+# src/tetris_rl/core/callbacks/info_logger.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,13 +45,13 @@ class InfoLoggerCallback(BaseCallback):
     """
 
     def __init__(
-            self,
-            *,
-            spec: Optional[InfoLoggerSpec] = None,
-            cfg: Optional[Dict[str, Any]] = None,
-            log_every_calls: int = 50,
-            prefix: str = "env",
-            verbose: int = 0,
+        self,
+        *,
+        spec: Optional[InfoLoggerSpec] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        log_every_calls: int = 50,
+        prefix: str = "env",
+        verbose: int = 0,
     ) -> None:
         if spec is None:
             base = str(prefix).strip().rstrip("/") if str(prefix).strip() else ""

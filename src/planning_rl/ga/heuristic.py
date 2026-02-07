@@ -93,7 +93,6 @@ class HeuristicGA:
         features: Sequence[str] | None = None,
         search: HeuristicSearch | None = None,
         env_train: Any | None = None,
-        env_eval: Any | None = None,
         ga: GAConfig | None = None,
         eval_cfg: GAEvalConfig | None = None,
         workers: int | None = None,
@@ -112,14 +111,10 @@ class HeuristicGA:
         eval_cfg = eval_cfg or GAEvalConfig()
         self._cfg_dict: dict[str, Any] | None = cfg if isinstance(cfg, dict) else None
         self._env_train_cfg: dict[str, Any] | None = None
-        self._env_eval_cfg: dict[str, Any] | None = None
         if self._cfg_dict is not None:
             env_train_cfg = self._cfg_dict.get("env_train", None) or self._cfg_dict.get("env", None)
-            env_eval_cfg = self._cfg_dict.get("env_eval", None) or env_train_cfg
             if isinstance(env_train_cfg, dict):
                 self._env_train_cfg = dict(env_train_cfg)
-            if isinstance(env_eval_cfg, dict):
-                self._env_eval_cfg = dict(env_eval_cfg)
         if env_train is None:
             if cfg is None:
                 raise ValueError("cfg is required to build env for GA evaluation")
@@ -128,19 +123,10 @@ class HeuristicGA:
                 cfg_env = dict(cfg)
                 cfg_env["env"] = cfg["env_train"]
             env_train = make_env_from_cfg(cfg=cfg_env, seed=int(eval_cfg.seed)).env
-        if env_eval is None:
-            if isinstance(cfg, dict) and "env_eval" in cfg:
-                cfg_eval = dict(cfg)
-                cfg_eval["env"] = cfg["env_eval"]
-                env_eval = make_env_from_cfg(cfg=cfg_eval, seed=int(eval_cfg.seed)).env
-            else:
-                env_eval = env_train
         self.env = env_train
-        self.eval_env = env_eval
         self.algo = GAAlgorithm(
             policy=self.policy,
             env=self.env,
-            eval_env=self.eval_env,
             cfg=self.ga,
             eval_cfg=eval_cfg,
             seed=seed,
@@ -236,14 +222,7 @@ class HeuristicGA:
                                     score=float(score),
                                     weights=weights_list[int(idx)],
                                 )
-                        eval_best_score = None
-                        if self.eval_env is not None:
-                            best_idx = int(np.argmax(scores))
-                            best_weights = pop[best_idx].tolist()
-                            eval_best_score = float(
-                                self.algo.evaluate_weights(weights=best_weights, env=self.eval_env)
-                            )
-                        gen_stats = self.algo.tell(scores, eval_best_score=eval_best_score)
+                        gen_stats = self.algo.tell(scores)
                         stats.append(gen_stats)
                         if on_generation is not None:
                             on_generation(gen_stats)
@@ -280,8 +259,6 @@ class HeuristicGA:
             )
         finally:
             self.env.close()
-            if self.eval_env is not self.env:
-                self.eval_env.close()
 
     def save_best(self, *, path: Path, result: HeuristicRunResult) -> Path:
         return save_heuristic_spec(path, result.spec)

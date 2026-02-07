@@ -148,7 +148,7 @@ def load_ga_policy_from_artifact(
         raise ValueError("GA run spec missing features/search")
 
     ga_stub = HeuristicPlanningPolicy(features=spec.ga_features, search=spec.ga_search)
-    algo = GAAlgorithm.load(artifact.path, policy=ga_stub, env=env, eval_env=None)
+    algo = GAAlgorithm.load(artifact.path, policy=ga_stub, env=env)
     algo.policy.set_params(algo.best_weights.tolist())
     return algo.policy
 
