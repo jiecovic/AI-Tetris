@@ -297,26 +297,25 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                 on_episode=on_episode,
                 on_step=on_step,
             )
-
-            core_cb = EvalCallback(
-                spec=EvalCheckpointCoreSpec(
-                    checkpoint_dir=paths.ckpt_dir,
-                    eval_every=int(callbacks_cfg.eval_checkpoint.every),
-                    run_cfg=run_cfg,
-                    eval=eval_cfg,
-                    base_seed=int(run_cfg.seed),
-                    progress_unit="generations",
-                    verbose=1,
-                ),
-                cfg=cfg_dict,
-                event="generation_end",
-                progress_key="generation",
-                progress_offset=1,
-                phase="ga",
-                emit=logger.info,
-                eval_fn=_eval_fn,
-                log_scalar=(tb_logger.log_scalar if tb_logger is not None else None),
-            )
+        core_cb = EvalCallback(
+            spec=EvalCheckpointCoreSpec(
+                checkpoint_dir=paths.ckpt_dir,
+                eval_every=int(callbacks_cfg.eval_checkpoint.every),
+                run_cfg=run_cfg,
+                eval=eval_cfg,
+                base_seed=int(run_cfg.seed),
+                progress_unit="generations",
+                verbose=1,
+            ),
+            cfg=cfg_dict,
+            event="generation_end",
+            progress_key="generation",
+            progress_offset=1,
+            phase="ga",
+            emit=logger.info,
+            eval_fn=_eval_fn,
+            log_scalar=(tb_logger.log_scalar if tb_logger is not None else None),
+        )
         callback_items.append(PlanningCallbackAdapter(core_cb))
     else:
         logger.info("[eval] disabled (callbacks.eval_checkpoint disabled)")
