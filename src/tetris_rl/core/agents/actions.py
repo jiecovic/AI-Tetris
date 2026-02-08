@@ -21,12 +21,12 @@ def choose_action(
     env: Any,
     game: Any,
     expert_policy: Any,
-    ga_policy: Any,
+    planning_policy: Any,
 ) -> Any:
     action_mode = str(getattr(env, "action_mode", "discrete")).strip().lower()
 
-    if ga_policy is not None and (not bool(args.random_action)) and (not bool(args.heuristic_agent)):
-        return ga_policy.predict(env=env)
+    if planning_policy is not None and (not bool(args.random_action)) and (not bool(args.heuristic_agent)):
+        return planning_policy.predict(env=env)
 
     if bool(args.heuristic_agent):
         if expert_policy is None:

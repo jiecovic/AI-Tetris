@@ -195,7 +195,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
     env = ctx.env
     game = ctx.game
     model = ctx.model
-    ga_policy = ctx.ga_policy
+    planning_policy = ctx.planning_policy
     expert_policy = ctx.expert_policy
     algo_type = str(ctx.algo_type)
     ckpt = ctx.ckpt
@@ -203,8 +203,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
     agent_name = "rust_expert" if bool(args.heuristic_agent) else ("random" if bool(args.random_action) else algo_type)
     if bool(args.heuristic_agent):
         agent_name = f"{agent_name}({str(args.heuristic_policy).strip().lower()})"
-    if ga_policy is not None and (not bool(args.heuristic_agent)) and (not bool(args.random_action)):
-        agent_name = "ga_heuristic"
+    if planning_policy is not None and (not bool(args.heuristic_agent)) and (not bool(args.random_action)):
+        agent_name = "ga_heuristic" if algo_type == "ga" else "td_heuristic"
 
     logger = None
     if not bool(args.json):
@@ -266,7 +266,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 env=env,
                 game=game,
                 expert_policy=expert_policy,
-                ga_policy=ga_policy,
+                planning_policy=planning_policy,
             )
 
             obs2, r, terminated, truncated, info2 = env.step(a)

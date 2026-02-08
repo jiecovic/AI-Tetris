@@ -18,7 +18,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
     game = ctx.game
     ckpt = ctx.ckpt
     model = ctx.model
-    ga_policy = ctx.ga_policy
+    planning_policy = ctx.planning_policy
     expert_policy = ctx.expert_policy
     poller = ctx.poller
     algo_type = ctx.algo_type
@@ -132,7 +132,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
             env=env,
             game=game,
             expert_policy=expert_policy,
-            ga_policy=ga_policy,
+            planning_policy=planning_policy,
         )
 
         obs2, r, terminated, truncated, info2 = env.step(a)

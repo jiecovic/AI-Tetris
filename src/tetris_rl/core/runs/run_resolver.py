@@ -17,7 +17,7 @@ from tetris_rl.core.runs.checkpoints.checkpoint_manifest import resolve_checkpoi
 from tetris_rl.core.runs.run_io import choose_config_path
 from tetris_rl.core.utils.paths import repo_root, resolve_run_dir
 
-from planning_rl.ga.algorithm import GAAlgorithm
+from planning_rl.ga import GAAlgorithm
 
 
 @dataclass(frozen=True)
@@ -37,7 +37,7 @@ class RunSpec:
 
 @dataclass(frozen=True)
 class InferenceArtifact:
-    kind: Literal["sb3_ckpt", "ga_policy", "ga_zip", "imitation_ckpt"]
+    kind: Literal["sb3_ckpt", "ga_policy", "ga_zip", "imitation_ckpt", "td_ckpt"]
     path: Path
     note: str | None = None
 
@@ -64,21 +64,21 @@ def load_run_spec(run_name: str | Path) -> RunSpec:
         env_eval_cfg = exp_cfg.env_eval
         algo_cfg = exp_cfg.algo
         algo_type = str(algo_cfg.type).strip().lower()
-    elif algo_type == "ga":
+    elif algo_type in {"ga", "td"}:
         policy_cfg = cfg_raw.get("policy", {}) or {}
         features = policy_cfg.get("features", []) or []
         if not isinstance(features, list) or not features:
-            raise ValueError("policy.features must be a non-empty list for GA runs")
+            raise ValueError("policy.features must be a non-empty list for planning runs")
         search_cfg = policy_cfg.get("search", {}) or {}
         if not isinstance(search_cfg, dict):
-            raise TypeError("policy.search must be a mapping for GA runs")
+            raise TypeError("policy.search must be a mapping for planning runs")
         ga_features = list(features)
         ga_search = HeuristicSearch.model_validate(search_cfg)
 
         if not isinstance(env_train_cfg, dict):
-            raise TypeError("env_train must be a mapping for GA runs")
+            raise TypeError("env_train must be a mapping for planning runs")
         if not isinstance(env_eval_cfg, dict):
-            raise TypeError("env_eval must be a mapping for GA runs")
+            raise TypeError("env_eval must be a mapping for planning runs")
     elif algo_type in {"ppo", "maskable_ppo"}:
         exp_cfg = load_experiment_config(cfg_path)
         cfg_plain = to_plain_dict(exp_cfg)
@@ -87,7 +87,7 @@ def load_run_spec(run_name: str | Path) -> RunSpec:
         algo_cfg = exp_cfg.algo
         algo_type = str(algo_cfg.type).strip().lower()
     else:
-        raise ValueError("unknown config shape: expected algo.type in {ppo,maskable_ppo,imitation,ga}")
+        raise ValueError("unknown config shape: expected algo.type in {ppo,maskable_ppo,imitation,ga,td}")
 
     return RunSpec(
         run_dir=run_dir,
@@ -129,6 +129,10 @@ def resolve_inference_artifact(*, spec: RunSpec, which: str) -> InferenceArtifac
     if spec.algo_type == "imitation":
         path = resolve_checkpoint_from_manifest(run_dir=spec.run_dir, which=str(which))
         return InferenceArtifact(kind="imitation_ckpt", path=path)
+
+    if spec.algo_type == "td":
+        path = resolve_checkpoint_from_manifest(run_dir=spec.run_dir, which=str(which))
+        return InferenceArtifact(kind="td_ckpt", path=path)
 
     if spec.algo_type != "ga":
         path = resolve_checkpoint_from_manifest(run_dir=spec.run_dir, which=str(which))

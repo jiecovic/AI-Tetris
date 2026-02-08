@@ -15,11 +15,12 @@ from rich.progress import (
 )
 from tqdm.rich import FractionColumn, RateColumn
 
-from planning_rl.ga import GAConfig, GAFitnessConfig, HeuristicGA
+from planning_rl.ga import GAAlgorithm, GAConfig, GAFitnessConfig
 from planning_rl.ga.types import GAStats
 from tetris_rl.core.callbacks import EvalCallback, LatestCallback, PlanningCallbackAdapter
 from tetris_rl.core.config.io import to_plain_dict
 from tetris_rl.core.envs.factory import make_env_from_cfg
+from tetris_rl.core.policies.planning_policies.heuristic_policy import HeuristicPlanningPolicy
 from tetris_rl.core.policies.spec import HeuristicSearch, save_heuristic_spec
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
@@ -29,6 +30,7 @@ from tetris_rl.core.training.evaluation import (
     evaluate_planning_policy,
     evaluate_planning_policy_parallel,
 )
+from tetris_rl.core.training.ga_worker_factory import TetrisGAWorkerFactory
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
@@ -218,6 +220,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     if not isinstance(env_eval_cfg, dict):
         raise TypeError("env_eval must be a mapping (or define env as fallback)")
 
+    policy = HeuristicPlanningPolicy(features=features, search=search)
     env_train = make_env_from_cfg(
         cfg=_with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg),
         seed=int(fitness_cfg.seed),
@@ -233,14 +236,21 @@ def run_ga_experiment(cfg: DictConfig) -> int:
             seed=int(fitness_cfg.seed),
         ).env
 
-    ga = HeuristicGA(
-        cfg=cfg_dict,
-        features=features,
-        search=search,
-        env_train=env_train,
-        ga=ga_cfg,
+    worker_factory = None
+    if int(train_workers) > 1:
+        worker_factory = TetrisGAWorkerFactory(
+            cfg=dict(cfg_dict),
+            env_cfg=dict(env_train_cfg),
+            features=list(features),
+            search_cfg=dict(search.model_dump(mode="json")),
+        )
+    algo = GAAlgorithm(
+        policy=policy,
+        env=env_train,
+        cfg=ga_cfg,
         fitness_cfg=fitness_cfg,
         workers=int(train_workers),
+        worker_factory=worker_factory,
     )
 
     generations = int(learn_block.get("generations", 1))
@@ -365,7 +375,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
             intermediate_path = paths.run_dir / "intermediate_best_policy.yaml"
 
             def _save_best(path: Path) -> None:
-                spec = ga.policy.build_spec(ga.best_weights)
+                spec = policy.build_spec(algo.best_weights)
                 save_heuristic_spec(path, spec)
 
             def _on_generation(stats: GAStats) -> None:
@@ -388,12 +398,6 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                     tail=f"best_ind={_fmt(best_ind)} best_w={_fmt_weights(best_ind_weights)}",
                 )
                 _save_best(intermediate_path)
-                if tb_logger is not None:
-                    step = int(stats.generation) + 1
-                    tb_logger.log_scalar("ga/best_score", float(stats.best_score), step)
-                    tb_logger.log_scalar("ga/mean_score", float(stats.mean_score), step)
-                    if stats.eval_best_score is not None:
-                        tb_logger.log_scalar("ga/eval_best_score", float(stats.eval_best_score), step)
 
             def _on_candidate(idx: int, score: float) -> None:
                 nonlocal current_gen
@@ -412,28 +416,38 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                     )
                 if best_ind is None or float(score) > float(best_ind):
                     best_ind = float(score)
-                    best_ind_weights = [float(w) for w in ga.algo.population[int(idx)].tolist()]
+                    best_ind_weights = [float(w) for w in algo.population[int(idx)].tolist()]
                     progress.update(
                         cand_task,
                         tail=f"best_ind={_fmt(best_ind)} best_w={_fmt_weights(best_ind_weights)}",
                     )
                 progress.update(cand_task, advance=1)
 
-            result = ga.learn(
+            stats = algo.learn(
                 generations=generations,
                 on_generation=_on_generation,
                 on_candidate=_on_candidate,
                 callback=callback_items or None,
+                logger=tb_logger,
             )
     finally:
+        try:
+            algo.close()
+        except Exception:
+            pass
+        if env_train is not None:
+            try:
+                env_train.close()
+            except Exception:
+                pass
         if env_eval is not None:
             env_eval.close()
         if tb_logger is not None:
             tb_logger.flush()
             tb_logger.close()
-    _log_stats(logger=logger, stats=result.stats)
+    _log_stats(logger=logger, stats=stats)
 
-    ga.save_best(path=best_path, result=result)
+    save_heuristic_spec(best_path, policy.build_spec(algo.best_weights))
     logger.info(f"[ga] best_policy={best_path}")
     if intermediate_path.is_file():
         logger.info(f"[ga] intermediate_best_policy={intermediate_path}")

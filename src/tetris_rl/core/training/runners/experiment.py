@@ -6,6 +6,7 @@ from omegaconf import DictConfig
 from tetris_rl.core.training.runners.ga import run_ga_experiment
 from tetris_rl.core.training.runners.imitation import run_imitation_experiment
 from tetris_rl.core.training.runners.ppo import run_ppo_experiment
+from tetris_rl.core.training.runners.td import run_td_experiment
 
 
 def run_experiment(cfg: DictConfig) -> int:
@@ -19,6 +20,8 @@ def run_experiment(cfg: DictConfig) -> int:
             return run_imitation_experiment(cfg)
         if algo_type == "ga":
             return run_ga_experiment(cfg)
+        if algo_type == "td":
+            return run_td_experiment(cfg)
         return run_ppo_experiment(cfg)
 
     raise ValueError("unknown config shape: expected imitation or algo.type")

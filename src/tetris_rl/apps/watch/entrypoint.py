@@ -101,8 +101,8 @@ def run_watch(args: argparse.Namespace) -> int:
     agent_name = "rust_expert" if bool(args.heuristic_agent) else ("random" if bool(args.random_action) else ctx.algo_type)
     if bool(args.heuristic_agent):
         agent_name = f"{agent_name}({str(args.heuristic_policy).strip().lower()})"
-    if ctx.ga_policy is not None and (not bool(args.heuristic_agent)) and (not bool(args.random_action)):
-        agent_name = "ga_heuristic"
+    if ctx.planning_policy is not None and (not bool(args.heuristic_agent)) and (not bool(args.random_action)):
+        agent_name = "ga_heuristic" if ctx.algo_type == "ga" else "td_heuristic"
     logger.info("[watch] agent=%s", str(agent_name))
 
     return run_watch_loop(args=args, ctx=ctx)

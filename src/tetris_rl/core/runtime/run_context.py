@@ -4,13 +4,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+import torch
+
 from tetris_rl.core.agents.expert import make_expert_policy
 from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.runs.checkpoints.checkpoint_poll import CheckpointPoller
 from tetris_rl.core.runs.run_resolver import (
     InferenceArtifact,
     RunSpec,
-    load_ga_policy_from_artifact,
     load_run_spec,
     resolve_env_cfg,
     resolve_inference_artifact,
@@ -29,7 +30,7 @@ class RunContext:
     ckpt: Any
     algo_type: str
     model: Any | None
-    ga_policy: Any | None
+    planning_policy: Any | None
     expert_policy: Any | None
     poller: CheckpointPoller | None
 
@@ -56,6 +57,13 @@ def _apply_piece_rule_override(cfg: dict[str, Any], piece_rule: str | None) -> d
     cfg_env["game"] = game_cfg
     cfg_out["env"] = cfg_env
     return cfg_out
+
+
+def _resolve_device(device: str) -> torch.device:
+    dev = str(device).strip().lower()
+    if dev == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    return torch.device(dev)
 
 
 def build_run_context(
@@ -91,9 +99,30 @@ def build_run_context(
         expert_policy = make_expert_policy(args=expert_args, engine=game)
 
     ckpt = artifact.path
-    ga_policy = None
+    planning_policy = None
     if spec.algo_type == "ga":
-        ga_policy = load_ga_policy_from_artifact(spec=spec, artifact=artifact, env=env)
+        from tetris_rl.core.runs.run_resolver import load_ga_policy_from_artifact
+
+        planning_policy = load_ga_policy_from_artifact(spec=spec, artifact=artifact, env=env)
+    if spec.algo_type == "td":
+        if artifact.kind != "td_ckpt":
+            raise RuntimeError(f"unexpected TD artifact kind: {artifact.kind}")
+        from planning_rl.td.algorithm import TDAlgorithm
+        from tetris_rl.core.policies.planning_policies.td_value_policy import TDValuePlanningPolicy
+
+        def _build_policy(policy_state, model_state, dev):
+            return TDValuePlanningPolicy.from_checkpoint_state(
+                policy_state=policy_state,
+                model_state=model_state,
+                device=dev,
+            )
+
+        algo = TDAlgorithm.load(
+            artifact.path,
+            device=_resolve_device(str(device)),
+            policy_builder=_build_policy,
+        )
+        planning_policy = algo.policy
 
     model = None
     if (not bool(use_expert)) and (not bool(random_action)):
@@ -107,7 +136,7 @@ def build_run_context(
                 device=str(device),
             )
             algo_type = getattr(model, "_tetris_algo_type", "ppo")
-        elif spec.algo_type != "ga":
+        elif spec.algo_type not in {"ga", "td"}:
             loaded = load_model_from_algo_config(
                 algo_cfg=spec.algo_cfg,
                 ckpt=ckpt,
@@ -122,7 +151,7 @@ def build_run_context(
 
     poller = None
     if (
-        spec.algo_type not in {"ga", "imitation"}
+        spec.algo_type not in {"ga", "td", "imitation"}
         and model is not None
         and float(reload_every_s) > 0.0
     ):
@@ -143,7 +172,7 @@ def build_run_context(
         ckpt=ckpt,
         algo_type=algo_type,
         model=model,
-        ga_policy=ga_policy,
+        planning_policy=planning_policy,
         expert_policy=expert_policy,
         poller=poller,
     )
