@@ -8,7 +8,7 @@ from tetris_rl.core.runs.checkpoints.checkpoint_manager import CheckpointPaths
 
 
 class EvalTable:
-    # fixed-width table layout (stable columns, no bouncing)
+    # fixed-width table layout; optional columns are omitted when unused
     _COL_W_T = 10
     _COL_W_PH = 10
     _COL_W_UPD = 6
@@ -31,6 +31,7 @@ class EvalTable:
         self.progress_unit = str(progress_unit)
         self._tick_count = 0
         self._printed_preamble = False
+        self._show_bc = False
 
     def _t_col_name(self) -> str:
         u = str(self.progress_unit).strip().lower()
@@ -67,9 +68,9 @@ class EvalTable:
         )
         self.emit("")
 
-    def _table_header(self) -> str:
+    def _table_header(self, *, show_bc: bool) -> str:
         tname = self._t_col_name()
-        return (
+        base = (
             f"{tname:>{self._COL_W_T}} "
             f"{'algo':<{self._COL_W_PH}} "
             f"{'upd':<{self._COL_W_UPD}} "
@@ -79,13 +80,18 @@ class EvalTable:
             f"{'lines/s':>{self._COL_W_LPS}} "
             f"{'ep_len':>{self._COL_W_EPL}} "
             f"{'ill%':>{self._COL_W_IAR}} "
-            f"{'bc_vloss':>{self._COL_W_BCL}} "
-            f"{'bc_acc':>{self._COL_W_BCA}} "
-            f"{'bc_H':>{self._COL_W_BCH}} "
+        )
+        if not show_bc:
+            return base
+        return (
+            base
+            + f"{'bc_vloss':>{self._COL_W_BCL}} "
+            + f"{'bc_acc':>{self._COL_W_BCA}} "
+            + f"{'bc_H':>{self._COL_W_BCH}} "
         )
 
-    def _table_sep(self) -> str:
-        return (
+    def _table_sep(self, *, show_bc: bool) -> str:
+        base = (
             f"{'-' * self._COL_W_T} "
             f"{'-' * self._COL_W_PH} "
             f"{'-' * self._COL_W_UPD} "
@@ -95,9 +101,14 @@ class EvalTable:
             f"{'-' * self._COL_W_LPS} "
             f"{'-' * self._COL_W_EPL} "
             f"{'-' * self._COL_W_IAR} "
-            f"{'-' * self._COL_W_BCL} "
-            f"{'-' * self._COL_W_BCA} "
-            f"{'-' * self._COL_W_BCH} "
+        )
+        if not show_bc:
+            return base
+        return (
+            base
+            + f"{'-' * self._COL_W_BCL} "
+            + f"{'-' * self._COL_W_BCA} "
+            + f"{'-' * self._COL_W_BCH} "
         )
 
     def _fmt_float(self, v: Optional[float], width: int, *, prec: int = 4) -> str:
@@ -150,12 +161,16 @@ class EvalTable:
         bc_val_entropy: Optional[float] = None,
     ) -> None:
         self._tick_count += 1
-
-        if self._tick_count == 1 or (
+        show_bc = any(v is not None for v in (bc_val_loss, bc_val_acc_top1, bc_val_entropy))
+        if show_bc and not self._show_bc:
+            self._show_bc = True
+            self.emit(self._table_header(show_bc=True))
+            self.emit(self._table_sep(show_bc=True))
+        elif self._tick_count == 1 or (
             self.table_header_every > 0 and (self._tick_count % int(self.table_header_every)) == 0
         ):
-            self.emit(self._table_header())
-            self.emit(self._table_sep())
+            self.emit(self._table_header(show_bc=self._show_bc))
+            self.emit(self._table_sep(show_bc=self._show_bc))
 
         upd_fixed = (upd[: self._COL_W_UPD]).ljust(self._COL_W_UPD)
         ill_pct = None if invalid_action_rate is None else 100.0 * float(invalid_action_rate)
@@ -172,10 +187,13 @@ class EvalTable:
             f"{self._fmt_float(lines_per_step, self._COL_W_LPS, prec=5)} "
             f"{self._fmt_float(ep_len_mean, self._COL_W_EPL, prec=1)} "
             f"{self._fmt_float(ill_pct, self._COL_W_IAR, prec=2)} "
-            f"{self._fmt_float(bc_val_loss, self._COL_W_BCL, prec=4)} "
-            f"{self._fmt_float(bc_val_acc_top1, self._COL_W_BCA, prec=3)} "
-            f"{self._fmt_float(bc_val_entropy, self._COL_W_BCH, prec=3)} "
         )
+        if self._show_bc:
+            row += (
+                f"{self._fmt_float(bc_val_loss, self._COL_W_BCL, prec=4)} "
+                f"{self._fmt_float(bc_val_acc_top1, self._COL_W_BCA, prec=3)} "
+                f"{self._fmt_float(bc_val_entropy, self._COL_W_BCH, prec=3)} "
+            )
         self.emit(row)
 
 
