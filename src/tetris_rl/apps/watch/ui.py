@@ -21,6 +21,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
     planning_policy = ctx.planning_policy
     expert_policy = ctx.expert_policy
     poller = ctx.poller
+    planning_poller = ctx.planning_poller
     algo_type = ctx.algo_type
 
     window = StepWindow(capacity=max(0, int(args.window_steps)))
@@ -111,15 +112,19 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
     MAX_STEPS_PER_FRAME = 500
 
     def _maybe_reload() -> None:
-        nonlocal model, ckpt, algo_type, last_reload_at_s
-        if poller is None or model is None:
-            return
+        nonlocal model, ckpt, algo_type, last_reload_at_s, planning_policy
         now_s = time.time()
-        maybe = poller.maybe_reload(now_s=now_s)
-        if maybe is None:
-            return
-        model, ckpt, algo_type = maybe
-        last_reload_at_s = now_s
+        if poller is not None and model is not None:
+            maybe = poller.maybe_reload(now_s=now_s)
+            if maybe is not None:
+                model, ckpt, algo_type = maybe
+                last_reload_at_s = now_s
+        if planning_poller is not None:
+            maybe_plan = planning_poller.maybe_reload(now_s=now_s)
+            if maybe_plan is not None:
+                planning_policy, ckpt = maybe_plan
+                algo_type = "td"
+                last_reload_at_s = now_s
 
     def _advance_one() -> None:
         nonlocal obs, info, state
@@ -183,6 +188,10 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
         now_s = time.time()
         last_reload_age_s = float("inf") if last_reload_at_s is None else max(0.0, now_s - float(last_reload_at_s))
 
+        reloads = int(getattr(poller, "reload_count", 0))
+        if planning_poller is not None:
+            reloads = max(reloads, int(getattr(planning_poller, "reload_count", 0)))
+
         snap = HudSnapshot(
             run_name=str(args.run),
             mode=str(h.action_mode),
@@ -190,7 +199,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
             paused=bool(paused),
             seed=int(args.seed),
             reload_every_s=float(args.reload),
-            reloads=int(getattr(poller, "reload_count", 0)),
+            reloads=reloads,
             last_reload_age_s=float(last_reload_age_s),
             episode_idx=int(h.episode_idx),
             episode_step=int(h.episode_step),

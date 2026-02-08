@@ -9,6 +9,7 @@ import torch
 from tetris_rl.core.agents.expert import make_expert_policy
 from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.runs.checkpoints.checkpoint_poll import CheckpointPoller
+from tetris_rl.core.runs.checkpoints.planning_poll import PlanningCheckpointPoller
 from tetris_rl.core.runs.run_resolver import (
     InferenceArtifact,
     RunSpec,
@@ -33,6 +34,7 @@ class RunContext:
     planning_policy: Any | None
     expert_policy: Any | None
     poller: CheckpointPoller | None
+    planning_poller: PlanningCheckpointPoller | None
 
 
 def _with_env_cfg(*, cfg: dict[str, Any], env_cfg: dict[str, Any]) -> dict[str, Any]:
@@ -100,6 +102,7 @@ def build_run_context(
 
     ckpt = artifact.path
     planning_policy = None
+    planning_poller = None
     if spec.algo_type == "ga":
         from tetris_rl.core.runs.run_resolver import load_ga_policy_from_artifact
 
@@ -117,12 +120,28 @@ def build_run_context(
                 device=dev,
             )
 
+        dev = _resolve_device(str(device))
         algo = TDAlgorithm.load(
             artifact.path,
-            device=_resolve_device(str(device)),
+            device=dev,
             policy_builder=_build_policy,
         )
         planning_policy = algo.policy
+        if float(reload_every_s) > 0.0:
+            def _reload_td(path: Path) -> Any:
+                td_algo = TDAlgorithm.load(
+                    path,
+                    device=dev,
+                    policy_builder=_build_policy,
+                )
+                return td_algo.policy
+            planning_poller = PlanningCheckpointPoller(
+                run_dir=spec.run_dir,
+                which=str(which),
+                reload_every_s=float(reload_every_s),
+                loader=_reload_td,
+            )
+            planning_poller.set_current(ckpt=artifact.path, policy=planning_policy)
 
     model = None
     if (not bool(use_expert)) and (not bool(random_action)):
@@ -175,6 +194,7 @@ def build_run_context(
         planning_policy=planning_policy,
         expert_policy=expert_policy,
         poller=poller,
+        planning_poller=planning_poller,
     )
 
 
