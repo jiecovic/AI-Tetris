@@ -3,8 +3,8 @@ learn:
   generations: 10                 # number of generations to run
   workers: 12                    # parallel workers for fitness eval
   fitness:
-    episodes: 1_000                 # episodes per candidate (fitness eval)
-    max_steps: 5_000                # max steps per episode (fitness eval)
+    episodes: 100                 # episodes per candidate (fitness eval)
+    max_steps: 500                # max steps per episode (fitness eval)
     fitness_metric: total_reward  # total_reward | reward_per_step
     seed: 12345                   # fitness eval seed base
 
@@ -26,7 +26,7 @@ callbacks:
 algo:
   type: ga
   params:
-    population_size: 1000           # individuals per generation
+    population_size: 100           # individuals per generation
     selection: tournament           # tournament | elite_pool
     offspring_frac: 0.3             # fraction replaced by offspring
     tournament_frac: 0.1            # fraction sampled per tournament

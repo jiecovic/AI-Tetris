@@ -2,9 +2,9 @@
 defaults:
   - /hydra: default
   - /envs@env_train: empty
-  - /rewards@env_train.reward: lines_survival
+  - /rewards@env_train.reward: lines_clean
   - /envs@env_eval: empty
-  - /rewards@env_eval.reward: lines_survival
+  - /rewards@env_eval.reward: lines_clean
   - /planning_policies@policy: heuristic
   - /trains@_global_: td_heuristic
   - _self_

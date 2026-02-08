@@ -3,5 +3,5 @@ type: lines_clean
 params:
   illegal_penalty: 10.0
   terminal_penalty: 10.0
-  survival_bonus: 0.0
+  survival_bonus: 0.01
   no_new_holes_bonus: 1.0
