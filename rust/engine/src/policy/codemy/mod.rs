@@ -15,10 +15,11 @@ mod score;
 mod unknown;
 
 pub use fast::Codemy2FastPolicy;
+pub use core::{GridScorer, SearchCore};
 pub use unknown::UniformIID;
 
 // Keep these internal unless you actually want them public later.
-use core::CodemyCore;
+use core::{CodemyCore, CodemyScorer};
 use unknown::UnknownModel;
 
 /// Dynamic (runtime plies) policy.
@@ -46,14 +47,16 @@ impl Policy for CodemyPolicyDynamic {
         let mut best: Option<(usize, f64)> = None;
 
         for (aid0, _proxy0) in aid0_cands {
-            let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.invalid {
-                continue;
-            }
-
             let v0 = if self.plies == 1 {
-                score::score_grid(&sim1.grid_after_lock)
+                let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
+                    continue;
+                };
+                score::score_grid(&grid_lock)
             } else {
+                let sim1 = g.simulate_action_id_active(aid0);
+                if sim1.invalid {
+                    continue;
+                }
                 self.core.value_known_piece::<UniformIID>(
                     &sim1.grid_after_clear,
                     g.next,
@@ -75,12 +78,12 @@ impl Policy for CodemyPolicyDynamic {
 
 /// Static (compile-time plies + unknown model) policy.
 /// This is the "Rust templates" fast-path: monomorphized for each (M, PLIES).
-pub struct CodemyPolicyStatic<M: UnknownModel, const PLIES: u8> {
+pub struct CodemyPolicyStatic<M: UnknownModel<CodemyScorer>, const PLIES: u8> {
     core: CodemyCore,
     _m: PhantomData<M>,
 }
 
-impl<M: UnknownModel, const PLIES: u8> CodemyPolicyStatic<M, PLIES> {
+impl<M: UnknownModel<CodemyScorer>, const PLIES: u8> CodemyPolicyStatic<M, PLIES> {
     pub fn new(beam: Option<BeamConfig>) -> Self {
         debug_assert!(PLIES >= 1);
         Self {
@@ -90,7 +93,7 @@ impl<M: UnknownModel, const PLIES: u8> CodemyPolicyStatic<M, PLIES> {
     }
 }
 
-impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
+impl<M: UnknownModel<CodemyScorer>, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
     fn choose_action(&mut self, g: &Game) -> Option<usize> {
         debug_assert!(PLIES >= 1);
 
@@ -102,14 +105,16 @@ impl<M: UnknownModel, const PLIES: u8> Policy for CodemyPolicyStatic<M, PLIES> {
         let mut best: Option<(usize, f64)> = None;
 
         for (aid0, _proxy0) in aid0_cands {
-            let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.invalid {
-                continue;
-            }
-
             let v0 = if PLIES == 1 {
-                score::score_grid(&sim1.grid_after_lock)
+                let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
+                    continue;
+                };
+                score::score_grid(&grid_lock)
             } else {
+                let sim1 = g.simulate_action_id_active(aid0);
+                if sim1.invalid {
+                    continue;
+                }
                 self.core
                     .value_known_piece::<M>(&sim1.grid_after_clear, g.next, PLIES - 1, 1)
             };

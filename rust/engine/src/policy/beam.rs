@@ -43,3 +43,25 @@ pub(crate) fn prune_top_n_scores(mut xs: Vec<(usize, f64)>, n: usize) -> Vec<(us
     xs.sort_by(|a, b| b.1.total_cmp(&a.1));
     xs
 }
+
+/// In-place top-N pruning on a preallocated slice.
+/// Returns the number of kept elements (prefix length).
+pub(crate) fn prune_top_n_scores_inplace(xs: &mut [(usize, f64)], len: usize, n: usize) -> usize {
+    if len == 0 {
+        return 0;
+    }
+
+    let keep = n.min(len);
+    if keep == len {
+        // No effective pruning => don't pay sorting cost.
+        return len;
+    }
+
+    let nth = keep - 1;
+    let slice = &mut xs[..len];
+    slice.select_nth_unstable_by(nth, |a, b| b.1.total_cmp(&a.1));
+
+    // Deterministic iteration order among kept elements.
+    slice[..keep].sort_by(|a, b| b.1.total_cmp(&a.1));
+    keep
+}

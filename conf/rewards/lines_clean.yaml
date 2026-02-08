@@ -1,0 +1,7 @@
+# @package _group_
+type: lines_clean
+params:
+  illegal_penalty: 10.0
+  terminal_penalty: 10.0
+  survival_bonus: 0.001
+  no_new_holes_bonus: 0.1

@@ -214,4 +214,5 @@ __marimo__/
 
 # Derived experiment outputs (runs, checkpoints, tensorboard logs)
 experiments/
+experiments*/
 datasets/

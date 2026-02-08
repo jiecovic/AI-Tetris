@@ -1,0 +1,10 @@
+# @package _group_
+type: macro                     # MacroTetrisEnv (raw Dict obs only)
+params:
+  action_mode: discrete         # discrete | multidiscrete
+  max_steps: null               # no truncation; eval checkpoints control caps
+  invalid_action_policy: noop   # noop | terminate
+
+game:
+  piece_rule: uniform           # uniform | bag7
+  warmup: null                  # disable warmup for eval/watch

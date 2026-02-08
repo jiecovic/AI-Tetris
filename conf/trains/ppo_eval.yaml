@@ -1,0 +1,32 @@
+# @package _global_
+callbacks:
+  latest:
+    enabled: true                     # save latest checkpoints
+    every: 20_000                     # save latest every N env steps
+  eval_checkpoint:
+    enabled: true                     # run eval + save best checkpoints
+    every: 5_000_000                  # eval cadence in training env steps
+    episodes: 200                     # target completed episodes
+    min_steps: 100_000                # minimum total steps collected
+    max_steps_per_episode: 5_000      # cap per episode (eval-only)
+    deterministic: true               # SB3 eval uses deterministic actions
+    seed_offset: 10_000               # offset from run.seed for eval seeds
+    mode: vectorized                  # vectorized | workers
+    num_envs: 1                       # eval env count
+    workers: 1                        # parallel workers (workers mode)
+
+learn:
+  total_timesteps: 800_000_000        # total env steps for RL training
+#  resume: experiments/cnn_run_013
+
+algo:
+  type: maskable_ppo                  # ppo | maskable_ppo
+  params:
+    learning_rate: 1.0e-4             # optimizer learning rate
+    n_steps: 8192                     # rollout length per environment
+    batch_size: 512                   # minibatch size for updates
+    n_epochs: 2                       # number of optimization epochs per rollout
+    gamma: 0.994                      # discount factor
+    ent_coef: 0.03                    # entropy regularization coefficient
+#    target_kl: 0.02                   # KL divergence target (optional)
+#    clip_range: 0.1                   # PPO clip range (optional)

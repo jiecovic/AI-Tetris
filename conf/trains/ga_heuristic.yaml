@@ -1,0 +1,45 @@
+# @package _global_
+learn:
+  generations: 10                 # number of generations to run
+  workers: 12                    # parallel workers for fitness eval
+  fitness:
+    episodes: 100                 # episodes per candidate (fitness eval)
+    max_steps: 500                # max steps per episode (fitness eval)
+    fitness_metric: total_reward  # total_reward | reward_per_step
+    seed: 12345                   # fitness eval seed base
+
+callbacks:
+  latest:
+    enabled: true                 # save latest checkpoints
+    every: 1                      # save latest every N generations
+  eval_checkpoint:
+    enabled: true                 # run eval + save best checkpoints
+    every: 1                      # eval cadence in generations
+    episodes: 1000                  # target completed episodes
+    min_steps: 1_000              # minimum total steps collected
+    max_steps_per_episode: 1_000  # cap per episode (eval-only)
+    deterministic: true           # planning policies are deterministic
+    seed_offset: 10000            # offset from run.seed for eval seeds
+    mode: workers                 # vectorized | workers (GA requires workers)
+    workers: 4                   # parallel workers for planning eval
+
+algo:
+  type: ga
+  params:
+    population_size: 24           # individuals per generation
+    selection: tournament           # tournament | elite_pool
+    offspring_frac: 0.3             # fraction replaced by offspring
+    tournament_frac: 0.1            # fraction sampled per tournament
+    tournament_winners: 2           # top-K in tournament pool
+    elite_frac: 0.1                 # elite fraction (elite_pool only)
+    parent_pool_frac: null          # null -> use elite_frac (elite_pool only)
+    crossover_kind: weighted_avg    # weighted_avg | uniform_mask
+    crossover_rate: 1.0             # probability of crossover
+    mutation_kind: single_component # single_component | gaussian
+    mutation_rate: 0.05             # mutation probability
+    mutation_delta: 0.2             # single_component delta magnitude
+    mutation_sigma: 0.1             # gaussian noise std
+    weight_init_range: [-1.0, 1.0]  # init range for params
+    weight_clip: null               # optional clip range
+    normalize_weights: true         # enforce unit sphere constraint
+    seed: 12345                     # GA RNG seed

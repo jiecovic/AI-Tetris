@@ -1,0 +1,53 @@
+# @package _group_
+policy_kwargs:
+  net_arch: []
+  activation_fn: GELU         # or whatever mapping you use
+
+
+feature_extractor:
+
+  spatial_preprocessor:
+    type: binary              # options: binary
+    params: {}                # binary: no params
+
+  stem:
+    type: conv3x3_32_32_64    # options: cnn | conv3x3_32_32_64 | conv1x3_32x4_64_5l | conv3x3_32_32_64_64_128_5l | conv3x3_32_32_64_row1_col2_128 | conv3x3_32_32_64_row1_col3_128
+
+  encoder:
+    type: token               # token | spatial
+
+    tokenizer:
+      d_model: 256            # options: int > 0
+      add_active_token: true
+      add_next_token: true
+      share_kind_embedding: true
+      layout:
+        type: column          # options: row | column | patch | row_column
+        params: {}            # patch: patch_h, patch_w, stride_h, stride_w
+
+      board_embedding:
+        type: conv1d          # options: conv1d | linear | discrete_pattern
+        params:
+          preset: tiny        # options: tiny | base | deep | deep_l5 | generic
+          dropout: 0.0        # options: float >= 0
+          padding: same       # options: valid | same | tetris
+          coordconv: true
+
+    mixer:
+      type: transformer       # options: transformer | mlp
+      params:
+        features_dim: 256     # final projected dim after pooling
+        n_layers: 4           # options: int > 0
+        n_heads: 4            # options: int > 0
+        mlp_ratio: 4.0        # options: float > 0
+        dropout: 0.0          # options: float >= 0
+        attn_dropout: 0.0     # options: float >= 0
+        resid_dropout: 0.0    # options: float >= 0
+        use_cls: false        # options: true | false
+        num_cls_tokens: 0     # options: int > 0 (if use_cls)
+        pool: max             # options: cls | cls_mean | cls_max | cls_meanmax | mean | max | meanmax | flatten
+        pre_ln_input: true    # options: true | false
+
+
+  feature_augmenter:
+    type: null                # options: none | null | onehot_concat | mlp_joint | mlp_split

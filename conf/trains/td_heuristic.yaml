@@ -1,0 +1,39 @@
+# @package _global_
+callbacks:
+  latest:
+    enabled: true
+    every: 50_000
+  eval_checkpoint:
+    enabled: true
+    every: 50_000
+    episodes: 100
+    min_steps: 1_000
+    max_steps_per_episode: 1_000
+    deterministic: true
+    seed_offset: 10000
+    mode: workers
+    workers: 4
+
+algo:
+  type: td
+  params:
+    gamma: 0.999
+    gae_lambda: 0.95
+    advantage_norm: none           # none | scale (std-only)
+    learning_rate: 1.0e-5
+    grad_clip: 1.0
+    clip_range_vf: 0.2
+    batch_size: 512
+    n_epochs: 1
+    weight_init_std: 0.01
+    weight_norm: l2              # none | l2 (unit sphere)
+    weight_scale: 1.0
+    learn_scale: true
+    weight_norm_eps: 1.0e-8
+    stats_window: 1000
+learn:
+  total_timesteps: 2_000_000
+  rollout_steps: 4096
+  n_envs: 32
+  seed: 12345
+  max_steps_per_episode: 500

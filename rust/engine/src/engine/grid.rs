@@ -6,6 +6,7 @@ use rand::prelude::*;
 use crate::engine::constants::{H, HIDDEN_ROWS, W};
 use crate::engine::pieces::{Kind, rotations};
 
+#[inline]
 pub fn fits_on_grid(grid: &[[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32) -> bool {
     let cells = rotations(kind)[rot];
     for &(dx, dy) in cells {
@@ -21,6 +22,7 @@ pub fn fits_on_grid(grid: &[[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32)
     true
 }
 
+#[inline]
 pub fn lock_on_grid(grid: &mut [[u8; W]; H], kind: Kind, rot: usize, x: i32, y: i32) {
     let v = kind.idx();
     for &(dx, dy) in rotations(kind)[rot] {
@@ -46,6 +48,41 @@ pub fn clear_lines_grid(grid: &[[u8; W]; H]) -> ([[u8; W]; H], u32) {
     }
 
     (new_grid, cleared)
+}
+
+/// Clear any full lines in-place.
+/// Returns (cleared_lines, spawn_rows_occupied).
+pub fn clear_lines_inplace(grid: &mut [[u8; W]; H]) -> (u32, bool) {
+    let mut cleared = 0u32;
+    let mut write_row: i32 = (H as i32) - 1;
+
+    for r in (0..H).rev() {
+        let full = grid[r].iter().all(|&c| c != 0);
+        if full {
+            cleared += 1;
+            continue;
+        }
+        if write_row != r as i32 {
+            grid[write_row as usize] = grid[r];
+        }
+        write_row -= 1;
+    }
+
+    if write_row >= 0 {
+        for r in 0..=write_row {
+            grid[r as usize] = [0u8; W];
+        }
+    }
+
+    let mut spawn_occupied = false;
+    for r in 0..HIDDEN_ROWS {
+        if grid[r].iter().any(|&c| c != 0) {
+            spawn_occupied = true;
+            break;
+        }
+    }
+
+    (cleared, spawn_occupied)
 }
 
 /// Fill the bottom `rows` with "garbage": each row is filled except for `holes` empty cells.

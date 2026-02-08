@@ -1,26 +1,42 @@
 // rust/engine/src/policy/codemy/core.rs
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
-
 use crate::engine::{ACTION_DIM, Game, H, Kind, W};
-
-use crate::policy::beam::{BeamConfig, prune_top_n_scores};
+use crate::policy::beam::{prune_top_n_scores, prune_top_n_scores_inplace, BeamConfig};
 
 use super::empty_cache::{empty_valid_action_ids, kind_idx0_u8};
 use super::score::score_grid;
 use super::unknown::UnknownModel;
 
-/// Core implementation shared by dynamic + static policy wrappers.
-/// Holds all knobs (currently only beam pruning).
-#[derive(Clone, Copy, Debug)]
-pub struct CodemyCore {
-    pub(crate) beam: Option<BeamConfig>,
+pub trait GridScorer {
+    fn score(&self, grid: &[[u8; W]; H]) -> f64;
 }
 
-impl CodemyCore {
-    pub(crate) fn new(beam: Option<BeamConfig>) -> Self {
-        Self { beam }
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CodemyScorer;
+
+impl GridScorer for CodemyScorer {
+    fn score(&self, grid: &[[u8; W]; H]) -> f64 {
+        score_grid(grid)
+    }
+}
+
+/// Core implementation shared by dynamic + static policy wrappers.
+/// Holds all knobs (currently only beam pruning) and a scoring function.
+#[derive(Clone, Debug)]
+pub struct SearchCore<S: GridScorer> {
+    scorer: S,
+    beam: Option<BeamConfig>,
+}
+
+impl<S: GridScorer> SearchCore<S> {
+    pub fn new_with_scorer(scorer: S, beam: Option<BeamConfig>) -> Self {
+        Self { scorer, beam }
+    }
+
+    #[inline]
+    pub fn scorer(&self) -> &S {
+        &self.scorer
     }
 
     #[inline]
@@ -33,17 +49,16 @@ impl CodemyCore {
         }
     }
 
-    /// Fast path: maximize score_grid(grid_after_lock) for a known piece on a grid.
+    /// Fast path: maximize score(grid_after_lock) for a known piece on a grid.
     /// Single simulation per candidate aid. No allocations.
     fn best_leaf_score_for_known_piece(&self, grid: &[[u8; W]; H], kind: Kind) -> f64 {
         let mut best = f64::NEG_INFINITY;
 
         for &aid in empty_valid_action_ids(kind) {
-            let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.invalid {
+            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue; // collisions / out-of-bounds on this grid
-            }
-            let s = score_grid(&sim.grid_after_lock);
+            };
+            let s = self.scorer.score(&grid_lock);
             if s > best {
                 best = s;
             }
@@ -60,33 +75,32 @@ impl CodemyCore {
         kind: Kind,
         n: usize,
     ) -> f64 {
-        let mut scores: Vec<(usize, f64)> = Vec::new();
+        let mut scores = [(0usize, f64::NEG_INFINITY); ACTION_DIM];
+        let mut len: usize = 0;
 
         for &aid in empty_valid_action_ids(kind) {
-            let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.invalid {
+            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue;
-            }
-            scores.push((aid, score_grid(&sim.grid_after_lock)));
+            };
+            scores[len] = (aid, self.scorer.score(&grid_lock));
+            len += 1;
         }
 
-        if scores.is_empty() {
+        if len == 0 {
             return f64::NEG_INFINITY;
         }
 
-        let kept = prune_top_n_scores(scores, n);
+        let kept = prune_top_n_scores_inplace(&mut scores, len, n);
 
         let mut best = f64::NEG_INFINITY;
-        for (_aid, s) in kept {
-            if s > best {
-                best = s;
-            }
+        for i in 0..kept {
+            best = best.max(scores[i].1);
         }
         best
     }
 
     /// Value when the next piece is known: maximize over placements of `kind` on `grid`.
-    pub(crate) fn value_known_piece<M: UnknownModel>(
+    pub(crate) fn value_known_piece<M: UnknownModel<S>>(
         &self,
         grid: &[[u8; W]; H],
         kind: Kind,
@@ -125,23 +139,25 @@ impl CodemyCore {
         // Pruned non-leaf => two phase
         let n = self.should_prune(depth).unwrap_or(ACTION_DIM);
 
-        let mut proxies: Vec<(usize, f64)> = Vec::new();
+        let mut proxies = [(0usize, f64::NEG_INFINITY); ACTION_DIM];
+        let mut len: usize = 0;
         for &aid in empty_valid_action_ids(kind) {
-            let sim = Game::apply_action_id_to_grid(grid, kind, aid);
-            if sim.invalid {
+            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
                 continue;
-            }
-            proxies.push((aid, score_grid(&sim.grid_after_lock)));
+            };
+            proxies[len] = (aid, self.scorer.score(&grid_lock));
+            len += 1;
         }
 
-        if proxies.is_empty() {
+        if len == 0 {
             return f64::NEG_INFINITY;
         }
 
-        let kept = prune_top_n_scores(proxies, n);
+        let kept = prune_top_n_scores_inplace(&mut proxies, len, n);
 
         let mut best = f64::NEG_INFINITY;
-        for (aid, _proxy) in kept {
+        for i in 0..kept {
+            let aid = proxies[i].0;
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.invalid {
                 continue;
@@ -156,7 +172,7 @@ impl CodemyCore {
     }
 
     #[inline]
-    fn value_after_clear<M: UnknownModel>(
+    fn value_after_clear<M: UnknownModel<S>>(
         &self,
         grid: &[[u8; W]; H],
         plies_left: u8,
@@ -170,17 +186,16 @@ impl CodemyCore {
     /// (Uses Game::action_mask() for the current grid.)
     pub(crate) fn aid0_candidates_with_proxy(&self, g: &Game) -> Vec<(usize, f64)> {
         let mask = g.action_mask();
-        let mut out: Vec<(usize, f64)> = Vec::new();
+        let mut out: Vec<(usize, f64)> = Vec::with_capacity(ACTION_DIM);
 
         for aid0 in 0..ACTION_DIM {
             if !mask[aid0] {
                 continue; // invalid by engine mask (includes redundant rotation slots)
             }
-            let sim1 = g.simulate_action_id_active(aid0);
-            if sim1.invalid {
+            let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
                 continue; // should be rare if mask is correct; keep as safety
-            }
-            out.push((aid0, score_grid(&sim1.grid_after_lock)));
+            };
+            out.push((aid0, self.scorer.score(&grid_lock)));
         }
 
         if let Some(n0) = self.should_prune(0) {
@@ -213,7 +228,7 @@ impl CodemyCore {
         &self,
         grid: &[[u8; W]; H],
         kind: Kind,
-        cache: &mut HashMap<(u64, u8), (usize, f64, [[u8; W]; H])>,
+        cache: &mut rustc_hash::FxHashMap<(u64, u8), (usize, f64, [[u8; W]; H])>,
     ) -> Option<(usize, f64, [[u8; W]; H])> {
         let key = (Self::hash_grid(grid), kind_idx0_u8(kind));
         if let Some(v) = cache.get(&key) {
@@ -229,7 +244,7 @@ impl CodemyCore {
             if sim.invalid {
                 continue;
             }
-            let s = score_grid(&sim.grid_after_lock);
+            let s = self.scorer.score(&sim.grid_after_lock);
             if s > best_score {
                 best_score = s;
                 best_aid = Some(aid);
@@ -247,7 +262,7 @@ impl CodemyCore {
     pub(crate) fn best_leaf_scores_all_kinds_cached(
         &self,
         grid: &[[u8; W]; H],
-        cache: &mut HashMap<u64, [f64; 7]>,
+        cache: &mut rustc_hash::FxHashMap<u64, [f64; 7]>,
     ) -> [f64; 7] {
         let key = Self::hash_grid(grid);
         if let Some(v) = cache.get(&key) {
@@ -267,7 +282,7 @@ impl CodemyCore {
     pub(crate) fn tail_uniform_cached(
         &self,
         grid: &[[u8; W]; H],
-        cache: &mut HashMap<u64, [f64; 7]>,
+        cache: &mut rustc_hash::FxHashMap<u64, [f64; 7]>,
     ) -> f64 {
         let arr = self.best_leaf_scores_all_kinds_cached(grid, cache);
         let mut sum = 0.0;
@@ -275,5 +290,13 @@ impl CodemyCore {
             sum += v;
         }
         sum / 7.0
+    }
+}
+
+pub type CodemyCore = SearchCore<CodemyScorer>;
+
+impl SearchCore<CodemyScorer> {
+    pub fn new(beam: Option<BeamConfig>) -> Self {
+        Self::new_with_scorer(CodemyScorer, beam)
     }
 }

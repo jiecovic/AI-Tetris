@@ -1,0 +1,15 @@
+# @package _group_
+features:                       # heuristic feature names (normalized to ~[0, 1])
+  # agg_h_norm: agg_h / (H * W)
+  # holes_norm: holes / (H * W)
+  # bump_norm: bump / (H * (W - 1))
+  # complete_lines_norm: complete_lines / 4.0
+  - agg_h_norm
+  - holes_norm
+  - bump_norm
+  - complete_lines_norm
+
+search:
+  plies: 2                      # lookahead depth (2 = current + next piece)
+  beam_width: null              # null disables beam search
+  beam_from_depth: 0            # apply beam after this depth

@@ -1,0 +1,20 @@
+# @package _global_
+defaults:
+  - /hydra: default
+  - /envs@env_train: empty
+  - /rewards@env_train.reward: lines_survival
+  - /envs@env_eval: empty
+  - /rewards@env_eval.reward: lines_survival
+  - /planning_policies@policy: codemy
+  - /trains@_global_: td_heuristic
+  - _self_
+
+log_level: info
+
+run:
+  name: td_heuristic_run
+  seed: 0
+  out_root: experiments
+
+
+

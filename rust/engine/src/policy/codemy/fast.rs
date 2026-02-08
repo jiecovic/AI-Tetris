@@ -1,7 +1,7 @@
 // src/policy/codemy/fast.rs
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use crate::engine::{Game, ACTION_DIM, H, W};
 use crate::policy::base::Policy;
@@ -28,8 +28,9 @@ impl Policy for Codemy2FastPolicy {
         // Per-decision caches:
         //  - tail_cache: grid_hash -> best leaf scores for each kind (7)
         //  - br_cache: (grid_hash, kind) -> (best_aid, best_score_lock, best_grid_after_clear)
-        let mut tail_cache: HashMap<u64, [f64; 7]> = HashMap::new();
-        let mut br_cache: HashMap<(u64, u8), (usize, f64, [[u8; W]; H])> = HashMap::new();
+        let mut tail_cache: FxHashMap<u64, [f64; 7]> = FxHashMap::default();
+        let mut br_cache: FxHashMap<(u64, u8), (usize, f64, [[u8; W]; H])> =
+            FxHashMap::default();
 
         let mask1 = g.action_mask();
         let mut best: Option<(usize, f64)> = None;

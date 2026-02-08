@@ -68,6 +68,8 @@ pub enum HoleCount {
 pub struct WarmupSpec {
     pub rows: RowCountDist,
     pub holes: HoleCount,
+    /// Probability in [0,1] to apply warmup on each reset.
+    pub prob: f64,
     /// Salt mixed into the episode seed to create an independent warmup RNG stream.
     pub seed_salt: u64,
 }
@@ -79,6 +81,7 @@ impl WarmupSpec {
         Self {
             rows: RowCountDist::Fixed(0),
             holes: HoleCount::Fixed(1),
+            prob: 1.0,
             seed_salt: Self::DEFAULT_SEED_SALT,
         }
     }
@@ -97,6 +100,17 @@ pub fn apply_warmup(grid: &mut [[u8; W]; H], episode_seed: u64, spec: &WarmupSpe
 
     // Derive an independent RNG stream for warmup.
     let mut rng = StdRng::seed_from_u64(episode_seed ^ spec.seed_salt);
+
+    let p = spec.prob.clamp(0.0, 1.0);
+    if p <= 0.0 {
+        return;
+    }
+    if p < 1.0 {
+        let u: f64 = rng.r#gen();
+        if u >= p {
+            return;
+        }
+    }
 
     let rows = sample_rows(&mut rng, spec.rows).min(max_rows);
     if rows == 0 {

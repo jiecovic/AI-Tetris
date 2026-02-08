@@ -103,6 +103,14 @@ impl PyWarmupSpec {
         Self { inner: s }
     }
 
+    /// Return a copy with warmup probability set (clamped in engine).
+    #[pyo3(signature = (prob))]
+    fn with_prob(&self, prob: f64) -> Self {
+        let mut s = self.inner;
+        s.prob = prob;
+        Self { inner: s }
+    }
+
     fn __repr__(&self) -> String {
         format!("{:?}", self.inner)
     }

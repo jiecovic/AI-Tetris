@@ -62,7 +62,7 @@ impl Kind {
 
     /// Number of *distinct* rotations for this piece (Classic7 semantics).
     ///
-    /// This is SSOT for "redundant rotation slots are invalid".
+    /// Authoritative rule: redundant rotation slots are invalid.
     #[inline]
     pub fn num_rots(self) -> usize {
         rotations(self).len()
