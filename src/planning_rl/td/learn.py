@@ -90,9 +90,18 @@ def learn_td(
                 break
 
             features_batch: list[np.ndarray] = []
+            actions_batch: list[Any] = []
             for env in envs:
-                phi = extract_features(env=env, features=features)
+                action = algo.policy.predict(env=env)
+                # Codemy-style: score on the lock grid (pre-clear).
+                phi = extract_features(
+                    env=env,
+                    features=features,
+                    action=action,
+                    pre_clear=True,
+                )
                 features_batch.append(phi)
+                actions_batch.append(action)
 
             feats_arr = np.asarray(features_batch, dtype=np.float32)
             with torch.no_grad():
@@ -103,7 +112,7 @@ def learn_td(
             next_features_batch: list[np.ndarray] = []
 
             for env_idx, env in enumerate(envs):
-                action = algo.policy.predict(env=env)
+                action = actions_batch[env_idx]
                 _obs, reward, terminated, truncated, _info = env.step(action)
                 done = bool(terminated) or bool(truncated)
 
@@ -112,7 +121,16 @@ def learn_td(
                 rewards_batch.append(float(reward))
                 dones_batch.append(1.0 if done else 0.0)
 
-                next_phi = extract_features(env=env, features=features)
+                if done:
+                    next_phi = np.zeros((len(features),), dtype=np.float32)
+                else:
+                    next_action = algo.policy.predict(env=env)
+                    next_phi = extract_features(
+                        env=env,
+                        features=features,
+                        action=next_action,
+                        pre_clear=True,
+                    )
                 next_features_batch.append(next_phi)
 
                 algo.num_timesteps += 1
@@ -167,6 +185,14 @@ def learn_td(
             gamma=gamma,
             gae_lambda=gae_lambda,
         )
+        adv_norm = str(getattr(cfg, "advantage_norm", "none")).strip().lower()
+        if adv_norm not in {"none", "off", "false", "0", "scale", "std"}:
+            raise ValueError(f"advantage_norm must be 'none' or 'scale' (got {adv_norm!r})")
+        if adv_norm in {"scale", "std"}:
+            # Scale-only normalization keeps targets unbiased for a bias-free value model.
+            adv_std = float(np.std(advantages))
+            if adv_std > 0.0:
+                advantages = advantages / adv_std
         targets = advantages + values_arr
 
         feats_flat = features_arr.reshape((-1, features_arr.shape[-1]))

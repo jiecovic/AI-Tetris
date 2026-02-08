@@ -10,10 +10,33 @@ def extract_features(
     *,
     env: Any,
     features: Sequence[str],
+    action: Any | None = None,
     action_id: int | None = None,
     after_clear: bool = True,
+    pre_clear: bool | None = None,
     visible: bool = False,
 ) -> np.ndarray:
+    if pre_clear is not None:
+        after_clear = not bool(pre_clear)
+    if action is not None:
+        if hasattr(env, "value_features_for_action"):
+            vals = env.value_features_for_action(
+                features=features,
+                action=action,
+                after_clear=after_clear,
+                visible=visible,
+            )
+            return np.asarray(vals, dtype=np.float32)
+        if hasattr(env, "value_features_from_action"):
+            vals = env.value_features_from_action(
+                features=features,
+                action=action,
+                after_clear=after_clear,
+                visible=visible,
+            )
+            return np.asarray(vals, dtype=np.float32)
+        raise RuntimeError("env must expose value_features_for_action for action-based features")
+
     if hasattr(env, "value_features"):
         vals = env.value_features(
             features=features,

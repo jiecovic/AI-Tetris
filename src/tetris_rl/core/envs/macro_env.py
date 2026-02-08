@@ -134,6 +134,26 @@ class MacroTetrisEnv(gym.Env):
             raise RuntimeError("simulate_active_features returned None for the requested action_id")
         return [float(v) for v in vals]
 
+    def value_features_for_action(
+        self,
+        *,
+        features: list[str],
+        action: Any,
+        after_clear: bool = True,
+        visible: bool = False,
+    ) -> list[float]:
+        _rot, _col, action_id = self._requested_rot_col_and_action_id(action)
+        vals = self.game.simulate_active_features(
+            int(action_id),
+            list(features),
+            bool(after_clear),
+            False,
+            bool(visible),
+        )
+        if vals is None:
+            raise RuntimeError("simulate_active_features returned None for the requested action")
+        return [float(v) for v in vals]
+
 
     def _snapshot(self) -> Dict[str, Any]:
         # Current binding supports snapshot(include_grid=True, visible=True)
