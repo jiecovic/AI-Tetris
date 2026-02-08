@@ -127,6 +127,7 @@ def log_env_reward_summary(
     action_mode = getattr(env, "action_mode", None) if env is not None else None
     max_steps = getattr(env, "max_steps", None) if env is not None else None
     invalid_policy = getattr(env, "invalid_action_policy", None) if env is not None else None
+    feature_mode = getattr(env, "feature_clear_mode", None) if env is not None else None
     piece_rule = _safe_call(game, "piece_rule")
 
     warmup_cfg = None
@@ -136,11 +137,12 @@ def log_env_reward_summary(
             piece_rule = (env_cfg.get("game", {}) or {}).get("piece_rule", None)
 
     logger.info(
-        "[env/%s] type=%s action_mode=%s invalid_action_policy=%s max_steps=%s time_limit=%s piece_rule=%s warmup=%s",
+        "[env/%s] type=%s action_mode=%s invalid_action_policy=%s feature_clear=%s max_steps=%s time_limit=%s piece_rule=%s warmup=%s",
         str(label),
         type(env).__name__ if env is not None else "<none>",
         _fmt_scalar(action_mode),
         _fmt_scalar(invalid_policy),
+        _fmt_scalar(feature_mode),
         _fmt_scalar(max_steps),
         _fmt_scalar(time_limit_steps),
         _fmt_scalar(piece_rule),

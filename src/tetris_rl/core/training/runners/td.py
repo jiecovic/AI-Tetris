@@ -182,6 +182,15 @@ def run_td_experiment(cfg: DictConfig) -> int:
         bool(getattr(td_cfg, "learn_scale", True)),
         float(getattr(td_cfg, "weight_norm_eps", 1e-8)),
     )
+    max_steps_per_ep = getattr(td_cfg, "max_steps_per_episode", None)
+    logger.info(
+        "[td] adv_norm=%s target_tau=%.3f target_update_every=%d feature_clear=%s max_steps_per_ep=%s",
+        str(getattr(td_cfg, "advantage_norm", "none")),
+        float(getattr(td_cfg, "target_tau", 0.0)),
+        int(getattr(td_cfg, "target_update_every", 1)),
+        str(getattr(td_cfg, "feature_clear_mode", "post")),
+        str(max_steps_per_ep),
+    )
     logger.info(
         "[td] search plies=%d beam_width=%s beam_from_depth=%d",
         int(search.plies),
