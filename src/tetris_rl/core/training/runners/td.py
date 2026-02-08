@@ -240,14 +240,20 @@ def run_td_experiment(cfg: DictConfig) -> int:
         env_eval = built_eval.env
         log_env_reward_summary(logger=logger, label="eval", built_env=built_eval, env_cfg=env_eval_cfg)
 
+    last_eval_weights: list[float] | None = None
     if eval_enabled:
         eval_seed_base = int(run_cfg.seed) + int(eval_cfg.seed_offset)
 
         def _eval_fn(model: Any, _t: int, on_episode, on_step) -> dict[str, Any]:
+            nonlocal last_eval_weights
             policy = getattr(model, "policy", None)
             if policy is None:
                 raise RuntimeError("TD eval requires algo.policy")
             model.policy.sync_from_model()
+            try:
+                last_eval_weights = [float(w) for w in policy.get_params()]
+            except Exception:
+                last_eval_weights = None
             if int(eval_workers) > 1:
                 spec = policy.build_spec(policy.get_params())
                 return evaluate_planning_policy_parallel(
@@ -328,7 +334,6 @@ def run_td_experiment(cfg: DictConfig) -> int:
                     self._progress = progress
                     self._task_id = task_id
                     self._best_ret: float | None = None
-                    self._best_weights: list[float] | None = None
 
                 @staticmethod
                 def _fmt(v: float | None) -> str:
@@ -356,10 +361,10 @@ def run_td_experiment(cfg: DictConfig) -> int:
                             last_ret = float(last_ret)
                             if self._best_ret is None or last_ret > self._best_ret:
                                 self._best_ret = last_ret
-                                self._best_weights = [float(w) for w in algo.policy.get_params()]
                     loss_str = "loss=-" if loss is None else f"loss={float(loss):.5f}"
-                    best_str = f"best_ret={self._fmt(self._best_ret)} best_w={self._fmt_weights(self._best_weights)}"
-                    tail = f"{loss_str} {best_str}"
+                    best_str = f"best_ret={self._fmt(self._best_ret)}"
+                    eval_w_str = f"eval_w={self._fmt_weights(last_eval_weights)}"
+                    tail = f"{loss_str} {best_str} {eval_w_str}"
                     self._progress.update(self._task_id, completed=int(step), tail=tail)
 
             cb_items = list(callback_items)
