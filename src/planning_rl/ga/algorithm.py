@@ -14,8 +14,10 @@ from planning_rl.algorithms import PlanningAlgorithm
 from planning_rl.callbacks import PlanningCallback, wrap_callbacks
 from planning_rl.ga.config import GAConfig, GAFitnessConfig
 from planning_rl.ga.operators import evolve_population, init_population
-from planning_rl.ga.types import GAStats
+from planning_rl.ga.types import GAStats, GAWorkerFactory, GymEnv
 from planning_rl.ga.utils import episode_seeds, to_jsonable
+from planning_rl.ga.worker_pool import GAWorkerPool
+from planning_rl.logging import ScalarLogger
 from planning_rl.policies import VectorParamPolicy
 
 
@@ -24,10 +26,12 @@ class GAAlgorithm(PlanningAlgorithm):
         self,
         *,
         policy: VectorParamPolicy,
-        env: Any,
+        env: GymEnv,
         cfg: GAConfig,
         fitness_cfg: GAFitnessConfig | None = None,
         seed: int | None = None,
+        workers: int = 1,
+        worker_factory: GAWorkerFactory | None = None,
     ) -> None:
         super().__init__(policy=policy)
         self.env = env
@@ -38,17 +42,28 @@ class GAAlgorithm(PlanningAlgorithm):
             episodes=int(self.fitness_cfg.episodes),
         )
         self.rng = np.random.default_rng(int(seed if seed is not None else cfg.seed))
-        self.population = init_population(cfg=cfg, num_params=policy.num_params, rng=self.rng)
+        self.population = init_population(cfg=cfg, num_params=self.policy.num_params, rng=self.rng)
         self.generation = 0
         self.stats: list[GAStats] = []
         self.best_weights = self.population[0].copy()
         self.best_score = float("-inf")
+        self.worker_pool: GAWorkerPool | None = None
+        if int(workers) > 1:
+            if worker_factory is None:
+                raise ValueError("workers > 1 requires worker_factory")
+            self.worker_pool = GAWorkerPool(
+                factory=worker_factory,
+                workers=int(workers),
+                fitness_cfg=self.fitness_cfg,
+                seed_base=int(self.fitness_cfg.seed),
+            )
 
     def ask(self) -> np.ndarray:
         return self.population
 
-    def predict(self, *, env: Any | None = None) -> Any:
-        return super().predict(env=self.env if env is None else env)
+    def predict(self, *, env: GymEnv | None = None) -> Any:
+        env_use = self.env if env is None else env
+        return super().predict(env=env_use)
 
     def tell(self, scores: Sequence[float], eval_best_score: float | None = None) -> GAStats:
         if len(scores) != self.population.shape[0]:
@@ -76,7 +91,7 @@ class GAAlgorithm(PlanningAlgorithm):
         self,
         *,
         weights: Sequence[float],
-        env: Any | None = None,
+        env: GymEnv | None = None,
         fitness_cfg: GAFitnessConfig | None = None,
     ) -> float:
         cfg = fitness_cfg or self.fitness_cfg
@@ -110,6 +125,31 @@ class GAAlgorithm(PlanningAlgorithm):
         on_candidate: Callable[[int, float], None] | None = None,
         callback: PlanningCallback | None = None,
     ) -> list[float]:
+        if self.worker_pool is not None:
+            weights_list = [w.tolist() for w in self.population]
+            reported: set[int] = set()
+
+            def _report(idx: int, score: float) -> None:
+                if idx in reported:
+                    return
+                reported.add(int(idx))
+                if on_candidate is not None:
+                    on_candidate(int(idx), float(score))
+                if callback is not None:
+                    callback.on_event(
+                        event="candidate",
+                        generation=int(self.generation),
+                        candidate_index=int(idx),
+                        score=float(score),
+                        weights=list(weights_list[int(idx)]),
+                    )
+
+            scores = self.worker_pool.evaluate_population(weights=weights_list, on_candidate=_report)
+            for i, score in enumerate(scores):
+                if i not in reported:
+                    _report(int(i), float(score))
+            return [float(s) for s in scores]
+
         scores: list[float] = []
         for i in range(self.population.shape[0]):
             weights = self.population[i].tolist()
@@ -134,6 +174,7 @@ class GAAlgorithm(PlanningAlgorithm):
         on_generation: Callable[[GAStats], None] | None = None,
         on_candidate: Callable[[int, float], None] | None = None,
         callback: PlanningCallback | list[PlanningCallback] | None = None,
+        logger: ScalarLogger | None = None,
     ) -> list[GAStats]:
         if generations < 1:
             raise ValueError("generations must be >= 1")
@@ -156,6 +197,12 @@ class GAAlgorithm(PlanningAlgorithm):
                 )
             scores = self.evaluate_population(on_candidate=on_candidate, callback=cb)
             stats = self.tell(scores)
+            if logger is not None:
+                step = int(stats.generation) + 1
+                logger.log_scalar("ga/best_score", float(stats.best_score), step)
+                logger.log_scalar("ga/mean_score", float(stats.mean_score), step)
+                if stats.eval_best_score is not None:
+                    logger.log_scalar("ga/eval_best_score", float(stats.eval_best_score), step)
             if on_generation is not None:
                 on_generation(stats)
             if cb is not None:
@@ -171,6 +218,11 @@ class GAAlgorithm(PlanningAlgorithm):
                 best_weights=self.best_weights.tolist(),
             )
         return list(self.stats)
+
+    def close(self) -> None:
+        if self.worker_pool is not None:
+            self.worker_pool.close()
+            self.worker_pool = None
 
     def save(self, path: Path) -> Path:
         out_path = Path(path)
@@ -207,7 +259,9 @@ class GAAlgorithm(PlanningAlgorithm):
         path: Path,
         *,
         policy: VectorParamPolicy,
-        env: Any,
+        env: GymEnv,
+        workers: int = 1,
+        worker_factory: GAWorkerFactory | None = None,
     ) -> "GAAlgorithm":
         path = Path(path)
         with zipfile.ZipFile(path, "r") as zf:
@@ -218,7 +272,14 @@ class GAAlgorithm(PlanningAlgorithm):
 
             cfg = GAConfig(**meta["cfg"])
             fitness_cfg = GAFitnessConfig(**meta["fitness_cfg"])
-            algo = cls(policy=policy, env=env, cfg=cfg, fitness_cfg=fitness_cfg)
+            algo = cls(
+                policy=policy,
+                env=env,
+                cfg=cfg,
+                fitness_cfg=fitness_cfg,
+                workers=int(workers),
+                worker_factory=worker_factory,
+            )
 
             with zf.open("population.npy") as fh:
                 algo.population = np.load(fh)
