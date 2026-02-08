@@ -86,7 +86,7 @@ All training and evaluation is driven via YAML configs.
 Example:
 
 ```bash
-tetris-train -cfg .\configs\ppo\cnn_ppo.yaml
+tetris-train -cfg .\configs\ppo\ppo_vit.yaml
 ```
 
 TD heuristic training:
@@ -94,6 +94,15 @@ TD heuristic training:
 ```bash
 tetris-train -cfg .\configs\td\td_heuristic.yaml
 ```
+
+Config layout (Hydra):
+
+- `configs/<algo>/*.yaml` are entrypoints (GA/TD/PPO/imitation).
+- `conf/` holds building blocks: envs, rewards, planning policies, trains, sb3 policies.
+
+Reproducibility:
+
+- `run.seed` seeds Python/NumPy/Torch once per run; env/episode seeds are derived from it.
 
 ---
 
