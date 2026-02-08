@@ -5,7 +5,7 @@ callbacks:
     every: 50_000
   eval_checkpoint:
     enabled: true
-    every: 50_000
+    every: 500_000
     episodes: 100
     min_steps: 1_000
     max_steps_per_episode: 1_000
@@ -20,7 +20,7 @@ algo:
     gamma: 0.999
     gae_lambda: 0.95
     advantage_norm: none           # none | scale (std-only)
-    learning_rate: 1.0e-5
+    learning_rate: 5.0e-5
     grad_clip: 1.0
     clip_range_vf: 0.2
     batch_size: 512
@@ -32,7 +32,7 @@ algo:
     weight_norm_eps: 1.0e-8
     stats_window: 1000
 learn:
-  total_timesteps: 2_000_000
+  total_timesteps: 100_000_000
   rollout_steps: 4096
   n_envs: 32
   seed: 12345
