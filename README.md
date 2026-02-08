@@ -16,6 +16,7 @@ This project combines planning, imitation learning, and reinforcement learning f
 
 - Heuristic planning policies (Codemy-style linear heuristics with lookahead)
 - Genetic Algorithm (GA) optimization of heuristic weights
+- Temporal-difference (TD) learning for heuristic weights (GAE-style value updates)
 - Imitation learning (behavior cloning from expert data)
 - Reinforcement learning (PPO, Maskable PPO)
 
@@ -86,6 +87,12 @@ Example:
 
 ```bash
 tetris-train -cfg .\configs\cnn_ppo.yaml
+```
+
+TD heuristic training:
+
+```bash
+tetris-train -cfg .\configs\td_heuristic.yaml
 ```
 
 ---

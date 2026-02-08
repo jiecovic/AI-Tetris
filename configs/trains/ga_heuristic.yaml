@@ -15,11 +15,11 @@ callbacks:
   eval_checkpoint:
     enabled: true                 # run eval + save best checkpoints
     every: 1                      # eval cadence in generations
-    steps: 100_000                # eval step budget (episodes * max_steps)
+    steps: 1_000                # eval step budget (episodes * max_steps)
     deterministic: true           # planning policies are deterministic
     seed_offset: 10000            # offset from run.seed for eval seeds
     mode: workers                 # vectorized | workers (GA requires workers)
-    workers: 12                   # parallel workers for planning eval
+    workers: 4                   # parallel workers for planning eval
 
 algo:
   type: ga

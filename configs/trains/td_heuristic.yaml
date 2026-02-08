@@ -1,0 +1,31 @@
+# @package _global_
+callbacks:
+  latest:
+    enabled: true
+    every: 50_000
+  eval_checkpoint:
+    enabled: true
+    every: 200_000
+    steps: 100_000
+    deterministic: true
+    seed_offset: 10_000
+    mode: workers
+    workers: 4
+
+learn:
+  total_timesteps: 2_000_000
+  rollout_steps: 2048
+  n_envs: 32
+  gamma: 0.999
+  gae_lambda: 0.95
+  learning_rate: 1.0e-5
+  grad_clip: 0.0
+  clip_range_vf: 0.0
+  batch_size: 512
+  n_epochs: 1
+  weight_init_std: 0.01
+  stats_window: 100
+  seed: 12345
+
+algo:
+  type: td

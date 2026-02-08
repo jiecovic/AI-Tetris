@@ -12,8 +12,10 @@ features:                       # heuristic feature names
   # complete_lines: filled rows (visible grid)
   - agg_h
   - holes
-  - bump
+  - std_h
   - complete_lines
+#  - holes_std_col
+#  - holes_std_row
 
 search:
   plies: 2                      # lookahead depth (2 = current + next piece)
