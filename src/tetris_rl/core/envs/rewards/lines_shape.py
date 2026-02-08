@@ -12,7 +12,7 @@ class LinesShapeReward(RewardFn):
     Reward shaping from board deltas and special line clears.
 
     Rules (params control magnitudes):
-      - +max_height_reduced_bonus if delta_max_height < 0.
+      - +line_cleared_bonus if cleared_lines > 0.
       - -hole_added_penalty if delta_holes > 0.
       - +no_new_holes_bonus if delta_holes <= 0.
       - +hole_removed_bonus if delta_holes < 0.
@@ -23,7 +23,7 @@ class LinesShapeReward(RewardFn):
         self.illegal_penalty = float(spec.illegal_penalty)
         self.terminal_penalty = float(spec.terminal_penalty)
         self.survival_bonus = float(spec.survival_bonus)
-        self.max_height_reduced_bonus = float(spec.max_height_reduced_bonus)
+        self.line_cleared_bonus = float(spec.line_cleared_bonus)
         self.hole_added_penalty = float(spec.hole_added_penalty)
         self.no_new_holes_bonus = float(spec.no_new_holes_bonus)
         self.hole_removed_bonus = float(spec.hole_removed_bonus)
@@ -49,14 +49,13 @@ class LinesShapeReward(RewardFn):
                 r -= float(self.terminal_penalty)
             return float(r)
 
-        d_max_h = float(getattr(features, "delta_max_height", 0) or 0)
         d_holes = float(getattr(features, "delta_holes", 0) or 0)
 
         cleared = int(getattr(features, "cleared_lines", 0) or 0)
         cleared = max(0, min(cleared, 4))
 
-        if d_max_h < 0:
-            r += float(self.max_height_reduced_bonus)
+        if cleared > 0:
+            r += float(self.line_cleared_bonus)
 
         if d_holes > 0:
             r -= float(self.hole_added_penalty)
