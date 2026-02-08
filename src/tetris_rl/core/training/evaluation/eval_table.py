@@ -62,7 +62,7 @@ class EvalTable:
         self.emit(
             "[eval] cols: "
             f"{self._t_col_name()}=progress  algo=caller(rl|imitation|ga)  upd=best updates  "
-            "steps=eval budget used  ep=episodes finished in budget  "
+            "steps=steps collected  ep=episodes finished  "
             "rwd/s=return_mean/steps_mean  ep_len=steps_mean (incl partial)  ill%=invalid_action_rate  "
         )
         self.emit("")

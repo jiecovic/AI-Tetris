@@ -6,7 +6,9 @@ callbacks:
   eval_checkpoint:
     enabled: true
     every: 50_000
-    steps: 100_000
+    episodes: 200
+    min_steps: 100_000
+    max_steps_per_episode: 5_000
     deterministic: true
     seed_offset: 10_000
     mode: workers

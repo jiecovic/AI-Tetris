@@ -206,7 +206,9 @@ def run_td_experiment(cfg: DictConfig) -> int:
                 return evaluate_planning_policy_parallel(
                     spec=spec,
                     env_cfg=env_eval_cfg,
-                    eval_steps=int(eval_cfg.steps),
+                    eval_episodes=int(eval_cfg.episodes),
+                    min_steps=int(eval_cfg.min_steps),
+                    max_steps_per_episode=eval_cfg.max_steps_per_episode,
                     seed_base=int(eval_seed_base),
                     deterministic=bool(eval_cfg.deterministic),
                     workers=int(eval_workers),
@@ -218,7 +220,9 @@ def run_td_experiment(cfg: DictConfig) -> int:
             return evaluate_planning_policy(
                 policy=policy,
                 env=env_eval,
-                eval_steps=int(eval_cfg.steps),
+                eval_episodes=int(eval_cfg.episodes),
+                min_steps=int(eval_cfg.min_steps),
+                max_steps_per_episode=eval_cfg.max_steps_per_episode,
                 seed_base=int(eval_seed_base),
                 deterministic=bool(eval_cfg.deterministic),
                 on_episode=on_episode,

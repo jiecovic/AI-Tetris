@@ -29,15 +29,20 @@ def _planning_eval_state(
     *,
     policy: Any,
     env: Any,
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     seed_base: int,
     deterministic: bool,
     on_episode: Optional[Callable[[int, Optional[float]], None]] = None,
     on_step: Optional[Callable[[int], None]] = None,
 ) -> Dict[str, Any]:
-    eval_steps = int(eval_steps)
-    if eval_steps <= 0:
-        raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
+    eval_episodes = int(eval_episodes)
+    if eval_episodes <= 0:
+        raise ValueError(f"eval_episodes must be > 0, got {eval_episodes}")
+    min_steps = int(min_steps)
+    if min_steps < 0:
+        raise ValueError(f"min_steps must be >= 0, got {min_steps}")
 
     _ = deterministic
 
@@ -61,7 +66,9 @@ def _planning_eval_state(
     cur_ep_reward = 0.0
     cur_ep_steps = 0
 
-    while acc.steps < eval_steps:
+    max_steps_per_episode = None if max_steps_per_episode is None else int(max_steps_per_episode)
+
+    while True:
         action = policy.predict(env=env)
         obs, reward, terminated, truncated, info = env.step(action)
         _ = obs
@@ -74,6 +81,10 @@ def _planning_eval_state(
         cur_ep_steps += 1
         total_reward += float(reward)
         total_steps += 1
+
+        cap_reached = max_steps_per_episode is not None and int(cur_ep_steps) >= int(max_steps_per_episode)
+        if cap_reached and not (terminated or truncated):
+            truncated = True
 
         if not (terminated or truncated):
             continue
@@ -96,6 +107,9 @@ def _planning_eval_state(
         cur_ep_reward = 0.0
         cur_ep_steps = 0
 
+        if completed_episodes >= eval_episodes and int(total_steps) >= int(min_steps):
+            break
+
         next_seed = _episode_seed(base_seed=int(seed_base), episode_idx=episode_idx)
         episode_idx += 1
         _obs2, _info2 = env.reset(seed=int(next_seed))
@@ -112,13 +126,18 @@ def _planning_eval_state(
         "cur_ep_steps": int(cur_ep_steps),
         "total_reward": float(total_reward),
         "total_steps": int(total_steps),
+        "eval_episodes_target": int(eval_episodes),
+        "min_steps": int(min_steps),
+        "max_steps_per_episode": None if max_steps_per_episode is None else int(max_steps_per_episode),
     }
 
 
 def _summarize_eval_state(
     *,
     states: Sequence[Mapping[str, Any]],
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     seed_base: int,
     deterministic: bool,
     num_envs: int,
@@ -150,6 +169,10 @@ def _summarize_eval_state(
     out.update(acc.summarize())
 
     out["eval/steps"] = int(acc.steps)
+    out["eval/episodes_target"] = int(eval_episodes)
+    out["eval/min_steps"] = int(min_steps)
+    if max_steps_per_episode is not None:
+        out["eval/max_steps_per_episode"] = int(max_steps_per_episode)
     out["eval/deterministic"] = bool(deterministic)
     out["eval/seed_base"] = int(seed_base)
     out["eval/num_envs"] = int(num_envs)
@@ -197,19 +220,23 @@ def evaluate_planning_policy(
     *,
     policy: Any,
     env: Any,
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     seed_base: int,
     deterministic: bool,
     on_episode: Optional[Callable[[int, Optional[float]], None]] = None,
     on_step: Optional[Callable[[int], None]] = None,
 ) -> Dict[str, Any]:
     """
-    Step-budget evaluation for planning-style policies (env-driven predict).
+    Episode-target evaluation for planning-style policies (env-driven predict).
     """
     state = _planning_eval_state(
         policy=policy,
         env=env,
-        eval_steps=eval_steps,
+        eval_episodes=eval_episodes,
+        min_steps=min_steps,
+        max_steps_per_episode=max_steps_per_episode,
         seed_base=seed_base,
         deterministic=deterministic,
         on_episode=on_episode,
@@ -217,7 +244,9 @@ def evaluate_planning_policy(
     )
     return _summarize_eval_state(
         states=[state],
-        eval_steps=eval_steps,
+        eval_episodes=eval_episodes,
+        min_steps=min_steps,
+        max_steps_per_episode=max_steps_per_episode,
         seed_base=seed_base,
         deterministic=deterministic,
         num_envs=1,
@@ -235,14 +264,16 @@ def _init_worker(env_cfg: Mapping[str, Any], spec: HeuristicSpec) -> None:
     _WORKER_ENV = make_env_from_cfg(cfg={"env": dict(env_cfg)}, seed=int(seed32_from(base_seed=0, stream_id=0))).env
 
 
-def _worker_eval(args: tuple[int, int, int]) -> Dict[str, Any]:
-    eval_steps, seed_base, deterministic = args
+def _worker_eval(args: tuple[int, int, int, int, Optional[int]]) -> Dict[str, Any]:
+    eval_episodes, min_steps, seed_base, deterministic, max_steps_per_episode = args
     if _WORKER_ENV is None or _WORKER_POLICY is None:
         raise RuntimeError("worker not initialized")
     return _planning_eval_state(
         policy=_WORKER_POLICY,
         env=_WORKER_ENV,
-        eval_steps=int(eval_steps),
+        eval_episodes=int(eval_episodes),
+        min_steps=int(min_steps),
+        max_steps_per_episode=max_steps_per_episode,
         seed_base=int(seed_base),
         deterministic=bool(deterministic),
         on_episode=None,
@@ -254,7 +285,9 @@ def evaluate_planning_policy_parallel(
     *,
     spec: HeuristicSpec,
     env_cfg: Mapping[str, Any],
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     seed_base: int,
     deterministic: bool,
     workers: int,
@@ -262,9 +295,13 @@ def evaluate_planning_policy_parallel(
     on_step: Optional[Callable[[int], None]] = None,
 ) -> Dict[str, Any]:
     workers = max(1, int(workers))
-    eval_steps = int(eval_steps)
-    if eval_steps <= 0:
-        raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
+    eval_episodes = int(eval_episodes)
+    if eval_episodes <= 0:
+        raise ValueError(f"eval_episodes must be > 0, got {eval_episodes}")
+    min_steps = int(min_steps)
+    if min_steps < 0:
+        raise ValueError(f"min_steps must be >= 0, got {min_steps}")
+    max_steps_per_episode = None if max_steps_per_episode is None else int(max_steps_per_episode)
 
     if workers <= 1:
         env = make_env_from_cfg(cfg={"env": dict(env_cfg)}, seed=int(seed_base)).env
@@ -273,7 +310,9 @@ def evaluate_planning_policy_parallel(
             return evaluate_planning_policy(
                 policy=policy,
                 env=env,
-                eval_steps=eval_steps,
+                eval_episodes=eval_episodes,
+                min_steps=min_steps,
+                max_steps_per_episode=max_steps_per_episode,
                 seed_base=int(seed_base),
                 deterministic=bool(deterministic),
                 on_episode=on_episode,
@@ -282,15 +321,19 @@ def evaluate_planning_policy_parallel(
         finally:
             env.close()
 
-    per_worker = eval_steps // workers
-    remainder = eval_steps % workers
-    tasks: list[tuple[int, int, int]] = []
+    workers = min(int(workers), int(eval_episodes)) if int(eval_episodes) > 0 else 1
+    per_worker_eps = eval_episodes // workers
+    eps_remainder = eval_episodes % workers
+    per_worker_steps = min_steps // workers if workers > 0 else 0
+    steps_remainder = min_steps % workers if workers > 0 else 0
+    tasks: list[tuple[int, int, int, int, Optional[int]]] = []
     for i in range(int(workers)):
-        steps_i = int(per_worker + (1 if i < remainder else 0))
-        if steps_i <= 0:
+        eps_i = int(per_worker_eps + (1 if i < eps_remainder else 0))
+        steps_i = int(per_worker_steps + (1 if i < steps_remainder else 0))
+        if eps_i <= 0:
             continue
         seed_i = int(seed32_from(base_seed=int(seed_base), stream_id=int(0xE9A1 + i)))
-        tasks.append((steps_i, seed_i, int(deterministic)))
+        tasks.append((eps_i, steps_i, seed_i, int(deterministic), max_steps_per_episode))
 
     if not tasks:
         raise ValueError("no eval tasks to run")
@@ -337,7 +380,9 @@ def evaluate_planning_policy_parallel(
 
     return _summarize_eval_state(
         states=states,
-        eval_steps=eval_steps,
+        eval_episodes=eval_episodes,
+        min_steps=min_steps,
+        max_steps_per_episode=max_steps_per_episode,
         seed_base=seed_base,
         deterministic=deterministic,
         num_envs=len(tasks),

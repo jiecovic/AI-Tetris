@@ -128,15 +128,20 @@ def _eval_state_loop(
     *,
     model: Any,
     vec_env: VecEnv,
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     deterministic: bool,
     seed_base: int,
     on_episode: Optional[Callable[[int, Optional[float]], None]] = None,
     on_step: Optional[Callable[[int], None]] = None,
 ) -> Dict[str, Any]:
-    eval_steps = int(eval_steps)
-    if eval_steps <= 0:
-        raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
+    eval_episodes = int(eval_episodes)
+    if eval_episodes <= 0:
+        raise ValueError(f"eval_episodes must be > 0, got {eval_episodes}")
+    min_steps = int(min_steps)
+    if min_steps < 0:
+        raise ValueError(f"min_steps must be >= 0, got {min_steps}")
 
     algo_type = _effective_algo_type_from_model(model)
     want_masking = algo_type == "maskable_ppo"
@@ -178,11 +183,17 @@ def _eval_state_loop(
     ep_steps: list[int] = []
     ep_final_scores: list[Optional[float]] = []
     ep_final_lines: list[Optional[float]] = []
+    total_reward = 0.0
+    total_steps = 0
 
     next_seed = int(seed_base) + n_envs
     warned_no_masks = False
+    active = [True for _ in range(int(n_envs))]
+    draining = False
 
-    while acc.steps < eval_steps:
+    max_steps_per_episode = None if max_steps_per_episode is None else int(max_steps_per_episode)
+
+    while True:
         masks: Optional[np.ndarray] = None
         if want_masking:
             masks = _vec_action_masks(vec_env, n_envs=n_envs)
@@ -199,16 +210,28 @@ def _eval_state_loop(
         else:
             actions, _ = model.predict(obs, deterministic=bool(deterministic))
 
+        if not all(active):
+            try:
+                actions_arr = np.asarray(actions)
+                inactive = [i for i, a in enumerate(active) if not a]
+                if actions_arr.ndim == 1:
+                    actions_arr[inactive] = 0
+                else:
+                    actions_arr[inactive] = 0
+                actions = actions_arr
+            except Exception:
+                pass
+
         obs, step_rewards, dones, infos = vec_env.step(actions)
 
         step_rewards = np.asarray(step_rewards, dtype=np.float64).reshape((n_envs,))
         dones = np.asarray(dones, dtype=bool).reshape((n_envs,))
         infos_list = cast(list[dict], infos)
 
+        stop_after_batch = False
         for i in range(n_envs):
-            if acc.steps >= eval_steps:
-                break
-
+            if not active[i]:
+                continue
             info_i = infos_list[i] if i < len(infos_list) and isinstance(infos_list[i], dict) else {}
             acc.ingest_info(info_i)
             if on_step is not None:
@@ -217,8 +240,15 @@ def _eval_state_loop(
             # Secondary episode stats
             slots[i].ep_reward += float(step_rewards[i])
             slots[i].ep_steps += 1
+            total_reward += float(step_rewards[i])
+            total_steps += 1
 
-            if not dones[i]:
+            done = bool(dones[i])
+            cap_reached = max_steps_per_episode is not None and int(slots[i].ep_steps) >= int(max_steps_per_episode)
+            if cap_reached and not done:
+                done = True
+
+            if not done:
                 continue
 
             completed_episodes += 1
@@ -236,7 +266,15 @@ def _eval_state_loop(
             if on_episode is not None:
                 on_episode(completed_episodes, float(ep_returns[-1]))
 
+            if not draining and completed_episodes >= eval_episodes and int(total_steps) >= int(min_steps):
+                draining = True
+
             # Reset this slot and reseed deterministically
+            if draining:
+                active[i] = False
+                stop_after_batch = True
+                continue
+
             new_seed = int(next_seed)
             next_seed += 1
 
@@ -257,6 +295,9 @@ def _eval_state_loop(
 
             slots[i] = _SlotState(seed=int(new_seed))
 
+        if stop_after_batch and draining and not any(active):
+            break
+
     return {
         "acc_state": acc.to_state(),
         "completed_episodes": int(completed_episodes),
@@ -267,6 +308,11 @@ def _eval_state_loop(
         "cur_ep_steps": [int(s.ep_steps) for s in slots if int(s.ep_steps) > 0],
         "n_envs": int(n_envs),
         "algo_type": str(algo_type),
+        "total_reward": float(total_reward),
+        "total_steps": int(total_steps),
+        "eval_episodes_target": int(eval_episodes),
+        "min_steps": int(min_steps),
+        "max_steps_per_episode": None if max_steps_per_episode is None else int(max_steps_per_episode),
     }
 
 
@@ -275,7 +321,9 @@ def _eval_state(
     model: Any,
     cfg: Dict[str, Any],
     run_cfg: RunConfig,
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     deterministic: bool,
     seed_base: int,
     num_envs: int,
@@ -287,7 +335,9 @@ def _eval_state(
         return _eval_state_loop(
             model=model,
             vec_env=vec_env,
-            eval_steps=eval_steps,
+            eval_episodes=eval_episodes,
+            min_steps=min_steps,
+            max_steps_per_episode=max_steps_per_episode,
             deterministic=deterministic,
             seed_base=seed_base,
             on_episode=on_episode,
@@ -300,7 +350,9 @@ def _eval_state(
 def _summarize_eval_states(
     *,
     states: Sequence[Mapping[str, Any]],
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     seed_base: int,
     deterministic: bool,
     num_envs: int,
@@ -314,6 +366,8 @@ def _summarize_eval_states(
     ep_final_scores: list[Optional[float]] = []
     ep_final_lines: list[Optional[float]] = []
     cur_steps: list[int] = []
+    total_reward = 0.0
+    total_steps = 0
 
     for state in states:
         acc_state = state.get("acc_state", {})
@@ -325,11 +379,17 @@ def _summarize_eval_states(
         ep_final_scores.extend(state.get("ep_final_scores", []) or [])
         ep_final_lines.extend(state.get("ep_final_lines", []) or [])
         cur_steps.extend(state.get("cur_ep_steps", []) or [])
+        total_reward += float(state.get("total_reward", 0.0))
+        total_steps += int(state.get("total_steps", 0))
 
     out: Dict[str, Any] = {}
     out.update(acc.summarize())
 
     out["eval/steps"] = int(acc.steps)
+    out["eval/episodes_target"] = int(eval_episodes)
+    out["eval/min_steps"] = int(min_steps)
+    if max_steps_per_episode is not None:
+        out["eval/max_steps_per_episode"] = int(max_steps_per_episode)
     out["eval/deterministic"] = bool(deterministic)
     out["eval/seed_base"] = int(seed_base)
     out["eval/num_envs"] = int(num_envs)
@@ -366,6 +426,9 @@ def _summarize_eval_states(
     if m is not None:
         out["episode/final_score_mean"] = float(m)
 
+    if total_steps > 0:
+        out["episode/return_per_step"] = float(total_reward) / float(total_steps)
+
     # purely descriptive (non-semantic) metadata from cfg is allowed until Run/Env specs exist
     try:
         env = cfg.get("env", {}) if isinstance(cfg, dict) else {}
@@ -385,7 +448,9 @@ def evaluate_model(
     model: Any,
     cfg: Dict[str, Any],
     run_cfg: RunConfig,
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     deterministic: bool,
     seed_base: int,
     num_envs: int = 1,
@@ -393,16 +458,19 @@ def evaluate_model(
     on_step: Optional[Callable[[int], None]] = None,
 ) -> Dict[str, Any]:
     """
-    Step-budget evaluation (canonical).
+    Episode-target evaluation (canonical).
 
-    Runs until we have collected >= eval_steps total env steps across all VecEnv slots.
+    Runs until we have collected >= eval_episodes completed episodes and >= min_steps total env steps.
     Aggregates per-step metric contract from info["tf"]/info["game"] via StatsAccumulator.
 
-    Episode-level metrics are computed only over episodes that happen to complete within the step budget.
+    Episode-level metrics are computed only over completed episodes.
     """
-    eval_steps = int(eval_steps)
-    if eval_steps <= 0:
-        raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
+    eval_episodes = int(eval_episodes)
+    if eval_episodes <= 0:
+        raise ValueError(f"eval_episodes must be > 0, got {eval_episodes}")
+    min_steps = int(min_steps)
+    if min_steps < 0:
+        raise ValueError(f"min_steps must be >= 0, got {min_steps}")
 
     num_envs = max(1, int(num_envs))
     algo_type = _effective_algo_type_from_model(model)
@@ -411,7 +479,9 @@ def evaluate_model(
         model=model,
         cfg=cfg,
         run_cfg=run_cfg,
-        eval_steps=eval_steps,
+        eval_episodes=eval_episodes,
+        min_steps=min_steps,
+        max_steps_per_episode=max_steps_per_episode,
         deterministic=deterministic,
         seed_base=seed_base,
         num_envs=num_envs,
@@ -421,7 +491,9 @@ def evaluate_model(
 
     return _summarize_eval_states(
         states=[state],
-        eval_steps=eval_steps,
+        eval_episodes=eval_episodes,
+        min_steps=min_steps,
+        max_steps_per_episode=max_steps_per_episode,
         seed_base=seed_base,
         deterministic=deterministic,
         num_envs=int(state.get("n_envs", num_envs)),
@@ -477,8 +549,8 @@ def _load_worker_model(*, env: Any) -> Any:
     return loaded.model
 
 
-def _worker_eval(args: tuple[int, int, int]) -> Dict[str, Any]:
-    eval_steps, seed_base, deterministic = args
+def _worker_eval(args: tuple[int, int, int, int, Optional[int]]) -> Dict[str, Any]:
+    eval_episodes, min_steps, seed_base, deterministic, max_steps_per_episode = args
     if _WORKER_CFG is None or _WORKER_RUN_CFG is None:
         raise RuntimeError("worker not initialized")
 
@@ -489,7 +561,9 @@ def _worker_eval(args: tuple[int, int, int]) -> Dict[str, Any]:
         return _eval_state_loop(
             model=model,
             vec_env=vec_env,
-            eval_steps=int(eval_steps),
+            eval_episodes=int(eval_episodes),
+            min_steps=int(min_steps),
+            max_steps_per_episode=max_steps_per_episode,
             deterministic=bool(deterministic),
             seed_base=int(seed_base),
             on_episode=None,
@@ -504,7 +578,9 @@ def evaluate_model_workers(
     model: Any,
     cfg: Dict[str, Any],
     run_cfg: RunConfig,
-    eval_steps: int,
+    eval_episodes: int,
+    min_steps: int,
+    max_steps_per_episode: Optional[int],
     deterministic: bool,
     seed_base: int,
     workers: int,
@@ -512,16 +588,21 @@ def evaluate_model_workers(
     on_step: Optional[Callable[[int], None]] = None,
 ) -> Dict[str, Any]:
     workers = max(1, int(workers))
-    eval_steps = int(eval_steps)
-    if eval_steps <= 0:
-        raise ValueError(f"eval_steps must be > 0, got {eval_steps}")
+    eval_episodes = int(eval_episodes)
+    if eval_episodes <= 0:
+        raise ValueError(f"eval_episodes must be > 0, got {eval_episodes}")
+    min_steps = int(min_steps)
+    if min_steps < 0:
+        raise ValueError(f"min_steps must be >= 0, got {min_steps}")
 
     if workers <= 1:
         return evaluate_model(
             model=model,
             cfg=cfg,
             run_cfg=run_cfg,
-            eval_steps=eval_steps,
+            eval_episodes=eval_episodes,
+            min_steps=min_steps,
+            max_steps_per_episode=max_steps_per_episode,
             deterministic=deterministic,
             seed_base=seed_base,
             num_envs=1,
@@ -531,15 +612,19 @@ def evaluate_model_workers(
 
     algo_type = _effective_algo_type_from_model(model)
 
-    per_worker = eval_steps // workers
-    remainder = eval_steps % workers
-    tasks: list[tuple[int, int, int]] = []
+    workers = min(int(workers), int(eval_episodes)) if int(eval_episodes) > 0 else 1
+    per_worker_eps = eval_episodes // workers
+    eps_remainder = eval_episodes % workers
+    per_worker_steps = min_steps // workers if workers > 0 else 0
+    steps_remainder = min_steps % workers if workers > 0 else 0
+    tasks: list[tuple[int, int, int, int, Optional[int]]] = []
     for i in range(int(workers)):
-        steps_i = int(per_worker + (1 if i < remainder else 0))
-        if steps_i <= 0:
+        eps_i = int(per_worker_eps + (1 if i < eps_remainder else 0))
+        steps_i = int(per_worker_steps + (1 if i < steps_remainder else 0))
+        if eps_i <= 0:
             continue
         seed_i = int(seed32_from(base_seed=int(seed_base), stream_id=int(0xE9A1 + i)))
-        tasks.append((steps_i, seed_i, int(deterministic)))
+        tasks.append((eps_i, steps_i, seed_i, int(deterministic), max_steps_per_episode))
 
     if not tasks:
         raise ValueError("no eval tasks to run")
@@ -599,7 +684,9 @@ def evaluate_model_workers(
 
     return _summarize_eval_states(
         states=states,
-        eval_steps=eval_steps,
+        eval_episodes=eval_episodes,
+        min_steps=min_steps,
+        max_steps_per_episode=max_steps_per_episode,
         seed_base=seed_base,
         deterministic=deterministic,
         num_envs=len(tasks),

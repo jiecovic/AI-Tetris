@@ -94,7 +94,14 @@ class EvalCheckpointCore:
             step = int(progress_step)
             try:
                 self.log_scalar("eval/every", float(self.spec.eval_every), step)
-                self.log_scalar("eval/steps", float(self.spec.eval.steps), step)
+                self.log_scalar("eval/episodes_target", float(self.spec.eval.episodes), step)
+                self.log_scalar("eval/min_steps", float(self.spec.eval.min_steps), step)
+                if self.spec.eval.max_steps_per_episode is not None:
+                    self.log_scalar(
+                        "eval/max_steps_per_episode",
+                        float(self.spec.eval.max_steps_per_episode),
+                        step,
+                    )
                 self.log_scalar("eval/num_envs", float(self.spec.eval.num_envs), step)
                 self.log_scalar("eval/workers", float(self.spec.eval.workers), step)
                 mode = str(self.spec.eval.mode).strip().lower()
@@ -106,7 +113,9 @@ class EvalCheckpointCore:
     def _run_eval(self, *, model: Any, progress_step: int) -> Dict[str, Any]:
         seed_base = int(self.spec.base_seed) + int(self.spec.eval.seed_offset)
 
-        eval_steps = int(self.spec.eval.steps)
+        eval_episodes = int(self.spec.eval.episodes)
+        min_steps = int(self.spec.eval.min_steps)
+        max_steps_per_episode = self.spec.eval.max_steps_per_episode
         deterministic = bool(self.spec.eval.deterministic)
         num_envs = max(1, int(self.spec.eval.num_envs))
         mode = str(self.spec.eval.mode).strip().lower()
@@ -115,23 +124,26 @@ class EvalCheckpointCore:
         pbar: Optional[tqdm] = None
         if int(self.spec.verbose) >= 1:
             pbar = tqdm(
-                total=eval_steps,
+                total=eval_episodes,
                 desc=f"eval@{int(progress_step)}",
                 leave=False,
                 dynamic_ncols=True,
                 position=1,
             )
 
+        steps_seen = 0
         def _on_episode(done_eps: int, ret: Optional[float]) -> None:
             if pbar is None:
                 return
+            pbar.update(1)
             if ret is not None:
-                pbar.set_postfix_str(f"ep={done_eps} return={float(ret):.6g}", refresh=True)
+                pbar.set_postfix_str(f"ep={done_eps} steps={steps_seen} return={float(ret):.6g}", refresh=True)
 
         def _on_step(k: int) -> None:
+            nonlocal steps_seen
             if pbar is None:
                 return
-            pbar.update(int(k))
+            steps_seen += int(k)
 
         try:
             if self.eval_fn is not None:
@@ -147,7 +159,9 @@ class EvalCheckpointCore:
                         model=model,
                         cfg=self.cfg,  # wiring only
                         run_cfg=self.spec.run_cfg,
-                        eval_steps=eval_steps,
+                        eval_episodes=eval_episodes,
+                        min_steps=min_steps,
+                        max_steps_per_episode=max_steps_per_episode,
                         deterministic=deterministic,
                         seed_base=seed_base,
                         workers=workers,
@@ -159,7 +173,9 @@ class EvalCheckpointCore:
                         model=model,
                         cfg=self.cfg,  # wiring only
                         run_cfg=self.spec.run_cfg,
-                        eval_steps=eval_steps,
+                        eval_episodes=eval_episodes,
+                        min_steps=min_steps,
+                        max_steps_per_episode=max_steps_per_episode,
                         deterministic=deterministic,
                         seed_base=seed_base,
                         num_envs=num_envs,
@@ -254,7 +270,7 @@ class EvalCheckpointCore:
             t=t,
             phase=str(phase),
             upd=upd,
-            steps=safe_int(metrics.get("eval/steps"), default=int(self.spec.eval.steps)),
+            steps=safe_int(metrics.get("eval/steps"), default=0),
             completed_eps=safe_int(metrics.get("episode/completed_episodes"), default=0),
             reward_per_step=rwd_per_step,
             lines_per_step=as_float(metrics.get("game/lines_per_step")),

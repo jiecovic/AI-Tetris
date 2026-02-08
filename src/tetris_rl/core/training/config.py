@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 
@@ -16,13 +16,27 @@ class EvalCheckpointCallbackConfig(ConfigBase):
 
     enabled: bool = False
     every: int = Field(default=0, ge=0)
-    steps: int = Field(default=100_000, ge=1)
+    episodes: int = Field(default=100, ge=1)
+    min_steps: int = Field(default=0, ge=0)
+    max_steps_per_episode: Optional[int] = Field(default=None, ge=1)
+    steps: Optional[int] = None
 
     deterministic: bool = True
     seed_offset: int = 10_000
     num_envs: int = Field(default=1, ge=1)
     workers: int = Field(default=1, ge=1)
     mode: Literal["vectorized", "workers"] = "vectorized"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_steps_to_min_steps(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        if "min_steps" not in data and "steps" in data:
+            out = dict(data)
+            out["min_steps"] = data.get("steps")
+            return out
+        return data
 
 class LatestCallbackConfig(ConfigBase):
     enabled: bool = True

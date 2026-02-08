@@ -2,7 +2,7 @@
 type: macro                      # MacroTetrisEnv (raw Dict obs only)
 params:
   action_mode: discrete          # discrete | multidiscrete
-  max_steps: 500                 # null disables truncation
+  max_steps: none                 # null disables truncation
   invalid_action_policy: noop    # noop | terminate
 
 game:
