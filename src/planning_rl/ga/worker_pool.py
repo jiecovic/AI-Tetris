@@ -5,6 +5,7 @@ from dataclasses import asdict
 from multiprocessing import current_process, get_context
 import signal
 from typing import Callable, Sequence
+import os
 
 from planning_rl.ga.config import GAFitnessConfig
 from planning_rl.ga.types import GAWorkerFactory
@@ -29,15 +30,25 @@ def _worker_id() -> int:
 
 
 def _init_worker(factory: GAWorkerFactory, fitness_cfg: dict[str, int | float | str], seed_base: int) -> None:
+    if os.name == "nt":
+        try:
+            import ctypes
+            # Ignore Ctrl+C in worker processes to avoid noisy aborts on Windows.
+            ctypes.windll.kernel32.SetConsoleCtrlHandler(None, True)
+        except Exception:
+            pass
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     global _WORKER_FACTORY, _WORKER_ENV, _WORKER_POLICY, _WORKER_SEEDS, _WORKER_FITNESS
     _WORKER_FACTORY = factory
     _WORKER_FITNESS = GAFitnessConfig(**dict(fitness_cfg))
+    # Episode seeds drive the actual RNG because each reset(seed=...) overwrites env RNG.
+    # We keep these identical across workers for fair fitness comparisons.
     _WORKER_SEEDS = episode_seeds(
         base_seed=int(seed_base),
         episodes=int(_WORKER_FITNESS.episodes),
     )
     worker_index = max(0, _worker_id() - 1)
+    # Worker env seed only matters if reset() is called without a seed.
     env_seed = seed32_from(base_seed=int(seed_base), stream_id=int(0xA5C3 + worker_index))
     _WORKER_ENV = factory.build_env(seed=int(env_seed), worker_index=int(worker_index))
     _WORKER_POLICY = factory.build_policy()

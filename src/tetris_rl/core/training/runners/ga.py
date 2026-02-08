@@ -362,6 +362,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                 tail="best_ind=- best_w=-",
             )
             current_gen = 0
+            next_gen_start = True
             best_ind: float | None = None
             best_ind_weights: list[float] | None = None
             gen_best: float | None = None
@@ -386,6 +387,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
             def _on_generation(stats: GAStats) -> None:
                 nonlocal gen_best
                 nonlocal gen_best_weights
+                nonlocal next_gen_start
                 label = f"GA gen {int(stats.generation) + 1}"
                 progress.update(gen_task, advance=1, description=label)
                 gen_best = float(stats.best_score)
@@ -403,12 +405,14 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                     tail=f"best_ind={_fmt(best_ind)} best_w={_fmt_weights(best_ind_weights)}",
                 )
                 _save_best(intermediate_path)
+                next_gen_start = True
 
             def _on_candidate(idx: int, score: float) -> None:
                 nonlocal current_gen
                 nonlocal best_ind
                 nonlocal best_ind_weights
-                if idx == 0:
+                nonlocal next_gen_start
+                if next_gen_start:
                     current_gen += 1
                     best_ind = None
                     best_ind_weights = None
@@ -419,6 +423,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                         description=f"Individuals (gen {current_gen})",
                         tail=f"best_ind={_fmt(best_ind)} best_w={_fmt_weights(best_ind_weights)}",
                     )
+                    next_gen_start = False
                 if best_ind is None or float(score) > float(best_ind):
                     best_ind = float(score)
                     best_ind_weights = [float(w) for w in algo.population[int(idx)].tolist()]
