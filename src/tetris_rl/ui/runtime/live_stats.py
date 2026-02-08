@@ -1,4 +1,4 @@
-# src/tetris_rl/core/runtime/live_stats.py
+# src/tetris_rl/ui/runtime/live_stats.py
 from __future__ import annotations
 
 import math

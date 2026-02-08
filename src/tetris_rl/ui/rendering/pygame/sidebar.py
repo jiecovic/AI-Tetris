@@ -1,4 +1,4 @@
-# src/tetris_rl/core/game/rendering/pygame/sidebar.py
+# src/tetris_rl/ui/rendering/pygame/sidebar.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,8 +6,8 @@ from typing import Any, Optional, Tuple, List
 
 import pygame
 
-from tetris_rl.core.game.rendering.pygame.palette import Palette, Color
-from tetris_rl.core.game.rendering.pygame.surf import SurfaceCache, blit_text
+from tetris_rl.ui.rendering.pygame.palette import Palette, Color
+from tetris_rl.ui.rendering.pygame.surf import SurfaceCache, blit_text
 
 # -----------------------------------------------------------------------------
 # Public sizing contract

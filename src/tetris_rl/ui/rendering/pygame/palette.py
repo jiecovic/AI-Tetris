@@ -1,4 +1,4 @@
-# src/tetris_rl/core/game/rendering/pygame/palette.py
+# src/tetris_rl/ui/rendering/pygame/palette.py
 from __future__ import annotations
 
 from dataclasses import dataclass

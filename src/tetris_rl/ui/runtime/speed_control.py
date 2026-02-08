@@ -1,4 +1,4 @@
-# src/tetris_rl/core/runtime/speed_control.py
+# src/tetris_rl/ui/runtime/speed_control.py
 from __future__ import annotations
 
 from dataclasses import dataclass

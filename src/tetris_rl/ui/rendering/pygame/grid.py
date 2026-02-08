@@ -1,4 +1,4 @@
-# src/tetris_rl/core/game/rendering/pygame/grid.py
+# src/tetris_rl/ui/rendering/pygame/grid.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,8 +7,8 @@ from typing import Any, Optional, Tuple
 import numpy as np
 import pygame
 
-from tetris_rl.core.game.rendering.pygame.palette import Palette, Color
-from tetris_rl.core.game.rendering.pygame.surf import SurfaceCache
+from tetris_rl.ui.rendering.pygame.palette import Palette, Color
+from tetris_rl.ui.rendering.pygame.surf import SurfaceCache
 
 
 # -----------------------------------------------------------------------------
