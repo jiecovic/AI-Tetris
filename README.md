@@ -24,10 +24,9 @@ This project combines planning, imitation learning, and reinforcement learning f
 
 Configurable via YAML:
 
-- CNN
-- ViT
-- MLP-Mixer
-- Multiple tokenization/embedding strategies
+- SB3 policies with custom feature extractors (CNN/ViT/MLP-Mixer)
+- Planning policies currently use a linear value scorer
+- Roadmap: MLP/CNN value models on post-action states for planning
 
 ### Environment
 
@@ -39,22 +38,11 @@ Configurable via YAML:
 
 ## Requirements
 
-### Python
-- Python >= 3.10
-- pip
+- Python >= 3.10 with pip
+- Rust toolchain (rustc + cargo via rustup) for the PyO3/maturin engine
+- Windows: Visual Studio Build Tools with "Desktop development with C++"
 
-### System / native
-This project includes a Rust-based Tetris engine built via PyO3 + maturin.
-
-You need a working Rust toolchain:
-- rustc and cargo (install via rustup)
-
-Windows (MSVC):
-- Visual Studio Build Tools
-- Desktop development with C++
-
-### Python dependencies
-Installed automatically via `pip install -e .` (see `pyproject.toml`).
+Python dependencies are declared in `pyproject.toml` and installed via `pip install -e .`.
 
 ---
 
