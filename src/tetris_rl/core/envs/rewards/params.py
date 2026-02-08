@@ -22,16 +22,25 @@ class HeuristicDeltaRewardParams(ConfigBase):
     survival_bonus: float = 0.0
 
 
-RewardParams = LinesRewardParams | HeuristicDeltaRewardParams
+class LinesCleanRewardParams(ConfigBase):
+    illegal_penalty: float = 10.0
+    terminal_penalty: float = 10.0
+    survival_bonus: float = 0.0
+    no_new_holes_bonus: float = 1.0
+
+
+RewardParams = LinesRewardParams | HeuristicDeltaRewardParams | LinesCleanRewardParams
 
 REWARD_PARAMS_REGISTRY: Mapping[str, type[ConfigBase]] = {
     "lines": LinesRewardParams,
     "heuristic_delta": HeuristicDeltaRewardParams,
+    "lines_clean": LinesCleanRewardParams,
 }
 
 __all__ = [
     "LinesRewardParams",
     "HeuristicDeltaRewardParams",
+    "LinesCleanRewardParams",
     "RewardParams",
     "REWARD_PARAMS_REGISTRY",
 ]
