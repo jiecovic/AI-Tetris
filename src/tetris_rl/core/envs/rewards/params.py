@@ -9,31 +9,29 @@ from tetris_rl.core.config.base import ConfigBase
 class LinesRewardParams(ConfigBase):
     illegal_penalty: float = 10.0
     terminal_penalty: float = 10.0
+    survival_bonus: float = 0.0
 
 
 class HeuristicDeltaRewardParams(ConfigBase):
     illegal_penalty: float = 10.0
     terminal_penalty: float = 10.0
+    w_lines: float = 0.760666
+    w_holes: float = -0.35663
+    w_bumpiness: float = -0.184483
+    w_agg_height: float = -0.510066
+    survival_bonus: float = 0.0
 
 
-class LinesSurvivalRewardParams(ConfigBase):
-    illegal_penalty: float = 10.0
-    terminal_penalty: float = 10.0
-    survival_bonus: float = 0.1
-
-
-RewardParams = LinesRewardParams | HeuristicDeltaRewardParams | LinesSurvivalRewardParams
+RewardParams = LinesRewardParams | HeuristicDeltaRewardParams
 
 REWARD_PARAMS_REGISTRY: Mapping[str, type[ConfigBase]] = {
     "lines": LinesRewardParams,
     "heuristic_delta": HeuristicDeltaRewardParams,
-    "lines_survival": LinesSurvivalRewardParams,
 }
 
 __all__ = [
     "LinesRewardParams",
     "HeuristicDeltaRewardParams",
-    "LinesSurvivalRewardParams",
     "RewardParams",
     "REWARD_PARAMS_REGISTRY",
 ]

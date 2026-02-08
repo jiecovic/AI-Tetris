@@ -9,10 +9,11 @@ from tetris_rl.core.envs.rewards.params import HeuristicDeltaRewardParams
 
 class HeuristicDeltaReward(RewardFn):
     """
-    Placement-level reward shaping using CodemyRoad's classic 4-feature heuristic
+    Placement-level reward shaping using a 4-feature heuristic
     as a delta reward (score(next) - score(prev)).
 
-    CodemyRoad "Near Perfect Bot" score:
+    CodemyRoad "Near Perfect Bot" score (default params):
+      https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
       score = a*agg_height + b*complete_lines + c*holes + d*bumpiness
       a = -0.510066
       b = +0.760666
@@ -20,7 +21,9 @@ class HeuristicDeltaReward(RewardFn):
       d = -0.184483
 
     Delta shaping:
-      r ≈ b * Δlines - |c| * Δholes - |a| * Δagg_height - |d| * Δbumpiness
+      r ~= b * d_lines - |c| * d_holes - |a| * d_agg_height - |d| * d_bumpiness
+
+    Params are tunable via YAML; use the codemy preset to lock defaults.
 
     Conventions:
       - All penalties are POSITIVE magnitudes.
@@ -32,20 +35,14 @@ class HeuristicDeltaReward(RewardFn):
       - Terminal penalty is still subtracted if game_over is True.
     """
 
-    # CodemyRoad weights (fixed constants).
-    _W_LINES = 0.760666
-    _W_HOLES = -0.35663
-    _W_BUMPINESS = -0.184483
-    _W_AGG_HEIGHT = -0.510066
-    _SURVIVAL_BONUS = 0.0
-
-    # Penalties (POSITIVE magnitudes).
-    illegal_penalty: float
-    terminal_penalty: float
-
     def __init__(self, *, spec: HeuristicDeltaRewardParams) -> None:
         self.illegal_penalty = float(spec.illegal_penalty)
         self.terminal_penalty = float(spec.terminal_penalty)
+        self.w_lines = float(spec.w_lines)
+        self.w_holes = float(spec.w_holes)
+        self.w_bumpiness = float(spec.w_bumpiness)
+        self.w_agg_height = float(spec.w_agg_height)
+        self.survival_bonus = float(spec.survival_bonus)
 
     def __call__(
             self,
@@ -80,13 +77,13 @@ class HeuristicDeltaReward(RewardFn):
         # dmh = float(getattr(features, "delta_max_height", 0) or 0)
 
         # CodemyRoad delta-shaped reward
-        r += float(self._W_LINES) * float(cl)
-        r += float(self._W_HOLES) * float(dh)
-        r += float(self._W_BUMPINESS) * float(db)
-        r += float(self._W_AGG_HEIGHT) * float(dah)
+        r += float(self.w_lines) * float(cl)
+        r += float(self.w_holes) * float(dh)
+        r += float(self.w_bumpiness) * float(db)
+        r += float(self.w_agg_height) * float(dah)
 
         # bias (kept for compatibility; default 0.0)
-        r += float(self._SURVIVAL_BONUS)
+        r += float(self.survival_bonus)
 
         # terminal penalty
         if bool(getattr(features, "game_over", False)):
