@@ -108,6 +108,7 @@ This is not a polished framework. It is a personal playground to:
 - Distill: behavior cloning from the planner into a reactive policy.
 - Models: ViT with column tokens learns faster; CNN reaches similar quality and is faster at inference.
 - Outcome: fast, reactive inference with near-planning performance (no search at runtime).
+- Demo: the GIF above shows a CNN reactive policy distilled from Codemy plies=3 expectimax; weights will be shared after refinement.
 
 ---
 
