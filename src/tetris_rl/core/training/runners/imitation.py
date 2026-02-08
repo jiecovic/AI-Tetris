@@ -3,37 +3,28 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from tetris_rl.core.config.io import to_plain_dict
 from tetris_rl.core.config.root import ImitationExperimentConfig
 from tetris_rl.core.envs.factory import make_env_from_cfg
-from tetris_rl.core.runs.checkpoints.checkpoint_manifest import (
-    CheckpointEntry,
-    CheckpointManifest,
-    save_checkpoint_manifest,
-    update_checkpoint_manifest,
-)
-from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
-from tetris_rl.core.runs.run_manifest import write_run_manifest
+from tetris_rl.core.runs.checkpoints.checkpoint_manifest import CheckpointEntry, update_checkpoint_manifest
 from tetris_rl.core.training.config import AlgoConfig
 from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 from tetris_rl.core.training.model_factory import build_policy_from_cfg
 from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
 from tetris_rl.core.training.reporting import log_env_reward_summary
+from tetris_rl.core.training.runners.common import (
+    ensure_checkpoint_manifest,
+    init_run_artifacts,
+    with_env_cfg,
+)
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 from tetris_rl.core.utils.paths import repo_root as find_repo_root
 from tetris_rl.core.utils.seed import seed_all
-
-
-def _with_env_cfg(*, cfg: dict[str, Any], env_cfg: dict[str, Any]) -> dict[str, Any]:
-    out = dict(cfg)
-    out["env"] = dict(env_cfg)
-    return out
 
 
 def run_imitation_experiment(cfg: DictConfig) -> int:
@@ -50,25 +41,15 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     imitation_params = exp_cfg.algo.params
     seed_all(int(run_cfg.seed))
 
-    paths = make_run_paths(run_cfg=run_cfg)
-
     logger = setup_logger(name="tetris_rl.core.imitation", use_rich=True, level=str(exp_cfg.log_level))
-    logger.info(f"[run] dir: {paths.run_dir}")
+    artifacts = init_run_artifacts(cfg_dict=cfg_dict, run_cfg=run_cfg, logger=logger)
+    paths = artifacts.paths
     logger.info(f"[run] n_envs={run_cfg.n_envs} vec={run_cfg.vec} device={run_cfg.device}")
-
-    t0 = time.perf_counter()
-    materialize_run_paths(paths=paths)
-    config_path = paths.run_dir / "config.yaml"
-    OmegaConf.save(config=OmegaConf.create(cfg_dict), f=config_path)
-    write_run_manifest(run_dir=paths.run_dir, config_path=config_path)
-    manifest_path = paths.ckpt_dir / "manifest.json"
-    if not manifest_path.exists():
-        save_checkpoint_manifest(manifest_path, CheckpointManifest())
-    logger.info(f"[timing] paths+snapshot: {time.perf_counter() - t0:.2f}s")
+    _ = ensure_checkpoint_manifest(ckpt_dir=paths.ckpt_dir)
 
     t0 = time.perf_counter()
     logger.info("[timing] building vec env...")
-    cfg_train = _with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg.model_dump(mode="json"))
+    cfg_train = with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg.model_dump(mode="json"))
     probe_train = make_env_from_cfg(cfg=cfg_train, seed=int(run_cfg.seed))
     log_env_reward_summary(
         logger=logger,
@@ -135,7 +116,7 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     logger.info(f"[train] obs_space={built.vec_env.observation_space}")
     logger.info(f"[train] action_space={built.vec_env.action_space}")
 
-    cfg_eval = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
+    cfg_eval = with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
     probe_eval = make_env_from_cfg(cfg=cfg_eval, seed=int(run_cfg.seed))
     log_env_reward_summary(
         logger=logger,

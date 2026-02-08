@@ -1,11 +1,10 @@
 # src/tetris_rl/core/training/runners/td.py
 from __future__ import annotations
 
-import time
 from typing import Any
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from rich.progress import (
     BarColumn,
     Progress,
@@ -24,8 +23,6 @@ from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.policies.planning_policies.td_value_policy import TDValuePlanningPolicy
 from tetris_rl.core.policies.spec import HeuristicSearch
 from tetris_rl.core.runs.config import RunConfig
-from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
-from tetris_rl.core.runs.run_manifest import write_run_manifest
 from tetris_rl.core.training.config import CallbacksConfig
 from tetris_rl.core.training.evaluation import (
     evaluate_planning_policy,
@@ -34,6 +31,7 @@ from tetris_rl.core.training.evaluation import (
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
 from tetris_rl.core.training.reporting import log_env_reward_summary
+from tetris_rl.core.training.runners.common import init_run_artifacts, with_env_cfg
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 from tetris_rl.core.utils.seed import seed_all
@@ -53,25 +51,6 @@ def _parse_td_config(obj: Any, *, seed_default: int) -> TDConfig:
     return TDConfig(**data)
 
 
-def _with_env_cfg(
-    *,
-    cfg: dict[str, Any],
-    env_cfg: dict[str, Any],
-    max_steps_per_episode: int | None = None,
-) -> dict[str, Any]:
-    out = dict(cfg)
-    env_out = dict(env_cfg)
-    if max_steps_per_episode is not None:
-        params = env_out.get("params", {}) or {}
-        if not isinstance(params, dict):
-            params = {}
-        params = dict(params)
-        params["max_steps"] = int(max_steps_per_episode)
-        env_out["params"] = params
-    out["env"] = env_out
-    return out
-
-
 def _device_from_run(run_cfg: RunConfig) -> torch.device:
     dev = str(getattr(run_cfg, "device", "auto")).strip().lower()
     if dev == "auto":
@@ -85,14 +64,8 @@ def run_td_experiment(cfg: DictConfig) -> int:
 
     run_cfg = RunConfig.model_validate(cfg_dict.get("run", {}) or {})
     seed_all(int(run_cfg.seed))
-    paths = make_run_paths(run_cfg=run_cfg)
-
-    t0 = time.perf_counter()
-    materialize_run_paths(paths=paths)
-    config_path = paths.run_dir / "config.yaml"
-    OmegaConf.save(config=OmegaConf.create(cfg_dict), f=config_path)
-    write_run_manifest(run_dir=paths.run_dir, config_path=config_path)
-    logger.info(f"[timing] paths+snapshot: {time.perf_counter() - t0:.2f}s")
+    artifacts = init_run_artifacts(cfg_dict=cfg_dict, run_cfg=run_cfg, logger=logger)
+    paths = artifacts.paths
     tb_logger = maybe_tb_logger(paths.tb_dir)
 
     policy_cfg = cfg_dict.get("policy", {}) or {}
@@ -150,7 +123,7 @@ def run_td_experiment(cfg: DictConfig) -> int:
     for i in range(n_envs):
         seed_i = int(seed32_from(base_seed=int(td_cfg.seed), stream_id=int(0x7D00 + i)))
         built_env = make_env_from_cfg(
-                cfg=_with_env_cfg(
+                cfg=with_env_cfg(
                     cfg=cfg_dict,
                     env_cfg=env_train_cfg,
                     max_steps_per_episode=td_cfg.max_steps_per_episode,
@@ -237,7 +210,7 @@ def run_td_experiment(cfg: DictConfig) -> int:
     env_eval = None
     if eval_enabled and int(eval_workers) <= 1:
         built_eval = make_env_from_cfg(
-            cfg=_with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg),
+            cfg=with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg),
             seed=int(td_cfg.seed),
         )
         env_eval = built_eval.env
