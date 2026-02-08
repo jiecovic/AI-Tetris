@@ -1,0 +1,17 @@
+# @package _global_
+defaults:
+  - hydra: default
+  - conf/envs@env_train: train_empty
+  - conf/rewards@env_train.reward: lines_survival
+  - conf/envs@env_eval: eval_empty
+  - conf/rewards@env_eval.reward: lines_survival
+  - conf/planning_policies@policy: heuristic
+  - conf/trains@_global_: td_heuristic
+  - _self_
+
+log_level: info
+
+run:
+  name: td_heuristic_run
+  seed: 0
+  out_root: experiments

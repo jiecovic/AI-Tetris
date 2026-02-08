@@ -86,13 +86,13 @@ All training and evaluation is driven via YAML configs.
 Example:
 
 ```bash
-tetris-train -cfg .\configs\cnn_ppo.yaml
+tetris-train -cfg .\configs\ppo\cnn_ppo.yaml
 ```
 
 TD heuristic training:
 
 ```bash
-tetris-train -cfg .\configs\td_heuristic.yaml
+tetris-train -cfg .\configs\td\td_heuristic.yaml
 ```
 
 ---

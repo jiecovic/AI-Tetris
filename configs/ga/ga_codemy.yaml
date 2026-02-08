@@ -1,0 +1,17 @@
+# @package _global_
+defaults:
+  - hydra: default
+  - conf/envs@env_train: eval_empty
+  - conf/rewards@env_train.reward: lines
+  - conf/envs@env_eval: eval_empty
+  - conf/rewards@env_eval.reward: lines
+  - conf/planning_policies@policy: heuristic
+  - conf/trains@_global_: ga_heuristic
+  - _self_
+
+log_level: info
+
+run:
+  name: ga_codemy_run
+  seed: 0                         # base seed
+  out_root: experiments           # output root

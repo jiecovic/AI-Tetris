@@ -1,4 +1,0 @@
-# @package _group_
-type: lines_survival
-params:
-  survival_bonus: 0.1

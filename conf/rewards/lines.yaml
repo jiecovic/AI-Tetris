@@ -1,0 +1,6 @@
+# @package _group_
+type: lines
+params:
+  illegal_penalty: 10.0
+  terminal_penalty: 10.0
+  survival_bonus: 0.0

@@ -17,7 +17,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         allow_abbrev=False,
     )
     ap.add_argument("-cfg", "--config-file", dest="config_file", default=None, help="path to a YAML config file")
-    ap.add_argument("-c", "--config-name", dest="config_name", default="cnn_ppo", help="config name (no .yaml)")
+    ap.add_argument("-c", "--config-name", dest="config_name", help="config name (no .yaml)")
     ap.add_argument("-p", "--config-path", dest="config_path", default="configs", help="config directory")
     ap.add_argument("overrides", nargs=argparse.REMAINDER, help="Hydra overrides (after --)")
     return ap.parse_args(argv)
