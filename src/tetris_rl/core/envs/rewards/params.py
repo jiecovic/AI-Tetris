@@ -29,18 +29,36 @@ class LinesCleanRewardParams(ConfigBase):
     no_new_holes_bonus: float = 1.0
 
 
-RewardParams = LinesRewardParams | HeuristicDeltaRewardParams | LinesCleanRewardParams
+class LinesShapeRewardParams(ConfigBase):
+    illegal_penalty: float = 10.0
+    terminal_penalty: float = 10.0
+    survival_bonus: float = 0.0
+    max_height_reduced_bonus: float = 1.0
+    hole_added_penalty: float = 1.0
+    no_new_holes_bonus: float = 0.1
+    hole_removed_bonus: float = 1.0
+    tetris_bonus: float = 1.0
+
+
+RewardParams = (
+    LinesRewardParams
+    | HeuristicDeltaRewardParams
+    | LinesCleanRewardParams
+    | LinesShapeRewardParams
+)
 
 REWARD_PARAMS_REGISTRY: Mapping[str, type[ConfigBase]] = {
     "lines": LinesRewardParams,
     "heuristic_delta": HeuristicDeltaRewardParams,
     "lines_clean": LinesCleanRewardParams,
+    "lines_shape": LinesShapeRewardParams,
 }
 
 __all__ = [
     "LinesRewardParams",
     "HeuristicDeltaRewardParams",
     "LinesCleanRewardParams",
+    "LinesShapeRewardParams",
     "RewardParams",
     "REWARD_PARAMS_REGISTRY",
 ]
