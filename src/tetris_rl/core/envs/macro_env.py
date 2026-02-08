@@ -43,6 +43,7 @@ class MacroTetrisEnv(gym.Env):
         self.reward_fn = reward_fn
         self.max_steps = int(spec.max_steps) if spec.max_steps is not None else None
         self.action_mode = spec.action_mode
+        self.feature_clear_mode = str(getattr(spec, "feature_clear_mode", "post"))
 
         self.invalid_action_policy = str(spec.invalid_action_policy).strip().lower()
         if self.invalid_action_policy not in {"noop", "terminate"}:
@@ -98,6 +99,9 @@ class MacroTetrisEnv(gym.Env):
     def _episode_seed_from_np_random(self) -> int:
         return int(self.np_random.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
 
+    def _after_clear_features(self) -> bool:
+        return str(self.feature_clear_mode).strip().lower() == "post"
+
     def value_features(
         self,
         *,
@@ -151,7 +155,10 @@ class MacroTetrisEnv(gym.Env):
 
     def _step_features(self) -> Dict[str, Any]:
         # New binding: no visible arg (always visible grid)
-        return cast(Dict[str, Any], self.game.step_features(prev=self._prev_feat))
+        return cast(
+            Dict[str, Any],
+            self.game.step_features(prev=self._prev_feat, after_clear=self._after_clear_features()),
+        )
 
     # ---------------------------------------------------------------------
     # sb3-contrib MaskablePPO hook

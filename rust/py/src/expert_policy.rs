@@ -79,13 +79,14 @@ impl ExpertPolicy {
 
     /// Heuristic policy with custom features/weights.
     #[staticmethod]
-    #[pyo3(signature = (features, weights, plies=1, beam_width=None, beam_from_depth=0))]
+    #[pyo3(signature = (features, weights, plies=1, beam_width=None, beam_from_depth=0, after_clear=false))]
     fn heuristic(
         features: Vec<String>,
         weights: Vec<f64>,
         plies: u8,
         beam_width: Option<usize>,
         beam_from_depth: u8,
+        after_clear: bool,
     ) -> PyResult<Self> {
         let mut feats: Vec<HeuristicFeature> = Vec::with_capacity(features.len());
         for name in features {
@@ -97,7 +98,7 @@ impl ExpertPolicy {
             feats.push(f);
         }
         let beam = beam_width.map(|w| BeamConfig::new(beam_from_depth, w));
-        let policy = HeuristicPolicy::new(feats, weights, plies, beam).map_err(|e| {
+        let policy = HeuristicPolicy::new(feats, weights, plies, beam, bool::from(after_clear)).map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!("heuristic policy: {e}"))
         })?;
         Ok(Self {

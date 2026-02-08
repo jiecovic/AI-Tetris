@@ -20,12 +20,12 @@ class HeuristicDeltaReward(RewardFn):
       c = -0.35663
       d = -0.184483
 
-    Delta shaping:
-      r ~= b * d_lines - |c| * d_holes - |a| * d_agg_height - |d| * d_bumpiness
+    Delta shaping (a,b,c,d order):
+      r ~= a * d_agg_height + b * d_lines + c * d_holes + d * d_bumpiness
+      (a,c,d negative; b positive for Codemy defaults)
 
     Feature source:
-      - Prefer lock (pre-clear) deltas when available.
-      - Fall back to post-clear deltas otherwise.
+      - Uses env-selected deltas (lock/post) from TransitionFeatures.
 
     Params are tunable via YAML; use the codemy preset to lock defaults.
 
@@ -72,22 +72,10 @@ class HeuristicDeltaReward(RewardFn):
         cl = int(getattr(features, "cleared_lines", 0) or 0)
         cl = max(0, min(cl, 4))
 
-        # deltas (prefer pre-clear lock deltas when available)
-        dh = float(
-            getattr(features, "lock_delta_holes", None)
-            or getattr(features, "delta_holes", 0)
-            or 0
-        )
-        db = float(
-            getattr(features, "lock_delta_bumpiness", None)
-            or getattr(features, "delta_bumpiness", 0)
-            or 0
-        )
-        dah = float(
-            getattr(features, "lock_delta_agg_height", None)
-            or getattr(features, "delta_agg_height", 0)
-            or 0
-        )
+        # deltas (from env-selected feature_clear_mode)
+        dh = float(getattr(features, "delta_holes", 0) or 0)
+        db = float(getattr(features, "delta_bumpiness", 0) or 0)
+        dah = float(getattr(features, "delta_agg_height", 0) or 0)
 
         # max height delta is unused here (CodemyRoad doesn't include it)
         # dmh = float(getattr(features, "delta_max_height", 0) or 0)

@@ -113,6 +113,7 @@ class MacroStepRunner:
         terminated, cleared, invalid_action_engine, sf_obj = env.game.step_action_id_with_features(
             int(req.requested_action_id),
             env._prev_feat,
+            bool(getattr(env, "_after_clear_features", lambda: True)()),
         )
         return EngineStep(
             terminated=bool(terminated),

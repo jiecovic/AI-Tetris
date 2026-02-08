@@ -27,11 +27,16 @@ impl GridScorer for CodemyScorer {
 pub struct SearchCore<S: GridScorer> {
     scorer: S,
     beam: Option<BeamConfig>,
+    score_after_clear: bool,
 }
 
 impl<S: GridScorer> SearchCore<S> {
-    pub fn new_with_scorer(scorer: S, beam: Option<BeamConfig>) -> Self {
-        Self { scorer, beam }
+    pub fn new_with_scorer(scorer: S, beam: Option<BeamConfig>, score_after_clear: bool) -> Self {
+        Self {
+            scorer,
+            beam,
+            score_after_clear,
+        }
     }
 
     #[inline]
@@ -54,13 +59,26 @@ impl<S: GridScorer> SearchCore<S> {
     fn best_leaf_score_for_known_piece(&self, grid: &[[u8; W]; H], kind: Kind) -> f64 {
         let mut best = f64::NEG_INFINITY;
 
-        for &aid in empty_valid_action_ids(kind) {
-            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
-                continue; // collisions / out-of-bounds on this grid
-            };
-            let s = self.scorer.score(&grid_lock);
-            if s > best {
-                best = s;
+        if self.score_after_clear {
+            for &aid in empty_valid_action_ids(kind) {
+                let sim = Game::apply_action_id_to_grid(grid, kind, aid);
+                if sim.invalid {
+                    continue; // collisions / out-of-bounds on this grid
+                }
+                let s = self.scorer.score(&sim.grid_after_clear);
+                if s > best {
+                    best = s;
+                }
+            }
+        } else {
+            for &aid in empty_valid_action_ids(kind) {
+                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
+                    continue; // collisions / out-of-bounds on this grid
+                };
+                let s = self.scorer.score(&grid_lock);
+                if s > best {
+                    best = s;
+                }
             }
         }
 
@@ -78,12 +96,23 @@ impl<S: GridScorer> SearchCore<S> {
         let mut scores = [(0usize, f64::NEG_INFINITY); ACTION_DIM];
         let mut len: usize = 0;
 
-        for &aid in empty_valid_action_ids(kind) {
-            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
-                continue;
-            };
-            scores[len] = (aid, self.scorer.score(&grid_lock));
-            len += 1;
+        if self.score_after_clear {
+            for &aid in empty_valid_action_ids(kind) {
+                let sim = Game::apply_action_id_to_grid(grid, kind, aid);
+                if sim.invalid {
+                    continue;
+                }
+                scores[len] = (aid, self.scorer.score(&sim.grid_after_clear));
+                len += 1;
+            }
+        } else {
+            for &aid in empty_valid_action_ids(kind) {
+                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
+                    continue;
+                };
+                scores[len] = (aid, self.scorer.score(&grid_lock));
+                len += 1;
+            }
         }
 
         if len == 0 {
@@ -141,12 +170,23 @@ impl<S: GridScorer> SearchCore<S> {
 
         let mut proxies = [(0usize, f64::NEG_INFINITY); ACTION_DIM];
         let mut len: usize = 0;
-        for &aid in empty_valid_action_ids(kind) {
-            let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
-                continue;
-            };
-            proxies[len] = (aid, self.scorer.score(&grid_lock));
-            len += 1;
+        if self.score_after_clear {
+            for &aid in empty_valid_action_ids(kind) {
+                let sim = Game::apply_action_id_to_grid(grid, kind, aid);
+                if sim.invalid {
+                    continue;
+                }
+                proxies[len] = (aid, self.scorer.score(&sim.grid_after_clear));
+                len += 1;
+            }
+        } else {
+            for &aid in empty_valid_action_ids(kind) {
+                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
+                    continue;
+                };
+                proxies[len] = (aid, self.scorer.score(&grid_lock));
+                len += 1;
+            }
         }
 
         if len == 0 {
@@ -192,10 +232,18 @@ impl<S: GridScorer> SearchCore<S> {
             if !mask[aid0] {
                 continue; // invalid by engine mask (includes redundant rotation slots)
             }
-            let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
-                continue; // should be rare if mask is correct; keep as safety
-            };
-            out.push((aid0, self.scorer.score(&grid_lock)));
+            if self.score_after_clear {
+                let sim = g.simulate_action_id_active(aid0);
+                if sim.invalid {
+                    continue; // should be rare if mask is correct; keep as safety
+                }
+                out.push((aid0, self.scorer.score(&sim.grid_after_clear)));
+            } else {
+                let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
+                    continue; // should be rare if mask is correct; keep as safety
+                };
+                out.push((aid0, self.scorer.score(&grid_lock)));
+            }
         }
 
         if let Some(n0) = self.should_prune(0) {
@@ -223,7 +271,7 @@ impl<S: GridScorer> SearchCore<S> {
     }
 
     /// Same as "best response for known piece", but cached:
-    /// (grid_hash, kind) -> (best_aid, best_score_lock, best_grid_after_clear)
+    /// (grid_hash, kind) -> (best_aid, best_score, best_grid_after_clear)
     pub(crate) fn best_response_for_known_piece_cached(
         &self,
         grid: &[[u8; W]; H],
@@ -244,7 +292,11 @@ impl<S: GridScorer> SearchCore<S> {
             if sim.invalid {
                 continue;
             }
-            let s = self.scorer.score(&sim.grid_after_lock);
+            let s = if self.score_after_clear {
+                self.scorer.score(&sim.grid_after_clear)
+            } else {
+                self.scorer.score(&sim.grid_after_lock)
+            };
             if s > best_score {
                 best_score = s;
                 best_aid = Some(aid);
@@ -297,6 +349,6 @@ pub type CodemyCore = SearchCore<CodemyScorer>;
 
 impl SearchCore<CodemyScorer> {
     pub fn new(beam: Option<BeamConfig>) -> Self {
-        Self::new_with_scorer(CodemyScorer, beam)
+        Self::new_with_scorer(CodemyScorer, beam, false)
     }
 }

@@ -14,6 +14,7 @@ class HeuristicSearch(BaseModel):
     plies: int = 1
     beam_width: int | None = None
     beam_from_depth: int = 0
+    feature_clear_mode: str = "post"
 
     @model_validator(mode="after")
     def _validate(self) -> "HeuristicSearch":
@@ -23,6 +24,9 @@ class HeuristicSearch(BaseModel):
             raise ValueError("search.beam_width must be >= 1")
         if self.beam_from_depth < 0:
             raise ValueError("search.beam_from_depth must be >= 0")
+        mode = str(self.feature_clear_mode).strip().lower()
+        if mode not in {"lock", "pre", "post", "clear"}:
+            raise ValueError("search.feature_clear_mode must be pre|lock|post|clear")
         return self
 
 

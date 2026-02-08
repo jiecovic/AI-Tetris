@@ -416,6 +416,7 @@ impl GridScorer for HeuristicScorer {
 pub struct HeuristicPolicy {
     core: SearchCore<HeuristicScorer>,
     plies: u8,
+    score_after_clear: bool,
 }
 
 impl HeuristicPolicy {
@@ -424,11 +425,13 @@ impl HeuristicPolicy {
         weights: Vec<f64>,
         plies: u8,
         beam: Option<BeamConfig>,
+        score_after_clear: bool,
     ) -> Result<Self, String> {
         let scorer = HeuristicScorer::new(features, weights)?;
         Ok(Self {
-            core: SearchCore::new_with_scorer(scorer, beam),
+            core: SearchCore::new_with_scorer(scorer, beam, score_after_clear),
             plies: plies.max(1),
+            score_after_clear,
         })
     }
 }
@@ -444,10 +447,18 @@ impl Policy for HeuristicPolicy {
 
         for (aid0, _proxy0) in aid0_cands {
             let v0 = if self.plies == 1 {
-                let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
-                    continue;
-                };
-                self.core.scorer().score(&grid_lock)
+                if self.score_after_clear {
+                    let sim = g.simulate_action_id_active(aid0);
+                    if sim.invalid {
+                        continue;
+                    }
+                    self.core.scorer().score(&sim.grid_after_clear)
+                } else {
+                    let Some(grid_lock) = g.simulate_action_id_active_lock_only(aid0) else {
+                        continue;
+                    };
+                    self.core.scorer().score(&grid_lock)
+                }
             } else {
                 let sim1 = g.simulate_action_id_active(aid0);
                 if sim1.invalid {

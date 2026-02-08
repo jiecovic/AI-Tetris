@@ -16,6 +16,24 @@ class MacroEnvParams(ConfigBase):
     action_mode: ActionMode = "discrete"
     max_steps: int | None = None
     invalid_action_policy: InvalidActionPolicy = "noop"
+    feature_clear_mode: str = "post"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_feature_clear_mode(cls, data: object) -> object:
+        if not isinstance(data, Mapping):
+            return data
+        raw = data.get("feature_clear_mode", "post")
+        mode = str(raw).strip().lower()
+        if mode in {"lock", "pre", "pre_clear", "before"}:
+            mode = "lock"
+        elif mode in {"post", "clear", "post_clear", "after"}:
+            mode = "post"
+        else:
+            raise ValueError("env.params.feature_clear_mode must be pre|lock|post|clear")
+        out = dict(data)
+        out["feature_clear_mode"] = mode
+        return out
 
 
 class EnvConfig(ConfigBase):

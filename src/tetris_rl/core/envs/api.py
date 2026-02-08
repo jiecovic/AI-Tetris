@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Protocol, runtime_checkable
+from typing import Any, Dict, Literal, Protocol, runtime_checkable
 
 
 @dataclass(frozen=True)
@@ -29,11 +29,14 @@ class TransitionFeatures:
       - masked_action: whether the requested joint Discrete(rot×col) action was masked out as illegal.
                        In discrete mode, this should agree with invalid_action.
 
+    Feature mode:
+      - feature_clear_mode: "post" (after line clear) or "lock" (pre-clear).
+
     Optional shaping/diagnostics:
       - delta_holes / delta_max_height / delta_bumpiness / delta_agg_height: board metric deltas vs previous step.
       - agg_height: current aggregate height (after step), if computed.
       - max_height / holes / bumpiness: absolute metrics after step, if computed.
-      - lock_* / lock_delta_*: same metrics on the lock grid (after placement, before line clear).
+      - delta_* + (holes/max_height/bumpiness/agg_height) follow env.feature_clear_mode (post by default).
     """
 
     cleared_lines: int
@@ -52,20 +55,13 @@ class TransitionFeatures:
 
     masked_action: bool
 
+    feature_clear_mode: Literal["post", "lock"]
+
     delta_holes: int | None = None
     delta_max_height: int | None = None
     delta_bumpiness: int | None = None
     delta_agg_height: int | None = None
     agg_height: int | None = None
-    lock_holes: int | None = None
-    lock_max_height: int | None = None
-    lock_bumpiness: int | None = None
-    lock_agg_height: int | None = None
-    lock_delta_holes: int | None = None
-    lock_delta_max_height: int | None = None
-    lock_delta_bumpiness: int | None = None
-    lock_delta_agg_height: int | None = None
-
     max_height: int | None = None
     holes: int | None = None
     bumpiness: int | None = None

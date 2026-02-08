@@ -84,6 +84,7 @@ class TransitionFeaturesBuilder:
     invalid_action: bool
     invalid_action_policy: Optional[str]
     masked_action: bool
+    feature_clear_mode: str
 
     delta_holes: Optional[int] = None
     delta_max_height: Optional[int] = None
@@ -93,15 +94,6 @@ class TransitionFeaturesBuilder:
     max_height_after: Optional[int] = None
     bumpiness_after: Optional[int] = None
     agg_height_after: Optional[int] = None
-
-    lock_holes: Optional[int] = None
-    lock_max_height: Optional[int] = None
-    lock_bumpiness: Optional[int] = None
-    lock_agg_height: Optional[int] = None
-    lock_delta_holes: Optional[int] = None
-    lock_delta_max_height: Optional[int] = None
-    lock_delta_bumpiness: Optional[int] = None
-    lock_delta_agg_height: Optional[int] = None
 
     def with_post_features(
         self,
@@ -129,42 +121,6 @@ class TransitionFeaturesBuilder:
         if block is None:
             return self
         return self.with_post_features(
-            holes=block.holes,
-            max_height=block.max_height,
-            bumpiness=block.bumpiness,
-            agg_height=block.agg_height,
-            delta_holes=block.delta_holes,
-            delta_max_height=block.delta_max_height,
-            delta_bumpiness=block.delta_bumpiness,
-            delta_agg_height=block.delta_agg_height,
-        )
-
-    def with_lock_features(
-        self,
-        *,
-        holes: Optional[int],
-        max_height: Optional[int],
-        bumpiness: Optional[int],
-        agg_height: Optional[int],
-        delta_holes: Optional[int],
-        delta_max_height: Optional[int],
-        delta_bumpiness: Optional[int],
-        delta_agg_height: Optional[int],
-    ) -> "TransitionFeaturesBuilder":
-        self.lock_holes = holes
-        self.lock_max_height = max_height
-        self.lock_bumpiness = bumpiness
-        self.lock_agg_height = agg_height
-        self.lock_delta_holes = delta_holes
-        self.lock_delta_max_height = delta_max_height
-        self.lock_delta_bumpiness = delta_bumpiness
-        self.lock_delta_agg_height = delta_agg_height
-        return self
-
-    def with_lock_block(self, block: FeatureBlock | None) -> "TransitionFeaturesBuilder":
-        if block is None:
-            return self
-        return self.with_lock_features(
             holes=block.holes,
             max_height=block.max_height,
             bumpiness=block.bumpiness,
@@ -211,15 +167,6 @@ class StepInfoBuilder:
     agg_height_after: Optional[int] = None
     delta_agg_height: Optional[int] = None
 
-    lock_holes: Optional[int] = None
-    lock_delta_holes: Optional[int] = None
-    lock_max_height: Optional[int] = None
-    lock_delta_max_height: Optional[int] = None
-    lock_bumpiness: Optional[int] = None
-    lock_delta_bumpiness: Optional[int] = None
-    lock_agg_height: Optional[int] = None
-    lock_delta_agg_height: Optional[int] = None
-
     sidebar_env: Optional[list[tuple[str, Any]]] = None
     engine_info: Optional[Dict[str, Any]] = None
 
@@ -249,42 +196,6 @@ class StepInfoBuilder:
         if block is None:
             return self
         return self.with_post_features(
-            holes=block.holes,
-            max_height=block.max_height,
-            bumpiness=block.bumpiness,
-            agg_height=block.agg_height,
-            delta_holes=block.delta_holes,
-            delta_max_height=block.delta_max_height,
-            delta_bumpiness=block.delta_bumpiness,
-            delta_agg_height=block.delta_agg_height,
-        )
-
-    def with_lock_features(
-        self,
-        *,
-        holes: Optional[int],
-        max_height: Optional[int],
-        bumpiness: Optional[int],
-        agg_height: Optional[int],
-        delta_holes: Optional[int],
-        delta_max_height: Optional[int],
-        delta_bumpiness: Optional[int],
-        delta_agg_height: Optional[int],
-    ) -> "StepInfoBuilder":
-        self.lock_holes = holes
-        self.lock_max_height = max_height
-        self.lock_bumpiness = bumpiness
-        self.lock_agg_height = agg_height
-        self.lock_delta_holes = delta_holes
-        self.lock_delta_max_height = delta_max_height
-        self.lock_delta_bumpiness = delta_bumpiness
-        self.lock_delta_agg_height = delta_agg_height
-        return self
-
-    def with_lock_block(self, block: FeatureBlock | None) -> "StepInfoBuilder":
-        if block is None:
-            return self
-        return self.with_lock_features(
             holes=block.holes,
             max_height=block.max_height,
             bumpiness=block.bumpiness,
@@ -366,6 +277,7 @@ class StepContext:
     episode_step: int
     action_mode: str
     piece_rule: str
+    feature_clear_mode: str
 
     @classmethod
     def from_env(
@@ -395,7 +307,9 @@ class StepContext:
             episode_step=int(getattr(env, "_steps", 0)),
             action_mode=str(getattr(env, "action_mode", "")),
             piece_rule=str(getattr(env, "_piece_rule_name", lambda: "")()),
+            feature_clear_mode=str(getattr(env, "feature_clear_mode", "post")).strip().lower(),
         )
+
 
 def build_step_payload(
     *,
@@ -406,11 +320,8 @@ def build_step_payload(
 ) -> StepPayload:
     cur = _get_field(sf, "cur", {}) or {}
     delta = _get_field(sf, "delta", {}) or {}
-    lock = _get_field(sf, "lock", {}) or {}
-    lock_delta = _get_field(sf, "lock_delta", {}) or {}
 
     post_block = FeatureBlock.from_step(cur, delta)
-    lock_block = FeatureBlock.from_step(lock, lock_delta) if step.applied else None
     prev_tuple = post_block.as_prev_tuple()
 
     features = (
@@ -427,9 +338,9 @@ def build_step_payload(
             invalid_action=bool(step.invalid_action),
             invalid_action_policy=str(step.invalid_action_policy),
             masked_action=bool(action.masked_action),
+            feature_clear_mode=str(step.feature_clear_mode),
         )
         .with_post_block(post_block)
-        .with_lock_block(lock_block)
         .build()
     )
 
@@ -459,7 +370,6 @@ def build_step_payload(
             engine_info=dict(engine_info),
         )
         .with_post_block(post_block)
-        .with_lock_block(lock_block)
         .build()
     )
 
@@ -487,12 +397,14 @@ def build_step_payload_for_env(
     if str(getattr(env, "action_mode", "")) == "discrete":
         mask_mismatch = bool(mask_stats.masked_action) != bool(invalid_action)
 
+    post_block = FeatureBlock.from_step(cur, delta)
+
     sidebar_env = sidebar_env_rows(
         invalid_action=bool(invalid_action),
-        delta_holes=delta.get("d_holes"),
-        delta_max_height=delta.get("d_max_h"),
-        delta_bumpiness=delta.get("d_bump"),
-        bumpiness=cur.get("bump"),
+        delta_holes=post_block.delta_holes,
+        delta_max_height=post_block.delta_max_height,
+        delta_bumpiness=post_block.delta_bumpiness,
+        bumpiness=post_block.bumpiness,
     )
 
     prev_score = float(_get_field(prev_state, "score", 0.0))
@@ -599,6 +511,7 @@ def build_transition_features(
     invalid_action: bool,
     invalid_action_policy: Optional[str],
     masked_action: bool,
+    feature_clear_mode: str,
     delta_holes: Optional[int],
     delta_max_height: Optional[int],
     delta_bumpiness: Optional[int],
@@ -607,14 +520,6 @@ def build_transition_features(
     max_height_after: Optional[int],
     bumpiness_after: Optional[int],
     agg_height_after: Optional[int],
-    lock_holes: Optional[int],
-    lock_max_height: Optional[int],
-    lock_bumpiness: Optional[int],
-    lock_agg_height: Optional[int],
-    lock_delta_holes: Optional[int],
-    lock_delta_max_height: Optional[int],
-    lock_delta_bumpiness: Optional[int],
-    lock_delta_agg_height: Optional[int],
 ) -> TransitionFeatures:
     return TransitionFeatures(
         cleared_lines=int(cleared),
@@ -629,6 +534,7 @@ def build_transition_features(
         invalid_action=bool(invalid_action),
         invalid_action_policy=str(invalid_action_policy) if invalid_action_policy is not None else None,
         masked_action=bool(masked_action),
+        feature_clear_mode=str(feature_clear_mode),
         delta_holes=delta_holes,
         delta_max_height=delta_max_height,
         delta_bumpiness=delta_bumpiness,
@@ -637,14 +543,6 @@ def build_transition_features(
         max_height=max_height_after,
         bumpiness=bumpiness_after,
         agg_height=agg_height_after,
-        lock_holes=lock_holes,
-        lock_max_height=lock_max_height,
-        lock_bumpiness=lock_bumpiness,
-        lock_agg_height=lock_agg_height,
-        lock_delta_holes=lock_delta_holes,
-        lock_delta_max_height=lock_delta_max_height,
-        lock_delta_bumpiness=lock_delta_bumpiness,
-        lock_delta_agg_height=lock_delta_agg_height,
     )
 
 
@@ -680,14 +578,6 @@ def build_step_info_update(
     delta_bumpiness: Optional[int] = None,
     agg_height_after: Optional[int] = None,
     delta_agg_height: Optional[int] = None,
-    lock_holes: Optional[int] = None,
-    lock_delta_holes: Optional[int] = None,
-    lock_max_height: Optional[int] = None,
-    lock_delta_max_height: Optional[int] = None,
-    lock_bumpiness: Optional[int] = None,
-    lock_delta_bumpiness: Optional[int] = None,
-    lock_agg_height: Optional[int] = None,
-    lock_delta_agg_height: Optional[int] = None,
     sidebar_env: Optional[list[tuple[str, Any]]] = None,
     engine_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -706,14 +596,6 @@ def build_step_info_update(
         "delta_bumpiness": delta_bumpiness,
         "agg_height": agg_height_after,
         "delta_agg_height": delta_agg_height,
-        "lock_holes": lock_holes,
-        "lock_delta_holes": lock_delta_holes,
-        "lock_max_height": lock_max_height,
-        "lock_delta_max_height": lock_delta_max_height,
-        "lock_bumpiness": lock_bumpiness,
-        "lock_delta_bumpiness": lock_delta_bumpiness,
-        "lock_agg_height": lock_agg_height,
-        "lock_delta_agg_height": lock_delta_agg_height,
     }
 
     # GAME panel: store "game-ish" metrics here so the sidebar can show them

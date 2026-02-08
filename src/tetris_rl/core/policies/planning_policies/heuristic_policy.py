@@ -52,12 +52,15 @@ class HeuristicPlanningPolicy(VectorParamPolicy):
         from tetris_rl_engine import ExpertPolicy
 
         search = spec.search
+        clear_mode = str(search.feature_clear_mode).strip().lower()
+        after_clear = clear_mode in {"post", "clear"}
         return ExpertPolicy.heuristic(
             features=list(spec.features),
             weights=list(spec.weights),
             plies=int(search.plies),
             beam_width=None if search.beam_width is None else int(search.beam_width),
             beam_from_depth=int(search.beam_from_depth),
+            after_clear=bool(after_clear),
         )
 
     def set_params(self, params: Sequence[float]) -> None:
