@@ -218,6 +218,167 @@ impl HeuristicScorer {
     }
 }
 
+pub fn compute_feature_values(grid: &[[u8; W]; H], features: &[HeuristicFeature]) -> Vec<f64> {
+    if features.is_empty() {
+        return Vec::new();
+    }
+
+    let mut need_heights = false;
+    let mut need_holes_col = false;
+    let mut need_holes_row = false;
+    let mut need_bump = false;
+    let mut need_holes_std_col = false;
+    let mut need_holes_std_row = false;
+    let mut need_complete_lines = false;
+
+    for f in features {
+        match f {
+            HeuristicFeature::AggHeight
+            | HeuristicFeature::MaxHeight
+            | HeuristicFeature::MeanHeight
+            | HeuristicFeature::StdHeight
+            | HeuristicFeature::VarHeight
+            | HeuristicFeature::Bumpiness => {
+                need_heights = true;
+                need_bump = true;
+            }
+            HeuristicFeature::Holes => {
+                need_holes_col = true;
+                need_heights = true;
+            }
+            HeuristicFeature::HolesStdCol => {
+                need_holes_col = true;
+                need_heights = true;
+                need_holes_std_col = true;
+            }
+            HeuristicFeature::HolesStdRow => {
+                need_holes_row = true;
+                need_heights = true;
+                need_holes_std_row = true;
+            }
+            HeuristicFeature::CompleteLines => {
+                need_complete_lines = true;
+            }
+        }
+    }
+
+    let mut heights = [0u32; W];
+    let mut holes_col = [0u32; W];
+    let mut holes_row = [0u32; H];
+
+    if need_heights || need_holes_col || need_holes_row {
+        for c in 0..W {
+            let mut seen_block = false;
+            for r in 0..H {
+                let filled = grid[r][c] != 0;
+                if filled {
+                    if !seen_block {
+                        heights[c] = (H - r) as u32;
+                        seen_block = true;
+                    }
+                } else if seen_block {
+                    if need_holes_col {
+                        holes_col[c] += 1;
+                    }
+                    if need_holes_row {
+                        holes_row[r] += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut agg_h: f64 = 0.0;
+    let mut max_h: f64 = 0.0;
+    let mut sumsq_h: f64 = 0.0;
+    if need_heights {
+        for h in heights {
+            let hf = h as f64;
+            agg_h += hf;
+            sumsq_h += hf * hf;
+            if hf > max_h {
+                max_h = hf;
+            }
+        }
+    }
+    let mean_h = if need_heights { agg_h / (W as f64) } else { 0.0 };
+    let var_h = if need_heights {
+        let v = (sumsq_h / (W as f64)) - (mean_h * mean_h);
+        if v < 0.0 { 0.0 } else { v }
+    } else {
+        0.0
+    };
+    let std_h = if need_heights { var_h.sqrt() } else { 0.0 };
+
+    let mut bump: f64 = 0.0;
+    if need_bump {
+        for i in 0..(W - 1) {
+            let a = heights[i] as i32;
+            let b = heights[i + 1] as i32;
+            bump += (a - b).abs() as f64;
+        }
+    }
+
+    let holes_total = if need_holes_col {
+        holes_col.iter().map(|&v| v as f64).sum::<f64>()
+    } else {
+        0.0
+    };
+
+    let holes_std_col = if need_holes_std_col {
+        let mean = holes_total / (W as f64);
+        let mut sumsq = 0.0;
+        for v in holes_col {
+            let dv = (v as f64) - mean;
+            sumsq += dv * dv;
+        }
+        (sumsq / (W as f64)).sqrt()
+    } else {
+        0.0
+    };
+
+    let holes_std_row = if need_holes_std_row {
+        let rows = H as f64;
+        let mean = holes_row.iter().map(|&v| v as f64).sum::<f64>() / rows;
+        let mut sumsq = 0.0;
+        for v in holes_row {
+            let dv = (v as f64) - mean;
+            sumsq += dv * dv;
+        }
+        (sumsq / rows).sqrt()
+    } else {
+        0.0
+    };
+
+    let complete_lines = if need_complete_lines {
+        grid[HIDDEN_ROWS..]
+            .iter()
+            .filter(|row| row.iter().all(|&c| c != 0))
+            .count() as f64
+    } else {
+        0.0
+    };
+
+    let mut out = Vec::with_capacity(features.len());
+    for feat in features {
+        let v = match feat {
+            HeuristicFeature::AggHeight => agg_h,
+            HeuristicFeature::MaxHeight => max_h,
+            HeuristicFeature::MeanHeight => mean_h,
+            HeuristicFeature::StdHeight => std_h,
+            HeuristicFeature::VarHeight => var_h,
+            HeuristicFeature::Holes => holes_total,
+            HeuristicFeature::HolesStdCol => holes_std_col,
+            HeuristicFeature::HolesStdRow => holes_std_row,
+            HeuristicFeature::Bumpiness => bump,
+            HeuristicFeature::CompleteLines => complete_lines,
+        };
+        out.push(v);
+    }
+
+    out
+}
+
 impl GridScorer for HeuristicScorer {
     fn score(&self, grid: &[[u8; W]; H]) -> f64 {
         self.score_grid(grid)

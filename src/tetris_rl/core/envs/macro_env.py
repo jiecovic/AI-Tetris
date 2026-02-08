@@ -112,6 +112,28 @@ class MacroTetrisEnv(gym.Env):
     def _episode_seed_from_np_random(self) -> int:
         return int(self.np_random.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
 
+    def value_features(
+        self,
+        *,
+        features: list[str],
+        action_id: int | None = None,
+        after_clear: bool = True,
+        visible: bool = False,
+    ) -> list[float]:
+        if action_id is None:
+            vals = self.game.heuristic_features(list(features), False, bool(visible))
+            return [float(v) for v in vals]
+        vals = self.game.simulate_active_features(
+            int(action_id),
+            list(features),
+            bool(after_clear),
+            False,
+            bool(visible),
+        )
+        if vals is None:
+            raise RuntimeError("simulate_active_features returned None for the requested action_id")
+        return [float(v) for v in vals]
+
 
     def _snapshot(self) -> Dict[str, Any]:
         # Current binding supports snapshot(include_grid=True, visible=True)

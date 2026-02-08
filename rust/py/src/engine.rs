@@ -4,12 +4,14 @@
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList};
 
 use tetris_engine::engine::{
     compute_grid_features, compute_step_features, Game, GridFeatures, PieceRuleKind, SimPlacement,
     WarmupSpec, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
 };
+use tetris_engine::policy::heuristic::compute_feature_values;
+use tetris_engine::policy::HeuristicFeature;
 
 // Authoritative: bind the engine's canonical action-id helpers (do NOT reimplement).
 use tetris_engine::engine::constants::{decode_action_id, encode_action_id};
@@ -23,6 +25,19 @@ use crate::engine_helpers::{mask4_to_pyarray2, visible_grid_as_full_h};
 use crate::expert_policy::ExpertPolicy;
 use crate::util::{grid_rows_to_pyarray2, kind_glyph_to_idx};
 use crate::warmup_spec::PyWarmupSpec;
+
+fn parse_heuristic_features(features: &[String]) -> PyResult<Vec<HeuristicFeature>> {
+    let mut out = Vec::with_capacity(features.len());
+    for name in features {
+        let Some(feat) = HeuristicFeature::parse(name) else {
+            return Err(PyValueError::new_err(format!(
+                "unknown heuristic feature: {name}"
+            )));
+        };
+        out.push(feat);
+    }
+    Ok(out)
+}
 
 #[pyclass]
 pub struct TetrisEngine {
@@ -323,6 +338,88 @@ impl TetrisEngine {
         let grid_vis = visible_grid_as_full_h(&self.g.grid);
         let sf = compute_step_features(&grid_vis, prev_f);
         Ok(step_features_to_dict(py, sf).into_py(py))
+    }
+
+    /// heuristic_features(features, as_dict=false, visible=false) -> list|dict
+    ///
+    /// Computes heuristic feature values for the current grid.
+    /// If `visible` is True, hidden rows are zeroed before feature extraction.
+    #[pyo3(signature = (features, as_dict=false, visible=false))]
+    fn heuristic_features<'py>(
+        &self,
+        py: Python<'py>,
+        features: Vec<String>,
+        as_dict: bool,
+        visible: bool,
+    ) -> PyResult<PyObject> {
+        let feats = parse_heuristic_features(&features)?;
+        let values = if visible {
+            let grid_vis = visible_grid_as_full_h(&self.g.grid);
+            compute_feature_values(&grid_vis, &feats)
+        } else {
+            compute_feature_values(&self.g.grid, &feats)
+        };
+
+        if as_dict {
+            let d = PyDict::new_bound(py);
+            for (name, v) in features.iter().zip(values.iter()) {
+                d.set_item(name, *v)?;
+            }
+            return Ok(d.into_py(py));
+        }
+
+        let list = PyList::new_bound(py, values);
+        Ok(list.into_py(py))
+    }
+
+    /// simulate_active_features(action_id, features, after_clear=true, as_dict=false, visible=false) -> list|dict|None
+    ///
+    /// Returns feature values for the simulated placement, or None if invalid.
+    #[pyo3(signature = (action_id, features, after_clear=true, as_dict=false, visible=false))]
+    fn simulate_active_features<'py>(
+        &self,
+        py: Python<'py>,
+        action_id: usize,
+        features: Vec<String>,
+        after_clear: bool,
+        as_dict: bool,
+        visible: bool,
+    ) -> PyResult<PyObject> {
+        let feats = parse_heuristic_features(&features)?;
+
+        let values = if after_clear {
+            let sim: SimPlacement = self.g.simulate_action_id_active(action_id);
+            if sim.invalid {
+                return Ok(py.None().into_py(py));
+            }
+            if visible {
+                let grid_vis = visible_grid_as_full_h(&sim.grid_after_clear);
+                compute_feature_values(&grid_vis, &feats)
+            } else {
+                compute_feature_values(&sim.grid_after_clear, &feats)
+            }
+        } else {
+            let Some(grid_lock) = self.g.simulate_action_id_active_lock_only(action_id) else {
+                return Ok(py.None().into_py(py));
+            };
+            if visible {
+                let grid_vis = visible_grid_as_full_h(&grid_lock);
+                compute_feature_values(&grid_vis, &feats)
+            } else {
+                compute_feature_values(&grid_lock, &feats)
+            }
+        };
+
+        if as_dict {
+            let d = PyDict::new_bound(py);
+            for (name, v) in features.iter().zip(values.iter()) {
+                d.set_item(name, *v)?;
+            }
+            return Ok(d.into_py(py));
+        }
+
+        let list = PyList::new_bound(py, values);
+        Ok(list.into_py(py))
     }
 
     // ---------------------------------------------------------------------
