@@ -18,10 +18,12 @@ from tetris_rl.core.runs.checkpoints.checkpoint_manifest import (
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
 from tetris_rl.core.runs.run_manifest import write_run_manifest
 from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
+from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.training.config import AlgoConfig
 from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 from tetris_rl.core.training.model_factory import build_policy_from_cfg
 from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
+from tetris_rl.core.training.reporting import log_env_reward_summary
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 from tetris_rl.core.utils.paths import repo_root as find_repo_root
@@ -65,6 +67,18 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     t0 = time.perf_counter()
     logger.info("[timing] building vec env...")
     cfg_train = _with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg.model_dump(mode="json"))
+    probe_train = make_env_from_cfg(cfg=cfg_train, seed=int(run_cfg.seed))
+    log_env_reward_summary(
+        logger=logger,
+        label="train",
+        built_env=probe_train,
+        env_cfg=env_train_cfg.model_dump(mode="json"),
+        time_limit_steps=run_cfg.max_episode_steps,
+    )
+    try:
+        probe_train.env.close()
+    except Exception:
+        pass
     built = make_vec_env_from_cfg(cfg=cfg_train, run_cfg=run_cfg)
     logger.info(f"[timing] vec env built: {time.perf_counter() - t0:.2f}s")
 
@@ -120,6 +134,18 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     logger.info(f"[train] action_space={built.vec_env.action_space}")
 
     cfg_eval = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
+    probe_eval = make_env_from_cfg(cfg=cfg_eval, seed=int(run_cfg.seed))
+    log_env_reward_summary(
+        logger=logger,
+        label="eval",
+        built_env=probe_eval,
+        env_cfg=env_eval_cfg.model_dump(mode="json"),
+        time_limit_steps=None,
+    )
+    try:
+        probe_eval.env.close()
+    except Exception:
+        pass
     tb_logger = maybe_tb_logger(paths.tb_dir)
     model.learn(
         cfg=cfg_eval,

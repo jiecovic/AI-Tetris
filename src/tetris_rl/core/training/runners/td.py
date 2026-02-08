@@ -30,6 +30,7 @@ from tetris_rl.core.training.evaluation import (
 )
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
+from tetris_rl.core.training.reporting import log_env_reward_summary
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 from planning_rl.utils.seed import seed32_from
@@ -145,16 +146,17 @@ def run_td_experiment(cfg: DictConfig) -> int:
     envs: list[Any] = []
     for i in range(n_envs):
         seed_i = int(seed32_from(base_seed=int(td_cfg.seed), stream_id=int(0x7D00 + i)))
-        envs.append(
-            make_env_from_cfg(
+        built_env = make_env_from_cfg(
                 cfg=_with_env_cfg(
                     cfg=cfg_dict,
                     env_cfg=env_train_cfg,
                     max_steps_per_episode=td_cfg.max_steps_per_episode,
                 ),
                 seed=seed_i,
-            ).env
-        )
+            )
+        if i == 0:
+            log_env_reward_summary(logger=logger, label="train", built_env=built_env, env_cfg=env_train_cfg)
+        envs.append(built_env.env)
 
     device = _device_from_run(run_cfg)
     value_model = LinearValueModel(num_features=int(len(features))).to(device=device)
@@ -218,10 +220,12 @@ def run_td_experiment(cfg: DictConfig) -> int:
     eval_workers = int(eval_cfg.workers)
     env_eval = None
     if eval_enabled and int(eval_workers) <= 1:
-        env_eval = make_env_from_cfg(
+        built_eval = make_env_from_cfg(
             cfg=_with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg),
             seed=int(td_cfg.seed),
-        ).env
+        )
+        env_eval = built_eval.env
+        log_env_reward_summary(logger=logger, label="eval", built_env=built_eval, env_cfg=env_eval_cfg)
 
     if eval_enabled:
         eval_seed_base = int(run_cfg.seed) + int(eval_cfg.seed_offset)

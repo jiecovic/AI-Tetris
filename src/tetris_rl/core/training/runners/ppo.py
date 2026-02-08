@@ -26,9 +26,11 @@ from tetris_rl.core.callbacks import EvalCallback, InfoLoggerCallback, LatestCal
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
 from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
+from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.training.model_factory import make_model_from_cfg
 from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
 from tetris_rl.core.training.reporting import (
+    log_env_reward_summary,
     log_policy_compact,
     log_policy_full,
     log_ppo_params,
@@ -75,6 +77,18 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
     t0 = time.perf_counter()
     logger.info("[timing] building vec env...")
     cfg_train = _with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg.model_dump(mode="json"))
+    probe_train = make_env_from_cfg(cfg=cfg_train, seed=int(run_cfg.seed))
+    log_env_reward_summary(
+        logger=logger,
+        label="train",
+        built_env=probe_train,
+        env_cfg=env_train_cfg.model_dump(mode="json"),
+        time_limit_steps=run_cfg.max_episode_steps,
+    )
+    try:
+        probe_train.env.close()
+    except Exception:
+        pass
     built = make_vec_env_from_cfg(cfg=cfg_train, run_cfg=run_cfg)
     logger.info(f"[timing] vec env built: {time.perf_counter() - t0:.2f}s")
 
@@ -212,6 +226,18 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
     if bool(callbacks_cfg.eval_checkpoint.enabled) and int(callbacks_cfg.eval_checkpoint.every) > 0:
         # Provide eval-specific cfg dict for env wiring.
         eval_cfg_plain = _with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
+        probe_eval = make_env_from_cfg(cfg=eval_cfg_plain, seed=int(run_cfg.seed))
+        log_env_reward_summary(
+            logger=logger,
+            label="eval",
+            built_env=probe_eval,
+            env_cfg=env_eval_cfg.model_dump(mode="json"),
+            time_limit_steps=None,
+        )
+        try:
+            probe_eval.env.close()
+        except Exception:
+            pass
 
         eval_cb: EvalCallback | None = None
 

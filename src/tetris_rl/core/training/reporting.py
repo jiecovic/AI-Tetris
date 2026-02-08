@@ -26,6 +26,18 @@ def _fmt_float(x: float) -> str:
     return f"{x:.3e}"
 
 
+def _fmt_scalar(x: Any) -> str:
+    if x is None:
+        return "None"
+    if isinstance(x, bool):
+        return "true" if x else "false"
+    if isinstance(x, int):
+        return _fmt_int(x)
+    if isinstance(x, float):
+        return _fmt_float(x)
+    return str(x)
+
+
 def _try_relpath(value: Any, *, base: Path) -> str:
     if isinstance(value, Path):
         try:
@@ -52,6 +64,97 @@ def _log_block(logger, header: str, obj: Any) -> None:
         return
     for line in repr(obj).splitlines():
         logger.info(line)
+
+
+def _filter_simple_params(obj: Any) -> dict[str, Any]:
+    if obj is None:
+        return {}
+    data = {}
+    raw = obj if isinstance(obj, dict) else getattr(obj, "__dict__", None)
+    if not isinstance(raw, dict):
+        return data
+    for key, value in raw.items():
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            data[str(key)] = value
+    return dict(sorted(data.items(), key=lambda kv: kv[0]))
+
+
+def _safe_call(obj: Any, attr: str) -> Any:
+    if obj is None:
+        return None
+    try:
+        value = getattr(obj, attr)
+    except Exception:
+        return None
+    if callable(value):
+        try:
+            return value()
+        except Exception:
+            return None
+    return value
+
+
+def _format_warmup_cfg(warmup_cfg: Any) -> str:
+    if warmup_cfg is None:
+        return "off"
+    if not isinstance(warmup_cfg, dict):
+        return str(warmup_cfg)
+    prob = warmup_cfg.get("prob", 1.0)
+    spec = warmup_cfg.get("spec", None)
+    if not isinstance(spec, dict):
+        return f"{spec} (prob={_fmt_scalar(prob)})"
+    spec_type = spec.get("type", None)
+    params = spec.get("params", {})
+    if isinstance(params, dict):
+        params = _filter_simple_params(params)
+        params_str = ",".join(f"{k}={_fmt_scalar(v)}" for k, v in params.items())
+        return f"{spec_type}(prob={_fmt_scalar(prob)}, {params_str})"
+    return f"{spec_type}(prob={_fmt_scalar(prob)})"
+
+
+def log_env_reward_summary(
+    *,
+    logger,
+    label: str,
+    built_env: Any,
+    env_cfg: Optional[dict[str, Any]] = None,
+    time_limit_steps: int | None = None,
+) -> None:
+    env = getattr(built_env, "env", None)
+    game = getattr(built_env, "game", None)
+    reward_fn = getattr(built_env, "reward_fn", None)
+
+    action_mode = getattr(env, "action_mode", None) if env is not None else None
+    max_steps = getattr(env, "max_steps", None) if env is not None else None
+    invalid_policy = getattr(env, "invalid_action_policy", None) if env is not None else None
+    piece_rule = _safe_call(game, "piece_rule")
+
+    warmup_cfg = None
+    if isinstance(env_cfg, dict):
+        warmup_cfg = (env_cfg.get("game", {}) or {}).get("warmup", None)
+        if piece_rule is None:
+            piece_rule = (env_cfg.get("game", {}) or {}).get("piece_rule", None)
+
+    logger.info(
+        "[env/%s] type=%s action_mode=%s invalid_action_policy=%s max_steps=%s time_limit=%s piece_rule=%s warmup=%s",
+        str(label),
+        type(env).__name__ if env is not None else "<none>",
+        _fmt_scalar(action_mode),
+        _fmt_scalar(invalid_policy),
+        _fmt_scalar(max_steps),
+        _fmt_scalar(time_limit_steps),
+        _fmt_scalar(piece_rule),
+        _format_warmup_cfg(warmup_cfg),
+    )
+
+    reward_params = _filter_simple_params(reward_fn)
+    params_str = ",".join(f"{k}={_fmt_scalar(v)}" for k, v in reward_params.items())
+    logger.info(
+        "[reward/%s] type=%s params=%s",
+        str(label),
+        type(reward_fn).__name__ if reward_fn is not None else "<none>",
+        params_str or "-",
+    )
 
 
 def log_runtime_info(*, logger) -> None:
@@ -233,6 +336,7 @@ def log_model_params(*, model: Any, logger) -> None:
 
 __all__ = [
     "log_runtime_info",
+    "log_env_reward_summary",
     "log_ppo_params",
     "log_model_params",
     "log_policy_compact",

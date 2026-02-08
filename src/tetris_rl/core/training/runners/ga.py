@@ -33,6 +33,7 @@ from tetris_rl.core.training.evaluation import (
 from tetris_rl.core.training.ga_worker_factory import TetrisGAWorkerFactory
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
+from tetris_rl.core.training.reporting import log_env_reward_summary
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 
@@ -222,20 +223,24 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         raise TypeError("env_eval must be a mapping (or define env as fallback)")
 
     policy = HeuristicPlanningPolicy(features=features, search=search)
-    env_train = make_env_from_cfg(
+    built_train = make_env_from_cfg(
         cfg=_with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg),
         seed=int(fitness_cfg.seed),
-    ).env
+    )
+    env_train = built_train.env
+    log_env_reward_summary(logger=logger, label="train", built_env=built_train, env_cfg=env_train_cfg)
 
     eval_enabled = bool(callbacks_cfg.eval_checkpoint.enabled) and int(callbacks_cfg.eval_checkpoint.every) > 0
     if eval_enabled and str(eval_cfg.mode).strip().lower() != "workers":
         raise ValueError("GA eval requires callbacks.eval_checkpoint.mode='workers'")
     env_eval = None
     if eval_enabled and int(eval_workers) <= 1:
-        env_eval = make_env_from_cfg(
+        built_eval = make_env_from_cfg(
             cfg=_with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg),
             seed=int(fitness_cfg.seed),
-        ).env
+        )
+        env_eval = built_eval.env
+        log_env_reward_summary(logger=logger, label="eval", built_env=built_eval, env_cfg=env_eval_cfg)
 
     worker_factory = None
     if int(train_workers) > 1:
