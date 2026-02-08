@@ -159,7 +159,13 @@ def run_td_experiment(cfg: DictConfig) -> int:
         envs.append(built_env.env)
 
     device = _device_from_run(run_cfg)
-    value_model = LinearValueModel(num_features=int(len(features))).to(device=device)
+    value_model = LinearValueModel(
+        num_features=int(len(features)),
+        weight_norm=str(getattr(td_cfg, "weight_norm", "none")),
+        weight_scale=float(getattr(td_cfg, "weight_scale", 1.0)),
+        learn_scale=bool(getattr(td_cfg, "learn_scale", True)),
+        weight_norm_eps=float(getattr(td_cfg, "weight_norm_eps", 1e-8)),
+    ).to(device=device)
     if float(td_cfg.weight_init_std) > 0.0:
         with torch.no_grad():
             value_model.weights.normal_(mean=0.0, std=float(td_cfg.weight_init_std))
@@ -192,6 +198,13 @@ def run_td_experiment(cfg: DictConfig) -> int:
         float(td_cfg.clip_range_vf),
         float(td_cfg.weight_init_std),
         int(td_cfg.seed),
+    )
+    logger.info(
+        "[td] weight_norm=%s scale=%.3f learn_scale=%s eps=%.1e",
+        str(getattr(td_cfg, "weight_norm", "none")),
+        float(getattr(td_cfg, "weight_scale", 1.0)),
+        bool(getattr(td_cfg, "learn_scale", True)),
+        float(getattr(td_cfg, "weight_norm_eps", 1e-8)),
     )
     logger.info(
         "[td] search plies=%d beam_width=%s beam_from_depth=%d",
@@ -314,6 +327,19 @@ def run_td_experiment(cfg: DictConfig) -> int:
                     super().__init__()
                     self._progress = progress
                     self._task_id = task_id
+                    self._best_ret: float | None = None
+                    self._best_weights: list[float] | None = None
+
+                @staticmethod
+                def _fmt(v: float | None) -> str:
+                    return "-" if v is None else f"{float(v):.3f}"
+
+                @staticmethod
+                def _fmt_weights(weights: list[float] | None) -> str:
+                    if not weights:
+                        return "-"
+                    items = [f"{float(w):.3f}" for w in weights]
+                    return "[" + ",".join(items) + "]"
 
                 def on_event(self, *, event: str, **kwargs: Any) -> None:
                     if event != "step":
@@ -323,8 +349,17 @@ def run_td_experiment(cfg: DictConfig) -> int:
                         return
                     loss = None
                     if algo.stats:
-                        loss = algo.stats[-1].get("loss")
-                    tail = "loss=-" if loss is None else f"loss={float(loss):.5f}"
+                        last_stats = algo.stats[-1]
+                        loss = last_stats.get("loss")
+                        last_ret = last_stats.get("ep_ret_mean")
+                        if last_ret is not None:
+                            last_ret = float(last_ret)
+                            if self._best_ret is None or last_ret > self._best_ret:
+                                self._best_ret = last_ret
+                                self._best_weights = [float(w) for w in algo.policy.get_params()]
+                    loss_str = "loss=-" if loss is None else f"loss={float(loss):.5f}"
+                    best_str = f"best_ret={self._fmt(self._best_ret)} best_w={self._fmt_weights(self._best_weights)}"
+                    tail = f"{loss_str} {best_str}"
                     self._progress.update(self._task_id, completed=int(step), tail=tail)
 
             cb_items = list(callback_items)

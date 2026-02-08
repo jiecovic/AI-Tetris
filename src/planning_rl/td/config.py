@@ -17,7 +17,12 @@ class TDConfig:
     batch_size: int = 256
     n_epochs: int = 4
     weight_init_std: float = 0.01
+    weight_norm: str = "none"  # none | l2 (unit sphere) with optional scale
+    weight_scale: float = 1.0
+    learn_scale: bool = True
+    weight_norm_eps: float = 1e-8
     stats_window: int = 100
+    advantage_norm: str = "none"
     seed: int = 12345
     max_steps_per_episode: int | None = None
 

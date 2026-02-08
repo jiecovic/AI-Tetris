@@ -63,10 +63,27 @@ class TDValuePlanningPolicy(TDPolicy):
         return self._heuristic.build_spec(weights)
 
     def state_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "features": list(self.features),
             "search": self.search.model_dump(mode="json"),
         }
+        vm_cfg: dict[str, Any] = {}
+        if hasattr(self._value_model, "weight_norm"):
+            vm_cfg["weight_norm"] = str(getattr(self._value_model, "weight_norm", "none"))
+        if hasattr(self._value_model, "learn_scale"):
+            vm_cfg["learn_scale"] = bool(getattr(self._value_model, "learn_scale", True))
+        if hasattr(self._value_model, "weight_norm_eps"):
+            vm_cfg["weight_norm_eps"] = float(getattr(self._value_model, "weight_norm_eps", 1e-8))
+        if hasattr(self._value_model, "weight_scale"):
+            try:
+                vm_cfg["weight_scale"] = float(
+                    self._value_model.weight_scale.detach().cpu().item()
+                )
+            except Exception:
+                vm_cfg["weight_scale"] = float(self._value_model.weight_scale)
+        if vm_cfg:
+            data["value_model"] = vm_cfg
+        return data
 
     def load_state_dict(self, state: dict[str, Any]) -> None:
         features = state.get("features")
@@ -92,7 +109,20 @@ class TDValuePlanningPolicy(TDPolicy):
             raise ValueError("TD checkpoint missing policy.features")
         search = policy_state.get("search")
         search_obj = HeuristicSearch.model_validate(search) if isinstance(search, dict) else None
-        value_model = LinearValueModel(num_features=int(len(features))).to(device=device)
+        vm_cfg = policy_state.get("value_model", {}) or {}
+        if not isinstance(vm_cfg, dict):
+            vm_cfg = {}
+        weight_norm = str(vm_cfg.get("weight_norm", "none"))
+        weight_scale = float(vm_cfg.get("weight_scale", 1.0))
+        learn_scale = bool(vm_cfg.get("learn_scale", True))
+        weight_norm_eps = float(vm_cfg.get("weight_norm_eps", 1e-8))
+        value_model = LinearValueModel(
+            num_features=int(len(features)),
+            weight_norm=weight_norm,
+            weight_scale=weight_scale,
+            learn_scale=learn_scale,
+            weight_norm_eps=weight_norm_eps,
+        ).to(device=device)
         value_model.load_state_dict(model_state, strict=True)
         policy = cls(features=features, search=search_obj, value_model=value_model)
         policy.load_state_dict(policy_state)
