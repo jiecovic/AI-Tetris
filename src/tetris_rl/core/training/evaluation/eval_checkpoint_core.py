@@ -135,9 +135,21 @@ class EvalCheckpointCore:
         def _on_episode(done_eps: int, ret: Optional[float]) -> None:
             if pbar is None:
                 return
-            pbar.update(1)
+            if pbar.total is None:
+                pbar.update(1)
+            elif pbar.n < pbar.total:
+                pbar.update(1)
             if ret is not None:
-                pbar.set_postfix_str(f"ep={done_eps} steps={steps_seen} return={float(ret):.6g}", refresh=True)
+                if min_steps > 0:
+                    pbar.set_postfix_str(
+                        f"ep={done_eps}/{eval_episodes} steps={steps_seen}/{min_steps} return={float(ret):.6g}",
+                        refresh=True,
+                    )
+                else:
+                    pbar.set_postfix_str(
+                        f"ep={done_eps} steps={steps_seen} return={float(ret):.6g}",
+                        refresh=True,
+                    )
 
         def _on_step(k: int) -> None:
             nonlocal steps_seen
