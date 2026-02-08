@@ -1,5 +1,5 @@
 # @package _group_
-features: # heuristic feature names
+features:                       # heuristic feature names
   # agg_h: sum of column heights
   # max_h: max column height
   # mean_h: average column height
@@ -11,16 +11,11 @@ features: # heuristic feature names
   # bump: sum of abs diffs between adjacent heights
   # complete_lines: filled rows (visible grid)
   - agg_h
-  - max_h
-  - mean_h
-  - std_h
   - holes
-  - holes_std_col
-  - holes_std_row
   - bump
   - complete_lines
 
 search:
-  plies: 1                      # lookahead depth (2 = current + next piece)
+  plies: 2                      # lookahead depth (2 = current + next piece)
   beam_width: null              # null disables beam search
   beam_from_depth: 0            # apply beam after this depth
