@@ -26,6 +26,8 @@ def pick_best_values(
     reward_per_step = None
     if return_mean is not None and steps_mean is not None and steps_mean > 0:
         reward_per_step = float(return_mean) / float(steps_mean)
+    if reward_per_step is None:
+        reward_per_step = as_float(metrics.get("episode/return_per_step"))
 
     lines_per_step = as_float(metrics.get("game/lines_per_step"))
 

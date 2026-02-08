@@ -241,6 +241,8 @@ class EvalCheckpointCore:
         rwd_per_step = None
         if ep_len is not None and ep_len > 0 and ep_ret is not None:
             rwd_per_step = float(ep_ret) / float(ep_len)
+        if rwd_per_step is None:
+            rwd_per_step = as_float(metrics.get("episode/return_per_step"))
 
         # Optional offline validation metrics (caller-defined).
         # Accept either namespaced keys or flat keys (be permissive at merge boundary).

@@ -48,6 +48,8 @@ def _planning_eval_state(
     ep_steps: list[int] = []
     ep_final_scores: list[Optional[float]] = []
     ep_final_lines: list[Optional[float]] = []
+    total_reward = 0.0
+    total_steps = 0
 
     episode_idx = 0
     next_seed = _episode_seed(base_seed=int(seed_base), episode_idx=episode_idx)
@@ -70,6 +72,8 @@ def _planning_eval_state(
 
         cur_ep_reward += float(reward)
         cur_ep_steps += 1
+        total_reward += float(reward)
+        total_steps += 1
 
         if not (terminated or truncated):
             continue
@@ -106,6 +110,8 @@ def _planning_eval_state(
         "ep_final_scores": list(ep_final_scores),
         "ep_final_lines": list(ep_final_lines),
         "cur_ep_steps": int(cur_ep_steps),
+        "total_reward": float(total_reward),
+        "total_steps": int(total_steps),
     }
 
 
@@ -124,6 +130,8 @@ def _summarize_eval_state(
     ep_final_scores: list[Optional[float]] = []
     ep_final_lines: list[Optional[float]] = []
     cur_steps: list[int] = []
+    total_reward = 0.0
+    total_steps = 0
 
     for state in states:
         acc_state = state.get("acc_state", {})
@@ -135,6 +143,8 @@ def _summarize_eval_state(
         ep_final_scores.extend(state.get("ep_final_scores", []) or [])
         ep_final_lines.extend(state.get("ep_final_lines", []) or [])
         cur_steps.append(int(state.get("cur_ep_steps", 0)))
+        total_reward += float(state.get("total_reward", 0.0))
+        total_steps += int(state.get("total_steps", 0))
 
     out: Dict[str, Any] = {}
     out.update(acc.summarize())
@@ -176,6 +186,9 @@ def _summarize_eval_state(
     m = _mean_opt(ep_final_scores)
     if m is not None:
         out["episode/final_score_mean"] = float(m)
+
+    if total_steps > 0:
+        out["episode/return_per_step"] = float(total_reward) / float(total_steps)
 
     return out
 
