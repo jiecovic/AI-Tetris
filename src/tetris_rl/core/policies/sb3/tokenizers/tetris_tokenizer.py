@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/tokenizers/tetris_tokenizer.py
-from __future__ import annotations
-
 """
 TetrisTokenizer (Option B: CLS lives in the mixer)
 
@@ -25,20 +23,22 @@ Mixer responsibilities:
 - Mix + pool -> (B,F)
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 import torch
 from torch import nn
 
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, SpatialSpec, Specials, TokenStream, TokenStreamSpec
+from tetris_rl.core.policies.sb3.layers.token_type import TokenType
 from tetris_rl.core.policies.sb3.tokenizers.config import (
-    BoardEmbedType,
     BoardEmbeddingConfig,
+    BoardEmbedType,
     Conv1DEmbedParams,
     LayoutConfig,
     PatchLayoutParams,
 )
-from tetris_rl.core.policies.sb3.api import SpatialFeatures, SpatialSpec, Specials, TokenStream, TokenStreamSpec
-from tetris_rl.core.policies.sb3.layers.token_type import TokenType
 from tetris_rl.core.policies.sb3.tokenizers.embeddings.conv1d import Conv1DEmbedder
 from tetris_rl.core.policies.sb3.tokenizers.layout.patch import PatchTokenizer
 

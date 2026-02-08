@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
+
 import torch
 from omegaconf import DictConfig, OmegaConf
 from rich.progress import (
@@ -16,9 +17,11 @@ from tqdm.rich import FractionColumn, RateColumn
 
 from planning_rl.callbacks import PlanningCallback
 from planning_rl.td import LinearValueModel, TDAlgorithm, TDConfig
+from planning_rl.utils.seed import seed32_from
 from tetris_rl.core.callbacks import EvalCallback, LatestCallback, PlanningCallbackAdapter
 from tetris_rl.core.config.io import to_plain_dict
 from tetris_rl.core.envs.factory import make_env_from_cfg
+from tetris_rl.core.policies.planning_policies.td_value_policy import TDValuePlanningPolicy
 from tetris_rl.core.policies.spec import HeuristicSearch
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
@@ -33,8 +36,6 @@ from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestChec
 from tetris_rl.core.training.reporting import log_env_reward_summary
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
-from planning_rl.utils.seed import seed32_from
-from tetris_rl.core.policies.planning_policies.td_value_policy import TDValuePlanningPolicy
 from tetris_rl.core.utils.seed import seed_all
 
 

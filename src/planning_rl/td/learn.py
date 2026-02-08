@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Any, Deque, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Deque, Sequence
 
 import numpy as np
 import torch
 
 from planning_rl.callbacks import PlanningCallback
+
 if TYPE_CHECKING:
     from planning_rl.td.algorithm import TDAlgorithm
 from planning_rl.logging import ScalarLogger

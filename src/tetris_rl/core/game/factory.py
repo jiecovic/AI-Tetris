@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
-    from tetris_rl_engine import TetrisEngine as _TetrisEngine  # type: ignore[import-not-found]
-    from tetris_rl_engine import WarmupSpec as _WarmupSpec      # type: ignore[import-not-found]
+    pass  # type: ignore[import-not-found]
 
 
 def _import_engine() -> tuple[Any, Any]:

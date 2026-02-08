@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from planning_rl.ga import GAAlgorithm
 from tetris_rl.core.config.io import (
     load_experiment_config,
     load_imitation_config,
@@ -16,8 +17,6 @@ from tetris_rl.core.policies.spec import HeuristicSearch
 from tetris_rl.core.runs.checkpoints.checkpoint_manifest import resolve_checkpoint_from_manifest
 from tetris_rl.core.runs.run_io import choose_config_path
 from tetris_rl.core.utils.paths import repo_root, resolve_run_dir
-
-from planning_rl.ga import GAAlgorithm
 
 
 @dataclass(frozen=True)

@@ -4,13 +4,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Sequence
 
+from planning_rl.policies import VectorParamPolicy
 from tetris_rl.core.policies.spec import (
     HeuristicSearch,
     HeuristicSpec,
     load_heuristic_spec,
     save_heuristic_spec,
 )
-from planning_rl.policies import VectorParamPolicy
 
 
 class HeuristicPlanningPolicy(VectorParamPolicy):

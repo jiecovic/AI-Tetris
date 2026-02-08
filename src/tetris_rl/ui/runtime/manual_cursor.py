@@ -1,4 +1,4 @@
-# src/tetris_rl/core/runtime/manual_cursor.py
+# src/tetris_rl/ui/runtime/manual_cursor.py
 from __future__ import annotations
 
 from dataclasses import dataclass

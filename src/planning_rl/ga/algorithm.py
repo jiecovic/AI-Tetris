@@ -1,12 +1,12 @@
 # src/planning_rl/ga/algorithm.py
 from __future__ import annotations
 
-from dataclasses import asdict
 import io
 import json
+import zipfile
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Sequence
-import zipfile
 
 import numpy as np
 

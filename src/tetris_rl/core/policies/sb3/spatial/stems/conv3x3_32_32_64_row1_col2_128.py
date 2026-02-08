@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial/stems/conv3x3_32_32_64_row1_col2_128.py
-from __future__ import annotations
-
 """
 Preset CNN stem for 20x10-ish boards (Tetris):
 
@@ -24,6 +22,8 @@ Notes:
 - Still spatial (no pooling/flattening).
 - This stem is PRESET. No spec object.
 """
+
+from __future__ import annotations
 
 from torch import nn
 

@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
-
 from pydantic import BaseModel
 
 from tetris_rl.core.datagen.pipeline.plan import DataGenPlan
@@ -174,20 +173,17 @@ def _ensure_manifest(
       - If shards exist on disk and manifest.shards is missing/incomplete -> rebuild shards list.
       - If dataset metadata (dims/compression/shard_steps/num_shards) appears inconsistent -> raise.
     """
+    from planning_rl.utils.seed import seed32_from
     from tetris_rl.core.datagen.io.schema import DatasetManifest
     from tetris_rl.core.datagen.io.writer import init_manifest, read_manifest, write_manifest
-    from planning_rl.utils.seed import seed32_from
 
     manifest_path = dataset_dir / "manifest.json"
     index_path = dataset_dir / "index.json"
-    prior_spec_path = dataset_dir / "datagen_plan.json"
-
     disk = _scan_shards_on_disk(dataset_dir=dataset_dir)
     disk_ids = set(disk.keys())
 
     # Determine expected shard_steps / num_shards from existing dataset metadata if present.
     idx = _read_json_if_exists(index_path)
-    prior_spec = _read_json_if_exists(prior_spec_path)
 
     # Prefer dataset-local index/spec if present, else current spec.
     expected_num_shards = None
@@ -309,7 +305,7 @@ def _ensure_manifest(
                     )
         except KeyError:
             pass
-        except Exception as e:
+        except Exception:
             # If the single shard check fails, it's safer to hard-error.
             raise
 
@@ -378,9 +374,9 @@ def run_datagen(
       - index.json
       - shards/shard_XXXX.npz
     """
+    from planning_rl.utils.seed import seed32_from
     from tetris_rl.core.datagen.workers.worker import worker_generate_shards
     from tetris_rl.core.envs.factory import make_env_from_cfg
-    from planning_rl.utils.seed import seed32_from
 
     if not isinstance(cfg, dict):
         raise TypeError(f"run_datagen(cfg=...) must be dict, got {type(cfg)!r}")

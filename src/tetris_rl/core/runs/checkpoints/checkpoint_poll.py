@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
-from tetris_rl.core.training.config import AlgoConfig
 from tetris_rl.core.runs.checkpoints.checkpoint_manifest import resolve_checkpoint_from_manifest
+from tetris_rl.core.training.config import AlgoConfig
 from tetris_rl.core.training.model_io import load_model_from_algo_config
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Optional
 
 import torch
@@ -17,9 +18,8 @@ from tetris_rl.core.runs.run_resolver import (
     resolve_env_cfg,
     resolve_inference_artifact,
 )
-from tetris_rl.core.training.model_factory import build_policy_from_cfg
-from tetris_rl.core.training.model_io import load_model_from_algo_config, warn_if_maskable_with_multidiscrete
 from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
+from tetris_rl.core.training.model_io import load_model_from_algo_config, warn_if_maskable_with_multidiscrete
 
 
 @dataclass(frozen=True)

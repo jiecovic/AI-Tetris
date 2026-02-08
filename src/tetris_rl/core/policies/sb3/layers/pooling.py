@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/layers/pooling.py
-from __future__ import annotations
-
 """
 Token pooling utilities.
 
@@ -20,6 +18,8 @@ Conventions:
 - For cls* modes, the first K tokens are treated as CLS tokens.
 - CLS tokens never get positional encodings (handled elsewhere).
 """
+
+from __future__ import annotations
 
 from typing import Literal, Optional, cast
 

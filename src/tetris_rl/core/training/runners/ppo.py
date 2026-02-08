@@ -6,13 +6,16 @@ from typing import Any, Dict
 
 from omegaconf import DictConfig, OmegaConf
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
+
 try:
     from tqdm.rich import tqdm  # type: ignore
 except Exception:  # pragma: no cover
     from tqdm.auto import tqdm  # type: ignore
 
+from tetris_rl.core.callbacks import EvalCallback, InfoLoggerCallback, LatestCallback, SB3CallbackAdapter
 from tetris_rl.core.config.io import to_plain_dict
 from tetris_rl.core.config.root import ExperimentConfig
+from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.runs.checkpoints.checkpoint_manifest import (
     CheckpointEntry,
     CheckpointManifest,
@@ -20,13 +23,11 @@ from tetris_rl.core.runs.checkpoints.checkpoint_manifest import (
     update_checkpoint_manifest,
 )
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
-from tetris_rl.core.runs.run_resolver import resolve_resume_checkpoint
 from tetris_rl.core.runs.run_manifest import write_run_manifest
-from tetris_rl.core.callbacks import EvalCallback, InfoLoggerCallback, LatestCallback, SB3CallbackAdapter
+from tetris_rl.core.runs.run_resolver import resolve_resume_checkpoint
+from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
-from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
-from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.training.model_factory import make_model_from_cfg
 from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
 from tetris_rl.core.training.reporting import (

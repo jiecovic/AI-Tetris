@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 
+
 class EvalCheckpointCallbackConfig(ConfigBase):
     """
     Training-time evaluation hook.

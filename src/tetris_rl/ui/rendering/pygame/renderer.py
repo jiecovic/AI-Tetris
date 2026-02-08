@@ -1,4 +1,4 @@
-# src/tetris_rl/core/game/rendering/pygame/renderer.py
+# src/tetris_rl/ui/rendering/pygame/renderer.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,12 +6,12 @@ from typing import Any, Optional
 
 import pygame
 
-from tetris_rl.core.game.rendering.pygame.grid import draw_grid
-from tetris_rl.core.game.rendering.pygame.hud_panel import HudFonts, draw_hud_panel, hud_panel_height_for_lines
-from tetris_rl.core.game.rendering.pygame.palette import Palette, Color
-from tetris_rl.core.game.rendering.pygame.sidebar import SIDEBAR_W, draw_sidebar
-from tetris_rl.core.game.rendering.pygame.surf import SurfaceCache, blit_text
-from tetris_rl.core.game.rendering.pygame.window import Layout, WindowSpec, compute_layout, create_window
+from tetris_rl.ui.rendering.pygame.grid import draw_grid
+from tetris_rl.ui.rendering.pygame.hud_panel import HudFonts, draw_hud_panel, hud_panel_height_for_lines
+from tetris_rl.ui.rendering.pygame.palette import Color, Palette
+from tetris_rl.ui.rendering.pygame.sidebar import SIDEBAR_W, draw_sidebar
+from tetris_rl.ui.rendering.pygame.surf import SurfaceCache, blit_text
+from tetris_rl.ui.rendering.pygame.window import Layout, WindowSpec, compute_layout, create_window
 
 __all__ = ["Color", "Palette", "TetrisRenderer"]
 

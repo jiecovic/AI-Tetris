@@ -30,9 +30,9 @@ from tetris_rl.core.training.evaluation import (
     evaluate_planning_policy,
     evaluate_planning_policy_parallel,
 )
-from tetris_rl.core.training.ga_worker_factory import TetrisGAWorkerFactory
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
+from tetris_rl.core.training.ga_worker_factory import TetrisGAWorkerFactory
 from tetris_rl.core.training.reporting import log_env_reward_summary
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger

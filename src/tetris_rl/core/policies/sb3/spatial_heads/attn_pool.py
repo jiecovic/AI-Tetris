@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial_heads/attn_pool.py
-from __future__ import annotations
-
 """
 AttentionPoolHead (spatial -> feature vector)
 
@@ -13,13 +11,15 @@ Learned attention pooling over spatial positions (token-free):
   pooled = flatten (B, K*C) -> post -> (B,F)
 """
 
+from __future__ import annotations
+
 import torch
 from torch import nn
 
-from tetris_rl.core.policies.sb3.spatial_heads.config import AttentionPoolParams
-from tetris_rl.core.policies.sb3.api import Specials, SpatialFeatures
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
 from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
+from tetris_rl.core.policies.sb3.spatial_heads.config import AttentionPoolParams
 
 
 class AttentionPoolHead(BaseSpatialHead):

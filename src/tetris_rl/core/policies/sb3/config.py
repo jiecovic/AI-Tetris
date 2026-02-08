@@ -1,15 +1,15 @@
 # src/tetris_rl/core/policies/sb3/config.py
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Union, Annotated, Literal
+from typing import Annotated, Any, Dict, Literal, Optional, Union
 
 from pydantic import Field
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.policies.sb3.feature_augmenters.config import FeatureAugmenterConfig
 from tetris_rl.core.policies.sb3.mixers.config import MixerConfig
-from tetris_rl.core.policies.sb3.spatial_heads.config import SpatialHeadConfig
 from tetris_rl.core.policies.sb3.spatial.config import SpatialPreprocessorConfig, StemConfig
+from tetris_rl.core.policies.sb3.spatial_heads.config import SpatialHeadConfig
 from tetris_rl.core.policies.sb3.tokenizers.config import TokenizerConfig
 
 

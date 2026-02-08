@@ -1,6 +1,4 @@
 # src/tetris_rl/core/config/instantiate.py
-from __future__ import annotations
-
 """
 Config instantiation helpers.
 
@@ -29,6 +27,8 @@ Key rules (STRICT):
 - injected kwargs are derived by code and must not be overrideable via params.
 - Returning None is treated as an error (catches mis-registered procedures).
 """
+
+from __future__ import annotations
 
 import inspect
 from dataclasses import dataclass

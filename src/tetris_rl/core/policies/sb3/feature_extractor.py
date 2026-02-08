@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/feature_extractor.py
-from __future__ import annotations
-
 """
 SB3 Feature Extractor Orchestrator (and builder).
 
@@ -22,22 +20,18 @@ BaseFeaturesExtractor.features_dim MUST equal the actual returned feature dimens
 i.e. AFTER augmentation (F_final).
 """
 
+from __future__ import annotations
+
 import inspect
-from typing import Optional, cast, Any
+from typing import Any, Optional, cast
 
 import torch
 from gymnasium import spaces
+from pydantic import BaseModel
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
 
-from pydantic import BaseModel
-
-from tetris_rl.core.policies.sb3.feature_augmenters.config import FeatureAugmenterConfig
-from tetris_rl.core.policies.sb3.mixers.config import MixerConfig
-from tetris_rl.core.policies.sb3.spatial_heads.config import SpatialHeadConfig
-from tetris_rl.core.policies.sb3.spatial.config import SpatialPreprocessorConfig, StemConfig
-from tetris_rl.core.policies.sb3.tokenizers.config import TokenizerConfig
-from tetris_rl.core.policies.sb3.api import BoardSpec, Specials, SpatialFeatures, SpatialSpec, TokenStream
+from tetris_rl.core.policies.sb3.api import BoardSpec, SpatialFeatures, SpatialSpec, Specials, TokenStream
 from tetris_rl.core.policies.sb3.catalog import (
     FEATURE_AUGMENTER_REGISTRY,
     SPATIAL_HEAD_REGISTRY,
@@ -45,6 +39,11 @@ from tetris_rl.core.policies.sb3.catalog import (
     STEM_REGISTRY,
     TOKEN_MIXER_REGISTRY,
 )
+from tetris_rl.core.policies.sb3.feature_augmenters.config import FeatureAugmenterConfig
+from tetris_rl.core.policies.sb3.mixers.config import MixerConfig
+from tetris_rl.core.policies.sb3.spatial.config import SpatialPreprocessorConfig, StemConfig
+from tetris_rl.core.policies.sb3.spatial_heads.config import SpatialHeadConfig
+from tetris_rl.core.policies.sb3.tokenizers.config import TokenizerConfig
 from tetris_rl.core.policies.sb3.tokenizers.tetris_tokenizer import TetrisTokenizer
 
 

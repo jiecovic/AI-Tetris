@@ -1,13 +1,13 @@
-# src/tetris_rl/core/game/rendering/pygame/sidebar.py
+# src/tetris_rl/ui/rendering/pygame/sidebar.py
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple, List
+from typing import Any, List, Optional, Tuple
 
 import pygame
 
-from tetris_rl.core.game.rendering.pygame.palette import Palette, Color
-from tetris_rl.core.game.rendering.pygame.surf import SurfaceCache, blit_text
+from tetris_rl.ui.rendering.pygame.palette import Color, Palette
+from tetris_rl.ui.rendering.pygame.surf import SurfaceCache, blit_text
 
 # -----------------------------------------------------------------------------
 # Public sizing contract
@@ -215,12 +215,10 @@ def draw_sidebar(
 
     # Read idx0 (0..6) from snapshot
     next_kind_idx0 = _get(state, "next_kind_idx", None)
-    active_kind_idx0 = _get(state, "active_kind_idx", None)
 
     # Ask engine for masks at render time (UI-only).
     # Conversion 0..6 -> 1..7 happens inside _try_engine_preview_mask.
     next_mask = _try_engine_preview_mask(engine=engine, kind_idx0=next_kind_idx0, rot=0)
-    active_mask = _try_engine_preview_mask(engine=engine, kind_idx0=active_kind_idx0, rot=0)
 
     # -------------------------------------------------------------------------
     # NEXT panel

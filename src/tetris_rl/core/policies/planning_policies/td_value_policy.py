@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
-from planning_rl.td.policy import TDPolicy
 from planning_rl.td.model import LinearValueModel
+from planning_rl.td.policy import TDPolicy
 from tetris_rl.core.policies.planning_policies.heuristic_policy import HeuristicPlanningPolicy
 from tetris_rl.core.policies.spec import HeuristicSearch
 

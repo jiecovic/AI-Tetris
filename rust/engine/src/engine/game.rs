@@ -7,6 +7,7 @@ use crate::engine::grid::{
     clear_lines_grid, clear_lines_inplace, fits_on_grid, height_metrics as grid_height_metrics,
     lock_on_grid,
 };
+use crate::engine::features::{compute_grid_features_visible, GridFeatures};
 use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
 use crate::engine::pieces::Kind;
 use crate::engine::warmup::{apply_warmup, WarmupSpec};
@@ -43,6 +44,8 @@ pub struct Game {
     pub level: u32,
     pub steps: u64,
     pub game_over: bool,
+
+    pub last_lock_features: Option<GridFeatures>,
 }
 
 impl Game {
@@ -80,6 +83,7 @@ impl Game {
             level: 0,
             steps: 0,
             game_over: false,
+            last_lock_features: None,
         }
     }
 
@@ -274,6 +278,7 @@ impl Game {
     /// - True game over is detected iff the *post-clear* locked grid occupies any spawn row
     ///   (`r < HIDDEN_ROWS`).
     pub fn step_action_id(&mut self, action_id: usize) -> StepResult {
+        self.last_lock_features = None;
         if self.game_over {
             return StepResult {
                 terminated: true,
@@ -294,6 +299,7 @@ impl Game {
 
         // Valid placement: lock and clear lines in-place.
         lock_on_grid(&mut self.grid, self.active, rot, x, y);
+        self.last_lock_features = Some(compute_grid_features_visible(&self.grid));
         let (cleared, spawn_occupied) = clear_lines_inplace(&mut self.grid);
 
         let level_before = self.level;
@@ -362,5 +368,9 @@ impl Game {
             self.game_over
         ));
         s
+    }
+
+    pub fn last_lock_features(&self) -> Option<GridFeatures> {
+        self.last_lock_features
     }
 }

@@ -1,17 +1,17 @@
 # src/tetris_rl/core/training/evaluation/eval_planning.py
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence
-from multiprocessing import get_context
 import signal
+from multiprocessing import get_context
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
 import numpy as np
 
-from tetris_rl.core.training.metrics import StatsAccumulator, StatsAccumulatorConfig
 from planning_rl.utils.seed import seed32_from
 from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.policies.planning_policies.heuristic_policy import HeuristicPlanningPolicy
 from tetris_rl.core.policies.spec import HeuristicSpec
+from tetris_rl.core.training.metrics import StatsAccumulator, StatsAccumulatorConfig
 
 
 def _as_float(x: Any) -> Optional[float]:

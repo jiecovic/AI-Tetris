@@ -1,12 +1,12 @@
-# src/tetris_rl/core/game/rendering/pygame/hud_panel.py
+# src/tetris_rl/ui/rendering/pygame/hud_panel.py
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import pygame
 
-from tetris_rl.core.game.rendering.pygame.palette import Palette
-from tetris_rl.core.game.rendering.pygame.surf import blit_text
+from tetris_rl.ui.rendering.pygame.palette import Palette
+from tetris_rl.ui.rendering.pygame.surf import blit_text
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ def draw_hud_panel(*, screen: pygame.Surface, palette: Palette, fonts: HudFonts,
     """
     Render a structured HUD text into a top panel.
 
-    Conventions expected from runs/hud_text.py:
+    Conventions expected from ui/runtime/hud_text.py:
       - Section headers start with "# " (e.g. "# Status")
       - Key/value lines look like "Label: Value"
       - Optional: multiple key/value segments on one line separated by " | "

@@ -4,13 +4,14 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from tetris_rl.core.runtime.hud_adapter import env_info_for_renderer, from_info as hud_from_info
-from tetris_rl.core.runtime.hud_text import HudFormatter, HudSnapshot
-from tetris_rl.core.runtime.live_stats import StepWindow
-from tetris_rl.core.runtime.manual_cursor import ManualMacroCursor
-from tetris_rl.core.runtime.speed_control import RateMeter, SpeedControl
 from tetris_rl.core.agents.actions import choose_action
+from tetris_rl.core.runtime.hud_adapter import env_info_for_renderer
+from tetris_rl.core.runtime.hud_adapter import from_info as hud_from_info
 from tetris_rl.core.runtime.run_context import RunContext
+from tetris_rl.ui.runtime.hud_text import HudFormatter, HudSnapshot
+from tetris_rl.ui.runtime.live_stats import StepWindow
+from tetris_rl.ui.runtime.manual_cursor import ManualMacroCursor
+from tetris_rl.ui.runtime.speed_control import RateMeter, SpeedControl
 
 
 def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
@@ -28,7 +29,8 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
     hud = HudFormatter(window_steps=int(args.window_steps))
 
     import pygame
-    from tetris_rl.core.game.rendering.pygame.renderer import TetrisRenderer
+
+    from tetris_rl.ui.rendering.pygame.renderer import TetrisRenderer
 
     pygame.init()
     clock = pygame.time.Clock()

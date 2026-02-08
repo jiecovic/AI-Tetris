@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from tetris_rl.core.config.instantiate import instantiate
 from tetris_rl.core.envs.catalog import ENV_REGISTRY, REWARD_REGISTRY
 from tetris_rl.core.envs.config import EnvConfig
-from tetris_rl.core.game.factory import GameBundle, make_game_bundle_from_cfg
+from tetris_rl.core.game.factory import make_game_bundle_from_cfg
 
 
 @dataclass(frozen=True)

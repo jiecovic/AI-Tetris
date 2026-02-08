@@ -13,7 +13,6 @@ import numpy as np
 
 from tetris_rl.core.datagen.io.schema import DatasetManifest, ShardInfo, validate_shard_arrays
 
-
 # -----------------------------------------------------------------------------
 # helpers
 # -----------------------------------------------------------------------------

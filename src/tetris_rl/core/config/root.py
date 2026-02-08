@@ -11,7 +11,6 @@ from tetris_rl.core.datagen.config import (
     DataGenRunConfig,
 )
 from tetris_rl.core.envs.config import EnvConfig
-
 from tetris_rl.core.policies.sb3.config import SB3PolicyConfig
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.training.config import (

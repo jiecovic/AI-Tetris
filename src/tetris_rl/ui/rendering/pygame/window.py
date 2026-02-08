@@ -1,4 +1,4 @@
-# src/tetris_rl/core/game/rendering/pygame/window.py
+# src/tetris_rl/ui/rendering/pygame/window.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,7 +6,7 @@ from typing import Tuple
 
 import pygame
 
-from tetris_rl.core.game.rendering.pygame.sidebar import SIDEBAR_W
+from tetris_rl.ui.rendering.pygame.sidebar import SIDEBAR_W
 
 
 @dataclass(frozen=True)

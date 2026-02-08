@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/tokenizers/embeddings/conv1d.py
-from __future__ import annotations
-
 """
 Conv1D stripe embedder (tokenizer-internal).
 
@@ -33,8 +31,10 @@ Notes
 - Module is agnostic to input range / channel count, but requires floating dtype.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Callable, Dict, Sequence, Literal
+from typing import Callable, Dict, Literal, Sequence
 
 import torch
 from torch import nn

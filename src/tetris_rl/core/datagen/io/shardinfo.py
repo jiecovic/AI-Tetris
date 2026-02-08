@@ -1,10 +1,10 @@
 # src/tetris_rl/core/datagen/io/shardinfo.py
 from __future__ import annotations
 
-from typing import Optional, List
+from typing import List, Optional
 
-from tetris_rl.core.datagen.io.schema import ShardInfo
 from planning_rl.utils.seed import seed32_from
+from tetris_rl.core.datagen.io.schema import ShardInfo
 
 
 def build_expected_shard_infos(

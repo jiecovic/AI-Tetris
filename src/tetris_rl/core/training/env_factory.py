@@ -10,8 +10,8 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 
-from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.envs.factory import make_env_from_cfg
+from tetris_rl.core.runs.config import RunConfig
 
 
 @dataclass(frozen=True)

@@ -8,8 +8,8 @@ from typing import Any, Dict, Iterable, Iterator, Optional, Tuple
 import numpy as np
 
 from tetris_rl.core.datagen.io.schema import (
-    DatasetManifest,
     REQUIRED_KEYS,
+    DatasetManifest,
     validate_shard_arrays,
 )
 from tetris_rl.core.utils.file_io import read_json

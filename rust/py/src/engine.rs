@@ -7,8 +7,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use tetris_engine::engine::{
-    compute_grid_features, compute_step_features, Game, GridFeatures, PieceRuleKind, SimPlacement,
-    WarmupSpec, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
+    compute_grid_features, compute_step_features, Game, GridDelta, GridFeatures, PieceRuleKind,
+    SimPlacement, WarmupSpec, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
 };
 use tetris_engine::policy::heuristic::compute_feature_values;
 use tetris_engine::policy::HeuristicFeature;
@@ -49,6 +49,36 @@ pub struct TetrisEngine {
 
 #[pymethods]
 impl TetrisEngine {
+    fn build_step_features_dict<'py>(
+        &self,
+        py: Python<'py>,
+        prev: Option<(u32, u32, u32, u32)>,
+    ) -> PyResult<PyObject> {
+        let prev_f = prev.map(|(max_h, agg_h, holes, bump)| GridFeatures {
+            max_h,
+            agg_h,
+            holes,
+            bump,
+        });
+        let prev_for_lock = prev_f;
+
+        let grid_vis = visible_grid_as_full_h(&self.g.grid);
+        let sf = compute_step_features(&grid_vis, prev_f);
+
+        let lock_f = self.g.last_lock_features();
+        let lock_delta = match (lock_f, prev_for_lock) {
+            (Some(p), Some(prev)) => Some(GridDelta {
+                d_max_h: p.max_h as i32 - prev.max_h as i32,
+                d_agg_h: p.agg_h as i32 - prev.agg_h as i32,
+                d_holes: p.holes as i32 - prev.holes as i32,
+                d_bump: p.bump as i32 - prev.bump as i32,
+            }),
+            (Some(_), None) => Some(GridDelta::default()),
+            (None, _) => None,
+        };
+
+        Ok(step_features_to_dict(py, sf, lock_f, lock_delta).into_py(py))
+    }
     /// TetrisEngine(seed=12345, piece_rule="uniform", warmup=None)
     ///
     /// Seeding notes:
@@ -322,22 +352,30 @@ impl TetrisEngine {
     ///
     /// Computes current grid features plus deltas vs `prev` on the VISIBLE rows only.
     /// `prev` is either None or a 4-tuple: (max_h, agg_h, holes, bump).
+    ///
+    /// If available, also includes lock-grid (pre-clear) features + deltas.
     #[pyo3(signature = (prev=None))]
     fn step_features<'py>(
         &self,
         py: Python<'py>,
         prev: Option<(u32, u32, u32, u32)>,
     ) -> PyResult<PyObject> {
-        let prev_f = prev.map(|(max_h, agg_h, holes, bump)| GridFeatures {
-            max_h,
-            agg_h,
-            holes,
-            bump,
-        });
+        self.build_step_features_dict(py, prev)
+    }
 
-        let grid_vis = visible_grid_as_full_h(&self.g.grid);
-        let sf = compute_step_features(&grid_vis, prev_f);
-        Ok(step_features_to_dict(py, sf).into_py(py))
+    /// step_action_id_with_features(action_id, prev=None) -> (terminated, cleared, invalid, features)
+    ///
+    /// Applies the action and returns a step_features dict in the same format as step_features().
+    #[pyo3(signature = (action_id, prev=None))]
+    fn step_action_id_with_features<'py>(
+        &mut self,
+        py: Python<'py>,
+        action_id: usize,
+        prev: Option<(u32, u32, u32, u32)>,
+    ) -> PyResult<(bool, u32, bool, PyObject)> {
+        let r = self.g.step_action_id(action_id);
+        let sf = self.build_step_features_dict(py, prev)?;
+        Ok((r.terminated, r.cleared_lines, r.invalid_action, sf))
     }
 
     /// heuristic_features(features, as_dict=false, visible=false) -> list|dict

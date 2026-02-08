@@ -1,4 +1,4 @@
-# src/tetris_rl/core/runtime/hud_text.py
+# src/tetris_rl/ui/runtime/hud_text.py
 from __future__ import annotations
 
 from dataclasses import dataclass

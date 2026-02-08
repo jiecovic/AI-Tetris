@@ -1,23 +1,23 @@
 # src/tetris_rl/core/training/evaluation/eval_runner.py
 from __future__ import annotations
 
+import signal
+import tempfile
 from dataclasses import dataclass
 from multiprocessing import get_context
 from pathlib import Path
-import signal
-import tempfile
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, cast
 
 import numpy as np
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv
 
-from tetris_rl.core.runs.config import RunConfig
-from tetris_rl.core.training.metrics import StatsAccumulator, StatsAccumulatorConfig
-from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
-from tetris_rl.core.training.config import AlgoConfig, ImitationAlgoParams
-from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
-from tetris_rl.core.training.model_io import load_model_from_algo_config
 from planning_rl.utils.seed import seed32_from
+from tetris_rl.core.runs.config import RunConfig
+from tetris_rl.core.training.config import AlgoConfig, ImitationAlgoParams
+from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
+from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
+from tetris_rl.core.training.metrics import StatsAccumulator, StatsAccumulatorConfig
+from tetris_rl.core.training.model_io import load_model_from_algo_config
 
 
 def _obs_set(obs: Any, idx: int, value: Any) -> Any:

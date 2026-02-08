@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import argparse
 
-from tetris_rl.core.utils.logging import setup_logger
-from tetris_rl.core.runtime.run_context import build_run_context
 from tetris_rl.apps.watch.ui import run_watch_loop
+from tetris_rl.core.runtime.run_context import build_run_context
+from tetris_rl.core.utils.logging import setup_logger
 
 
 def parse_args() -> argparse.Namespace:
