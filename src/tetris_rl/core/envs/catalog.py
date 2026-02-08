@@ -6,6 +6,7 @@ from typing import Any, Mapping
 from tetris_rl.core.envs.macro_env import MacroTetrisEnv
 from tetris_rl.core.envs.rewards.heuristic_delta import HeuristicDeltaReward
 from tetris_rl.core.envs.rewards.lines import LinesReward
+from tetris_rl.core.envs.rewards.lines_survival import LinesSurvivalReward
 
 
 # - imports + plain dicts only
@@ -19,4 +20,5 @@ ENV_REGISTRY: Mapping[str, Any] = {
 REWARD_REGISTRY: Mapping[str, Any] = {
     "lines": LinesReward,
     "heuristic_delta": HeuristicDeltaReward,
+    "lines_survival": LinesSurvivalReward,
 }

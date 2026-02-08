@@ -16,16 +16,24 @@ class HeuristicDeltaRewardParams(ConfigBase):
     terminal_penalty: float = 10.0
 
 
-RewardParams = LinesRewardParams | HeuristicDeltaRewardParams
+class LinesSurvivalRewardParams(ConfigBase):
+    illegal_penalty: float = 10.0
+    terminal_penalty: float = 10.0
+    survival_bonus: float = 0.1
+
+
+RewardParams = LinesRewardParams | HeuristicDeltaRewardParams | LinesSurvivalRewardParams
 
 REWARD_PARAMS_REGISTRY: Mapping[str, type[ConfigBase]] = {
     "lines": LinesRewardParams,
     "heuristic_delta": HeuristicDeltaRewardParams,
+    "lines_survival": LinesSurvivalRewardParams,
 }
 
 __all__ = [
     "LinesRewardParams",
     "HeuristicDeltaRewardParams",
+    "LinesSurvivalRewardParams",
     "RewardParams",
     "REWARD_PARAMS_REGISTRY",
 ]
