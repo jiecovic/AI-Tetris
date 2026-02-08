@@ -8,7 +8,6 @@ from tetris_rl.core.envs.rewards.heuristic_delta import HeuristicDeltaReward
 from tetris_rl.core.envs.rewards.lines import LinesReward
 from tetris_rl.core.envs.rewards.lines_clean import LinesCleanReward
 
-
 # - imports + plain dicts only
 # - no functions/classes
 # - easy to add new entries

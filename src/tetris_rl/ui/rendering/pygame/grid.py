@@ -7,7 +7,7 @@ from typing import Any, Optional, Tuple
 import numpy as np
 import pygame
 
-from tetris_rl.ui.rendering.pygame.palette import Palette, Color
+from tetris_rl.ui.rendering.pygame.palette import Color, Palette
 from tetris_rl.ui.rendering.pygame.surf import SurfaceCache
 
 

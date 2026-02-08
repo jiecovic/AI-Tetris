@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial_heads/global_pool.py
-from __future__ import annotations
-
 """
 GlobalPoolHead (spatial -> feature vector)
 
@@ -8,15 +6,17 @@ GlobalPoolHead (spatial -> feature vector)
 -> always projects to (B,features_dim)
 """
 
+from __future__ import annotations
+
 from typing import Sequence
 
 import torch
 from torch import nn
 
-from tetris_rl.core.policies.sb3.spatial_heads.config import GlobalPoolParams, Pool2D
-from tetris_rl.core.policies.sb3.api import Specials, SpatialFeatures
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
 from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
+from tetris_rl.core.policies.sb3.spatial_heads.config import GlobalPoolParams, Pool2D
 
 
 def _as_int_tuple(xs: Sequence[int] | None) -> tuple[int, ...]:

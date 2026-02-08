@@ -104,7 +104,6 @@ class MacroStepRunner:
         if mask_stats.masked_action:
             terminated = bool(env.invalid_action_policy == "terminate")
             cleared = 0
-            invalid_action = True
             sf = env._step_features()
             return EngineStep(terminated=terminated, cleared=int(cleared), invalid_action=True, sf=sf)
 

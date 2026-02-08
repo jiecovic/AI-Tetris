@@ -6,9 +6,9 @@ from pydantic import Field
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.datagen.config import (
     DataGenDatasetConfig,
-    DataGenRunConfig,
-    DataGenGenerationConfig,
     DataGenExpertConfig,
+    DataGenGenerationConfig,
+    DataGenRunConfig,
 )
 
 

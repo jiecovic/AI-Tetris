@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial_heads/col_collapse.py
-from __future__ import annotations
-
 """
 ColumnCollapseHead (spatial -> feature vector)
 
@@ -61,16 +59,18 @@ Notes
   active/next piece IDs for one-hot augmentation.
 """
 
+from __future__ import annotations
+
 from typing import Literal, Optional
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from tetris_rl.core.policies.sb3.spatial_heads.config import ColumnCollapseParams
-from tetris_rl.core.policies.sb3.api import Specials, SpatialFeatures
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
 from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
+from tetris_rl.core.policies.sb3.spatial_heads.config import ColumnCollapseParams
 
 CollapseKind = Literal["avg", "max", "linear"]
 Pool1D = Literal["avg", "max", "avgmax"]

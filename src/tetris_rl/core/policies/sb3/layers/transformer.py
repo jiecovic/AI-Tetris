@@ -1,12 +1,12 @@
 # src/tetris_rl/core/policies/sb3/layers/transformer.py
-from __future__ import annotations
-
 """
 Transformer encoder block (pre-norm).
 
 LN -> MHA -> resid
 LN -> FFN -> resid
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 

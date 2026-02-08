@@ -12,8 +12,8 @@ from planning_rl.callbacks import PlanningCallback, wrap_callbacks
 from planning_rl.logging import ScalarLogger
 from planning_rl.td.ckpt import load_td_checkpoint, save_td_checkpoint
 from planning_rl.td.config import TDConfig
-from planning_rl.td.policy import TDPolicy
 from planning_rl.td.learn import learn_td
+from planning_rl.td.policy import TDPolicy
 
 
 class TDAlgorithm(PlanningAlgorithm):

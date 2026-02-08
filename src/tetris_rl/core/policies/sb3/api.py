@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/api.py
-from __future__ import annotations
-
 """
 Global model-side API contracts.
 
@@ -13,6 +11,8 @@ Design principles:
 - Used across spatial preprocessors, tokenizers, mixers, and heads.
 - Safe to import everywhere.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable

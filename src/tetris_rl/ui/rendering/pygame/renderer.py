@@ -8,7 +8,7 @@ import pygame
 
 from tetris_rl.ui.rendering.pygame.grid import draw_grid
 from tetris_rl.ui.rendering.pygame.hud_panel import HudFonts, draw_hud_panel, hud_panel_height_for_lines
-from tetris_rl.ui.rendering.pygame.palette import Palette, Color
+from tetris_rl.ui.rendering.pygame.palette import Color, Palette
 from tetris_rl.ui.rendering.pygame.sidebar import SIDEBAR_W, draw_sidebar
 from tetris_rl.ui.rendering.pygame.surf import SurfaceCache, blit_text
 from tetris_rl.ui.rendering.pygame.window import Layout, WindowSpec, compute_layout, create_window

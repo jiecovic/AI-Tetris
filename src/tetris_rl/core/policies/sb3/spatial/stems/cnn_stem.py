@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial/stems/cnn_stem.py
-from __future__ import annotations
-
 """
 Generic configurable CNN stem (spatial -> spatial).
 
@@ -18,13 +16,15 @@ This version supports FULL per-layer configuration:
 - dropout
 """
 
+from __future__ import annotations
+
 from typing import Sequence
 
 from torch import nn
 
 from tetris_rl.core.policies.sb3.api import SpatialFeatures, SpatialSpec
-from tetris_rl.core.policies.sb3.spatial.config import CNNStemParams
 from tetris_rl.core.policies.sb3.layers.activations import make_activation
+from tetris_rl.core.policies.sb3.spatial.config import CNNStemParams
 
 
 def _as_int_tuple(xs: Sequence[int] | None) -> tuple[int, ...]:

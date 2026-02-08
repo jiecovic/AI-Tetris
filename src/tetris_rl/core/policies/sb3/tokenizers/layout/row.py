@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/tokenizers/layout/row.py
-from __future__ import annotations
-
 """
 RowTokenizer: EXACTLY one row per token.
 
@@ -16,7 +14,10 @@ Return:
   pos_w:  None
 """
 
+from __future__ import annotations
+
 from typing import Optional
+
 import torch
 
 from tetris_rl.core.policies.sb3.api import SpatialFeatures

@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial/preprocessor.py
-from __future__ import annotations
-
 """
 Spatial preprocessors.
 
@@ -18,11 +16,13 @@ Non-responsibilities:
 - No policy logic
 """
 
+from __future__ import annotations
+
 from typing import Dict, Tuple
 
 import torch
 
-from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials, SpatialSpec, BoardSpec
+from tetris_rl.core.policies.sb3.api import BoardSpec, SpatialFeatures, SpatialSpec, Specials
 
 
 class BaseSpatialPreprocessor:

@@ -9,6 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from tetris_rl.core.config.io import to_plain_dict
 from tetris_rl.core.config.root import ImitationExperimentConfig
+from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.runs.checkpoints.checkpoint_manifest import (
     CheckpointEntry,
     CheckpointManifest,
@@ -17,9 +18,8 @@ from tetris_rl.core.runs.checkpoints.checkpoint_manifest import (
 )
 from tetris_rl.core.runs.run_io import make_run_paths, materialize_run_paths
 from tetris_rl.core.runs.run_manifest import write_run_manifest
-from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
-from tetris_rl.core.envs.factory import make_env_from_cfg
 from tetris_rl.core.training.config import AlgoConfig
+from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 from tetris_rl.core.training.model_factory import build_policy_from_cfg
 from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint

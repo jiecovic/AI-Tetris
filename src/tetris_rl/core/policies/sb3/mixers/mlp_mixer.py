@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/mixers/mlp_mixer.py
-from __future__ import annotations
-
 """
 MLPMixer (EAGER)
 
@@ -22,16 +20,17 @@ This implementation is *fully eager*:
 - no lazy init / no device-dependent .to(...) inside forward
 """
 
+from __future__ import annotations
+
 import torch
 from torch import nn
 
-from tetris_rl.core.policies.sb3.mixers.config import MLPMixerParams
 from tetris_rl.core.policies.sb3.api import TokenStream
 from tetris_rl.core.policies.sb3.layers.cls import prepend_cls
 from tetris_rl.core.policies.sb3.layers.ffn import FFN, FFNSpec
 from tetris_rl.core.policies.sb3.layers.pooling import pool_tokens, pooled_dim
 from tetris_rl.core.policies.sb3.layers.token_type import TokenType, TokenTypeEncoding, TokenTypeEncodingSpec
-
+from tetris_rl.core.policies.sb3.mixers.config import MLPMixerParams
 
 # ---------------------------------------------------------------------
 # Blocks

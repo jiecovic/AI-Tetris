@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from tqdm.rich import tqdm  # <-- rich tqdm (NOT tqdm.auto)
 
+from planning_rl.utils.seed import seed32_from
 from tetris_rl.core.callbacks import CallbackList, EvalCallback, LatestCallback
 from tetris_rl.core.datagen.io.shard_reader import ShardDataset
 from tetris_rl.core.runs.config import RunConfig
@@ -20,7 +21,6 @@ from tetris_rl.core.training.imitation.data import iter_bc_batches_from_dataset,
 from tetris_rl.core.training.imitation.types import ImitationRunState, ImitationScheduleSpec, ImitationSplitSpec
 from tetris_rl.core.training.tb_logger import TensorboardLogger
 from tetris_rl.core.utils.paths import repo_root
-from planning_rl.utils.seed import seed32_from
 
 
 @dataclass(frozen=True)

@@ -4,14 +4,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from stable_baselines3.common.policies import ActorCriticPolicy
 from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
+from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.common.type_aliases import GymEnv
 
 from tetris_rl.core.training.algorithms.base import BaseAlgorithm
 from tetris_rl.core.training.config import ImitationAlgoParams, ImitationLearnConfig
 from tetris_rl.core.training.tb_logger import TensorboardLogger
-
 
 PolicySpec = Union[ActorCriticPolicy, MaskableActorCriticPolicy]
 EnvSpec = GymEnv

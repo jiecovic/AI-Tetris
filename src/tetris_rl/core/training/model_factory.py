@@ -9,9 +9,9 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.policies import ActorCriticPolicy
 
 from tetris_rl.core.policies.sb3.config import SB3PolicyConfig
+from tetris_rl.core.policies.sb3.feature_extractor import TetrisFeatureExtractor
 from tetris_rl.core.runs.config import RunConfig
 from tetris_rl.core.training.config import AlgoConfig
-from tetris_rl.core.policies.sb3.feature_extractor import TetrisFeatureExtractor
 from tetris_rl.core.utils.logging import setup_logger
 from tetris_rl.core.utils.model_params import (
     build_algo_kwargs,

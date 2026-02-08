@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequ
 
 import numpy as np
 
+from planning_rl.utils.seed import seed32_from
 from tetris_rl.core.datagen.io.schema import (
     NPZ_ACTION,
     NPZ_ACTIVE_KIND,
@@ -13,7 +14,6 @@ from tetris_rl.core.datagen.io.schema import (
     NPZ_NEXT_KIND,
 )
 from tetris_rl.core.datagen.io.shard_reader import ShardDataset
-from planning_rl.utils.seed import seed32_from
 
 
 @dataclass(frozen=True)

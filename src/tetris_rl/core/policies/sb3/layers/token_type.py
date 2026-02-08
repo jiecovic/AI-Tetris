@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/layers/token_type.py
-from __future__ import annotations
-
 """
 Token type encoding (learned) + global token-type identifiers.
 
@@ -32,6 +30,8 @@ Notes
 - CLS is mixer-owned, but lives in the same shared vocabulary so the type embedding
   table can treat it uniformly.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum

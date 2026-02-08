@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial_heads/flatten.py
-from __future__ import annotations
-
 """
 FlattenHead (spatial -> feature vector)
 
@@ -10,14 +8,16 @@ Baseline:
 Built lazily because H/W/C can vary by preprocessor/stem.
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 import torch
 from torch import nn
 
-from tetris_rl.core.policies.sb3.spatial_heads.config import FlattenParams
-from tetris_rl.core.policies.sb3.api import Specials, SpatialFeatures
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
+from tetris_rl.core.policies.sb3.spatial_heads.config import FlattenParams
 
 
 class FlattenHead(BaseSpatialHead):

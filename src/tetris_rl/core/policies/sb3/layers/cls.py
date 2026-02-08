@@ -1,11 +1,11 @@
 # src/tetris_rl/core/policies/sb3/layers/cls.py
-from __future__ import annotations
-
 """
 CLS token utilities.
 
 Prepend K learned CLS tokens to a token stream and prepend their type ids.
 """
+
+from __future__ import annotations
 
 import torch
 from torch import nn

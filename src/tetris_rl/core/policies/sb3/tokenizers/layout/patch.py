@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/tokenizers/layout/patch.py
-from __future__ import annotations
-
 """
 PatchTokenizer: general 2D patches with (patch_h, patch_w) and (stride_h, stride_w).
 
@@ -15,6 +13,8 @@ Return:
   pos_h:  (T,) start row indices
   pos_w:  (T,) start col indices
 """
+
+from __future__ import annotations
 
 from typing import Optional
 

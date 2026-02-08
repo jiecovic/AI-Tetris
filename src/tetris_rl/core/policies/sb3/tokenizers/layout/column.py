@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/tokenizers/layout/column.py
-from __future__ import annotations
-
 """
 ColumnTokenizer: EXACTLY one column per token.
 
@@ -16,7 +14,10 @@ Return:
   pos_w:  (W,) col indices 0..W-1
 """
 
+from __future__ import annotations
+
 from typing import Optional
+
 import torch
 
 from tetris_rl.core.policies.sb3.api import SpatialFeatures

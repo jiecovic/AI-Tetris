@@ -1,9 +1,9 @@
 # src/tetris_rl/core/policies/sb3/layers/ffn.py
-from __future__ import annotations
-
 """
 Standard per-token FFN: (B,T,D) -> (B,T,D)
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 

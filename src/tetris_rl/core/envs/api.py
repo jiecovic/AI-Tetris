@@ -4,8 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Protocol, runtime_checkable
 
-import numpy as np
-
 
 @dataclass(frozen=True)
 class TransitionFeatures:

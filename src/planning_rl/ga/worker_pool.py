@@ -1,11 +1,11 @@
 # src/planning_rl/ga/worker_pool.py
 from __future__ import annotations
 
+import os
+import signal
 from dataclasses import asdict
 from multiprocessing import current_process, get_context
-import signal
 from typing import Callable, Sequence
-import os
 
 from planning_rl.ga.config import GAFitnessConfig
 from planning_rl.ga.types import GAWorkerFactory

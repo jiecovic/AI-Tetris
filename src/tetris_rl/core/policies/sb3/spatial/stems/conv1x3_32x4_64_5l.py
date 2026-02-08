@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial/stems/conv1x3_32x4_64_5l.py
-from __future__ import annotations
-
 """
 Fixed CNN stem (horizontal-only):
   (conv1x3-32 -> ReLU -> Dropout) × 4
@@ -14,6 +12,8 @@ Notes:
 - Horizontal mixing only (kernel=(1,3)), no vertical mixing.
 - Still spatial (no pooling/flattening).
 """
+
+from __future__ import annotations
 
 from torch import nn
 

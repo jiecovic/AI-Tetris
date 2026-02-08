@@ -1,6 +1,4 @@
 # src/tetris_rl/core/policies/sb3/spatial/stems/conv3x3_32_32_64.py
-from __future__ import annotations
-
 """
 Fixed, paper-exact CNN stem:
   conv3x3-32 -> GELU -> conv3x3-32 -> GELU -> conv3x3-64 -> GELU
@@ -12,6 +10,8 @@ Notes:
 - This stem is PRESET. No spec object. Kernel/stride/padding are constants.
 - Still spatial (no pooling/flattening).
 """
+
+from __future__ import annotations
 
 from torch import nn
 

@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Sequence, TypeAlias, runtime_checkable
+from typing import Protocol, TypeAlias, runtime_checkable
 
 import gymnasium as gym
+
 from planning_rl.policies import VectorParamPolicy
 
 

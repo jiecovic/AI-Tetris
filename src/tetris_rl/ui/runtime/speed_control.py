@@ -1,10 +1,10 @@
 # src/tetris_rl/ui/runtime/speed_control.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from collections import deque
-from typing import Deque, Optional
 import time
+from collections import deque
+from dataclasses import dataclass
+from typing import Deque, Optional
 
 
 @dataclass
