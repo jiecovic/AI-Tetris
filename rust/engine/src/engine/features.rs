@@ -1,7 +1,7 @@
 // src/engine/features.rs
 #![forbid(unsafe_code)]
 
-use super::constants::{H, W};
+use super::constants::{H, HIDDEN_ROWS, W};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GridFeatures {
@@ -52,6 +52,16 @@ pub fn compute_grid_features(grid: &[[u8; W]; H]) -> GridFeatures {
         holes,
         bump,
     }
+}
+
+/// Compute classic Tetris grid features on the VISIBLE grid only
+/// (hidden spawn rows are zeroed before feature extraction).
+pub fn compute_grid_features_visible(grid: &[[u8; W]; H]) -> GridFeatures {
+    let mut g = *grid;
+    for r in 0..HIDDEN_ROWS {
+        g[r] = [0u8; W];
+    }
+    compute_grid_features(&g)
 }
 
 /// Convenience: compute current features and delta vs previous features.
