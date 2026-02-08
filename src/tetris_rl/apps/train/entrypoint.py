@@ -48,9 +48,22 @@ def _normalize_overrides(overrides: Sequence[str]) -> list[str]:
     return list(overrides)
 
 
+def _maybe_add_conf_searchpath(cfg_path: Path, overrides: list[str]) -> list[str]:
+    if any(str(o).startswith("hydra.searchpath") for o in overrides):
+        return list(overrides)
+    if cfg_path.name != "configs":
+        return list(overrides)
+    conf_dir = cfg_path.parent / "conf"
+    if not conf_dir.is_dir():
+        return list(overrides)
+    conf_uri = f"file://{conf_dir.as_posix()}"
+    return [f"hydra.searchpath=[{conf_uri}]", *overrides]
+
+
 def run_train(args: argparse.Namespace) -> int:
     cfg_path, cfg_name = _resolve_config_selection(args)
     overrides = _normalize_overrides(args.overrides)
+    overrides = _maybe_add_conf_searchpath(cfg_path, overrides)
 
     if cfg_path.is_absolute():
         with initialize_config_dir(version_base=None, config_dir=str(cfg_path)):

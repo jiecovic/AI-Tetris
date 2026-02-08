@@ -1,12 +1,12 @@
 # @package _global_
 defaults:
-  - hydra: default
-  - conf/envs@env_train: warmup
-  - conf/rewards@env_train.reward: codemy_heuristic_delta
-  - conf/envs@env_eval: empty
-  - conf/rewards@env_eval.reward: codemy_heuristic_delta
-  - conf/sb3_policies@policy: cnn1
-  - conf/trains@_global_: ppo_eval
+  - /hydra: default
+  - /envs@env_train: warmup
+  - /rewards@env_train.reward: codemy_heuristic_delta
+  - /envs@env_eval: empty
+  - /rewards@env_eval.reward: codemy_heuristic_delta
+  - /sb3_policies@policy: cnn1
+  - /trains@_global_: ppo_eval
   - _self_
 
 log_level: info
@@ -20,3 +20,6 @@ run:
   n_envs: 12
   vec: subproc
   max_episode_steps: 500
+
+
+

@@ -1,12 +1,12 @@
 # @package _global_
 defaults:
-  - hydra: default
-  - conf/envs@env_train: warmup
-  - conf/rewards@env_train.reward: codemy_heuristic_delta
-  - conf/envs@env_eval: empty
-  - conf/rewards@env_eval.reward: codemy_heuristic_delta
-  - conf/sb3_policies@policy: cnn1
-  - conf/trains@_global_: imitation
+  - /hydra: default
+  - /envs@env_train: warmup
+  - /rewards@env_train.reward: codemy_heuristic_delta
+  - /envs@env_eval: empty
+  - /rewards@env_eval.reward: codemy_heuristic_delta
+  - /sb3_policies@policy: cnn1
+  - /trains@_global_: imitation
   - _self_
 
 log_level: info
@@ -19,3 +19,6 @@ run:
   device: cuda
   n_envs: 1
   vec: dummy
+
+
+

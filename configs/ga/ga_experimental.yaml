@@ -1,12 +1,12 @@
 # @package _global_
 defaults:
-  - hydra: default
-  - conf/envs@env_train: empty
-  - conf/rewards@env_train.reward: lines
-  - conf/envs@env_eval: empty
-  - conf/rewards@env_eval.reward: lines
-  - conf/planning_policies@policy: heuristic_new
-  - conf/trains@_global_: ga_heuristic
+  - /hydra: default
+  - /envs@env_train: empty
+  - /rewards@env_train.reward: lines
+  - /envs@env_eval: empty
+  - /rewards@env_eval.reward: lines
+  - /planning_policies@policy: heuristic_new
+  - /trains@_global_: ga_heuristic
   - _self_
 
 log_level: info
@@ -15,3 +15,6 @@ run:
   name: ga_experimental_run
   seed: 0                         # base seed
   out_root: experiments           # output root
+
+
+
