@@ -340,6 +340,7 @@ def evaluate_planning_policy_parallel(
 
     ctx = get_context("spawn")
     states: list[Dict[str, Any]] = []
+    done_eps = 0
     pool = None
     terminated = False
     prev_handler = signal.getsignal(signal.SIGINT)
@@ -363,6 +364,19 @@ def evaluate_planning_policy_parallel(
                 steps = int(acc_state.get("n_steps", 0)) if isinstance(acc_state, Mapping) else 0
                 if steps > 0:
                     on_step(int(steps))
+            if on_episode is not None:
+                ep_returns = state.get("ep_returns", [])
+                if not isinstance(ep_returns, list):
+                    ep_returns = []
+                if ep_returns:
+                    for ret in ep_returns:
+                        done_eps += 1
+                        on_episode(int(done_eps), _as_float(ret))
+                else:
+                    n_done = int(state.get("completed_episodes", 0))
+                    for _ in range(n_done):
+                        done_eps += 1
+                        on_episode(int(done_eps), None)
     except KeyboardInterrupt:
         terminated = True
         if pool is not None:
@@ -374,9 +388,6 @@ def evaluate_planning_policy_parallel(
         if pool is not None and not terminated:
             pool.close()
             pool.join()
-
-    # No meaningful ordering of episodes in parallel; skip on_episode.
-    _ = on_episode
 
     return _summarize_eval_state(
         states=states,
