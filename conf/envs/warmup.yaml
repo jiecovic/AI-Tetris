@@ -4,6 +4,7 @@ params:
   action_mode: discrete          # discrete | multidiscrete
   max_steps: null                 # no truncation; training/eval caps control
   invalid_action_policy: noop    # noop | terminate
+  feature_clear_mode: post       # lock/pre | post/clear (reward deltas use this)
 
 game:
   piece_rule: uniform            # uniform | bag7

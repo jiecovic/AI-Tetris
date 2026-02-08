@@ -1,9 +1,9 @@
 # @package _global_
 defaults:
   - /hydra: default
-  - /envs@env_train: empty
+  - /envs@env_train: empty_lock
   - /rewards@env_train.reward: lines
-  - /envs@env_eval: empty
+  - /envs@env_eval: empty_lock
   - /rewards@env_eval.reward: lines
   - /planning_policies@policy: heuristic
   - /trains@_global_: ga_heuristic

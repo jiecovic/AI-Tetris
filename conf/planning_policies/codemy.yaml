@@ -19,3 +19,4 @@ search:
   plies: 2                      # lookahead depth (2 = current + next piece)
   beam_width: null              # null disables beam search
   beam_from_depth: 0            # apply beam after this depth
+  feature_clear_mode: lock      # lock/pre | post/clear
