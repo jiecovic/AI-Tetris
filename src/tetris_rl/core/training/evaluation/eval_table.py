@@ -24,6 +24,7 @@ class EvalTable:
     _COL_W_BCL = 10  # bc_val_loss
     _COL_W_BCA = 8  # bc_val_acc_top1
     _COL_W_BCH = 8  # bc_val_entropy
+    _COL_W_WGT = 32  # linear policy weights (compact)
 
     def __init__(self, *, emit: Callable[[str], None], table_header_every: int, progress_unit: str) -> None:
         self.emit = emit
@@ -32,6 +33,7 @@ class EvalTable:
         self._tick_count = 0
         self._printed_preamble = False
         self._show_bc = False
+        self._show_weights = False
 
     def _t_col_name(self) -> str:
         u = str(self.progress_unit).strip().lower()
@@ -65,10 +67,11 @@ class EvalTable:
             f"{self._t_col_name()}=progress  algo=caller(rl|imitation|ga)  upd=best updates  "
             "steps=steps collected  ep=episodes finished  "
             "rwd/s=return_mean/steps_mean  ep_len=steps_mean (incl partial)  ill%=invalid_action_rate  "
+            "w=eval weights (if provided)  "
         )
         self.emit("")
 
-    def _table_header(self, *, show_bc: bool) -> str:
+    def _table_header(self, *, show_bc: bool, show_weights: bool) -> str:
         tname = self._t_col_name()
         base = (
             f"{tname:>{self._COL_W_T}} "
@@ -81,6 +84,8 @@ class EvalTable:
             f"{'ep_len':>{self._COL_W_EPL}} "
             f"{'ill%':>{self._COL_W_IAR}} "
         )
+        if show_weights:
+            base += f"{'w':>{self._COL_W_WGT}} "
         if not show_bc:
             return base
         return (
@@ -90,7 +95,7 @@ class EvalTable:
             + f"{'bc_H':>{self._COL_W_BCH}} "
         )
 
-    def _table_sep(self, *, show_bc: bool) -> str:
+    def _table_sep(self, *, show_bc: bool, show_weights: bool) -> str:
         base = (
             f"{'-' * self._COL_W_T} "
             f"{'-' * self._COL_W_PH} "
@@ -102,6 +107,8 @@ class EvalTable:
             f"{'-' * self._COL_W_EPL} "
             f"{'-' * self._COL_W_IAR} "
         )
+        if show_weights:
+            base += f"{'-' * self._COL_W_WGT} "
         if not show_bc:
             return base
         return (
@@ -143,6 +150,23 @@ class EvalTable:
             s = s[-width:]
         return f"{s:>{width}}"
 
+    def _fmt_weights(self, weights: Optional[object], width: int) -> str:
+        if weights is None:
+            return f"{'':>{width}}"
+        if isinstance(weights, str):
+            s = weights
+        else:
+            try:
+                vals = [float(w) for w in weights]  # type: ignore[assignment]
+            except Exception:
+                s = str(weights)
+            else:
+                items = [f"{float(w):.3f}" for w in vals]
+                s = "[" + ",".join(items) + "]"
+        if len(s) > width:
+            s = s[:width]
+        return f"{s:>{width}}"
+
     def emit_row(
         self,
         *,
@@ -155,22 +179,26 @@ class EvalTable:
         lines_per_step: Optional[float],
         ep_len_mean: Optional[float],
         invalid_action_rate: Optional[float],
+        weights: Optional[object] = None,
         # optional extra metrics (offline validation etc.)
         bc_val_loss: Optional[float] = None,
         bc_val_acc_top1: Optional[float] = None,
         bc_val_entropy: Optional[float] = None,
     ) -> None:
         self._tick_count += 1
+        show_weights = weights is not None
         show_bc = any(v is not None for v in (bc_val_loss, bc_val_acc_top1, bc_val_entropy))
-        if show_bc and not self._show_bc:
-            self._show_bc = True
-            self.emit(self._table_header(show_bc=True))
-            self.emit(self._table_sep(show_bc=True))
-        elif self._tick_count == 1 or (
+
+        new_show_weights = self._show_weights or show_weights
+        new_show_bc = self._show_bc or show_bc
+        header_due = self._tick_count == 1 or (
             self.table_header_every > 0 and (self._tick_count % int(self.table_header_every)) == 0
-        ):
-            self.emit(self._table_header(show_bc=self._show_bc))
-            self.emit(self._table_sep(show_bc=self._show_bc))
+        )
+        if (new_show_weights != self._show_weights) or (new_show_bc != self._show_bc) or header_due:
+            self._show_weights = new_show_weights
+            self._show_bc = new_show_bc
+            self.emit(self._table_header(show_bc=self._show_bc, show_weights=self._show_weights))
+            self.emit(self._table_sep(show_bc=self._show_bc, show_weights=self._show_weights))
 
         upd_fixed = (upd[: self._COL_W_UPD]).ljust(self._COL_W_UPD)
         ill_pct = None if invalid_action_rate is None else 100.0 * float(invalid_action_rate)
@@ -188,6 +216,8 @@ class EvalTable:
             f"{self._fmt_float(ep_len_mean, self._COL_W_EPL, prec=1)} "
             f"{self._fmt_float(ill_pct, self._COL_W_IAR, prec=2)} "
         )
+        if self._show_weights:
+            row += f"{self._fmt_weights(weights, self._COL_W_WGT)} "
         if self._show_bc:
             row += (
                 f"{self._fmt_float(bc_val_loss, self._COL_W_BCL, prec=4)} "

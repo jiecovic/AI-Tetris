@@ -37,6 +37,7 @@ from tetris_rl.core.training.reporting import (
     log_runtime_info,
 )
 from tetris_rl.core.utils.logging import setup_logger
+from tetris_rl.core.utils.seed import seed_all
 
 
 def _with_env_cfg(*, cfg: Dict[str, Any], env_cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -57,6 +58,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
     env_train_cfg = exp_cfg.env_train
     env_eval_cfg = exp_cfg.env_eval
     policy_cfg = exp_cfg.policy
+    seed_all(int(run_cfg.seed))
 
     paths = make_run_paths(run_cfg=run_cfg)
 

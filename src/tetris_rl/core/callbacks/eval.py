@@ -22,6 +22,7 @@ class EvalCallback(CoreCallback):
         progress_offset: int = 0,
         phase: str = "rl",
         model_getter: Optional[Callable[[Any], Any]] = None,
+        extra_metrics_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         emit: Optional[Callable[[str], None]] = None,
         log_scalar: Optional[Callable[[str, float, int], None]] = None,
         eval_fn: Optional[EvalRunner] = None,
@@ -32,6 +33,7 @@ class EvalCallback(CoreCallback):
         self.progress_offset = int(progress_offset)
         self.phase = str(phase)
         self.model_getter = model_getter or (lambda x: x)
+        self.extra_metrics_fn = extra_metrics_fn
         self.core = EvalCheckpointCore(
             spec=spec,
             cfg=cfg,
@@ -52,7 +54,12 @@ class EvalCallback(CoreCallback):
             return
         step = int(progress) + int(self.progress_offset)
         model = self.model_getter(self.algo)
-        self.core.maybe_tick(progress_step=step, phase=self.phase, model=model)
+        self.core.maybe_tick(
+            progress_step=step,
+            phase=self.phase,
+            model=model,
+            extra_metrics_fn=self.extra_metrics_fn,
+        )
 
 
 __all__ = ["EvalCallback"]

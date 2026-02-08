@@ -35,6 +35,7 @@ from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 from planning_rl.utils.seed import seed32_from
 from tetris_rl.core.policies.planning_policies.td_value_policy import TDValuePlanningPolicy
+from tetris_rl.core.utils.seed import seed_all
 
 
 def _parse_td_config(obj: Any, *, seed_default: int) -> TDConfig:
@@ -82,6 +83,7 @@ def run_td_experiment(cfg: DictConfig) -> int:
     logger = setup_logger(name="tetris_rl.td", use_rich=True, level=str(cfg_dict.get("log_level", "info")))
 
     run_cfg = RunConfig.model_validate(cfg_dict.get("run", {}) or {})
+    seed_all(int(run_cfg.seed))
     paths = make_run_paths(run_cfg=run_cfg)
 
     t0 = time.perf_counter()
@@ -282,6 +284,11 @@ def run_td_experiment(cfg: DictConfig) -> int:
                 on_step=on_step,
             )
 
+        def _extra_metrics() -> dict[str, Any]:
+            if last_eval_weights is None:
+                return {}
+            return {"policy/weights": list(last_eval_weights)}
+
         core_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
@@ -299,6 +306,7 @@ def run_td_experiment(cfg: DictConfig) -> int:
             phase="td",
             emit=logger.info,
             eval_fn=_eval_fn,
+            extra_metrics_fn=_extra_metrics,
             log_scalar=(tb_logger.log_scalar if tb_logger is not None else None),
         )
         callback_items.append(PlanningCallbackAdapter(core_cb))
@@ -339,13 +347,6 @@ def run_td_experiment(cfg: DictConfig) -> int:
                 def _fmt(v: float | None) -> str:
                     return "-" if v is None else f"{float(v):.3f}"
 
-                @staticmethod
-                def _fmt_weights(weights: list[float] | None) -> str:
-                    if not weights:
-                        return "-"
-                    items = [f"{float(w):.3f}" for w in weights]
-                    return "[" + ",".join(items) + "]"
-
                 def on_event(self, *, event: str, **kwargs: Any) -> None:
                     if event != "step":
                         return
@@ -363,8 +364,7 @@ def run_td_experiment(cfg: DictConfig) -> int:
                                 self._best_ret = last_ret
                     loss_str = "loss=-" if loss is None else f"loss={float(loss):.5f}"
                     best_str = f"best_ret={self._fmt(self._best_ret)}"
-                    eval_w_str = f"eval_w={self._fmt_weights(last_eval_weights)}"
-                    tail = f"{loss_str} {best_str} {eval_w_str}"
+                    tail = f"{loss_str} {best_str}"
                     self._progress.update(self._task_id, completed=int(step), tail=tail)
 
             cb_items = list(callback_items)

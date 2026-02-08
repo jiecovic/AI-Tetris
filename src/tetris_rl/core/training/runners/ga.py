@@ -36,6 +36,7 @@ from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestChec
 from tetris_rl.core.training.reporting import log_env_reward_summary
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
+from tetris_rl.core.utils.seed import seed_all
 
 
 def _parse_ga_config(obj: Any) -> GAConfig:
@@ -92,6 +93,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
     logger = setup_logger(name="tetris_rl.ga", use_rich=True, level=str(cfg_dict.get("log_level", "info")))
 
     run_cfg = RunConfig.model_validate(cfg_dict.get("run", {}) or {})
+    seed_all(int(run_cfg.seed))
     paths = make_run_paths(run_cfg=run_cfg)
 
     t0 = time.perf_counter()
@@ -279,16 +281,20 @@ def run_ga_experiment(cfg: DictConfig) -> int:
 
     if eval_enabled:
         eval_seed_base = int(run_cfg.seed) + int(eval_cfg.seed_offset)
+        last_eval_weights: list[float] | None = None
 
         def _eval_fn(model: Any, _t: int, on_episode, on_step) -> dict[str, Any]:
+            nonlocal last_eval_weights
             policy = getattr(model, "policy", None)
             if policy is None:
                 raise RuntimeError("GA eval requires algo.policy")
             weights = getattr(model, "best_weights", None)
             if weights is not None:
                 try:
+                    last_eval_weights = [float(w) for w in weights.tolist()]
                     policy.set_params(weights.tolist())
                 except Exception:
+                    last_eval_weights = [float(w) for w in weights]
                     policy.set_params(list(weights))
             if int(eval_workers) > 1:
                 spec = policy.build_spec(policy.get_params())
@@ -317,6 +323,10 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                 on_episode=on_episode,
                 on_step=on_step,
             )
+        def _extra_metrics() -> dict[str, Any]:
+            if last_eval_weights is None:
+                return {}
+            return {"policy/weights": list(last_eval_weights)}
         core_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,
@@ -334,6 +344,7 @@ def run_ga_experiment(cfg: DictConfig) -> int:
             phase="ga",
             emit=logger.info,
             eval_fn=_eval_fn,
+            extra_metrics_fn=_extra_metrics,
             log_scalar=(tb_logger.log_scalar if tb_logger is not None else None),
         )
         callback_items.append(PlanningCallbackAdapter(core_cb))

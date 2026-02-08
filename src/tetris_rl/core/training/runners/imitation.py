@@ -27,6 +27,7 @@ from tetris_rl.core.training.reporting import log_env_reward_summary
 from tetris_rl.core.training.tb_logger import maybe_tb_logger
 from tetris_rl.core.utils.logging import setup_logger
 from tetris_rl.core.utils.paths import repo_root as find_repo_root
+from tetris_rl.core.utils.seed import seed_all
 
 
 def _with_env_cfg(*, cfg: dict[str, Any], env_cfg: dict[str, Any]) -> dict[str, Any]:
@@ -47,6 +48,7 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     callbacks_cfg = exp_cfg.callbacks
     learn_cfg = exp_cfg.learn
     imitation_params = exp_cfg.algo.params
+    seed_all(int(run_cfg.seed))
 
     paths = make_run_paths(run_cfg=run_cfg)
 

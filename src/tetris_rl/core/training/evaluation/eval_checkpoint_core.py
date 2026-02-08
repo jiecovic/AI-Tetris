@@ -277,6 +277,7 @@ class EvalCheckpointCore:
         bc_vloss = as_float(metrics.get("bc_val/loss", metrics.get("bc_val_loss")))
         bc_vacc = as_float(metrics.get("bc_val/acc_top1", metrics.get("bc_val_acc_top1")))
         bc_vH = as_float(metrics.get("bc_val/entropy", metrics.get("bc_val_entropy")))
+        weights = metrics.get("policy/weights")
 
         self.table.emit_row(
             t=t,
@@ -288,6 +289,7 @@ class EvalCheckpointCore:
             lines_per_step=as_float(metrics.get("game/lines_per_step")),
             ep_len_mean=ep_len,
             invalid_action_rate=as_float(metrics.get("tf/invalid_action_rate")),
+            weights=weights,
             bc_val_loss=bc_vloss,
             bc_val_acc_top1=bc_vacc,
             bc_val_entropy=bc_vH,
