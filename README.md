@@ -102,6 +102,13 @@ This is not a polished framework. It is a personal playground to:
 - compare planning vs imitation vs RL
 - iterate fast on envs and configs
 
+## Best results so far (informal)
+
+- Planning: Codemy-style heuristic with plies=3 and 3rd-ply expectimax.
+- Distill: behavior cloning from the planner into a reactive policy.
+- Models: ViT with column tokens learns faster; CNN reaches similar quality and is faster at inference.
+- Outcome: fast, reactive inference with near-planning performance (no search at runtime).
+
 ---
 
 ## Disclaimer
