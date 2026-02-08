@@ -18,6 +18,10 @@ pub enum HeuristicFeature {
     HolesStdRow,
     Bumpiness,
     CompleteLines,
+    AggHeightNorm,
+    HolesNorm,
+    BumpinessNorm,
+    CompleteLinesNorm,
 }
 
 impl HeuristicFeature {
@@ -34,6 +38,10 @@ impl HeuristicFeature {
             "holes_std_row" | "holes_std_rows" | "holes_std_rowwise" => Some(Self::HolesStdRow),
             "bump" | "bumpiness" => Some(Self::Bumpiness),
             "complete_lines" | "lines" => Some(Self::CompleteLines),
+            "agg_h_norm" | "agg_height_norm" | "aggregate_height_norm" => Some(Self::AggHeightNorm),
+            "holes_norm" | "holes_total_norm" => Some(Self::HolesNorm),
+            "bump_norm" | "bumpiness_norm" => Some(Self::BumpinessNorm),
+            "complete_lines_norm" | "lines_norm" => Some(Self::CompleteLinesNorm),
             _ => None,
         }
     }
@@ -76,11 +84,13 @@ impl HeuristicScorer {
                 | HeuristicFeature::MeanHeight
                 | HeuristicFeature::StdHeight
                 | HeuristicFeature::VarHeight
-                | HeuristicFeature::Bumpiness => {
+                | HeuristicFeature::Bumpiness
+                | HeuristicFeature::AggHeightNorm
+                | HeuristicFeature::BumpinessNorm => {
                     need_heights = true;
                     need_bump = true;
                 }
-                HeuristicFeature::Holes => {
+                HeuristicFeature::Holes | HeuristicFeature::HolesNorm => {
                     need_holes_col = true;
                     need_heights = true;
                 }
@@ -94,7 +104,7 @@ impl HeuristicScorer {
                     need_heights = true;
                     need_holes_std_row = true;
                 }
-                HeuristicFeature::CompleteLines => {
+                HeuristicFeature::CompleteLines | HeuristicFeature::CompleteLinesNorm => {
                     need_complete_lines = true;
                 }
             }
@@ -197,6 +207,10 @@ impl HeuristicScorer {
             0.0
         };
 
+        let max_cells = (H * W) as f64;
+        let max_bump = (H * (W - 1)) as f64;
+        let max_lines = 4.0; // max cleared lines per placement for a tetromino
+
         let mut score = 0.0;
         for (feat, w) in self.features.iter().zip(self.weights.iter()) {
             let v = match feat {
@@ -210,6 +224,10 @@ impl HeuristicScorer {
                 HeuristicFeature::HolesStdRow => holes_std_row,
                 HeuristicFeature::Bumpiness => bump,
                 HeuristicFeature::CompleteLines => complete_lines,
+                HeuristicFeature::AggHeightNorm => if max_cells > 0.0 { agg_h / max_cells } else { 0.0 },
+                HeuristicFeature::HolesNorm => if max_cells > 0.0 { holes_total / max_cells } else { 0.0 },
+                HeuristicFeature::BumpinessNorm => if max_bump > 0.0 { bump / max_bump } else { 0.0 },
+                HeuristicFeature::CompleteLinesNorm => if max_lines > 0.0 { complete_lines / max_lines } else { 0.0 },
             };
             score += w * v;
         }
@@ -238,11 +256,13 @@ pub fn compute_feature_values(grid: &[[u8; W]; H], features: &[HeuristicFeature]
             | HeuristicFeature::MeanHeight
             | HeuristicFeature::StdHeight
             | HeuristicFeature::VarHeight
-            | HeuristicFeature::Bumpiness => {
+            | HeuristicFeature::Bumpiness
+            | HeuristicFeature::AggHeightNorm
+            | HeuristicFeature::BumpinessNorm => {
                 need_heights = true;
                 need_bump = true;
             }
-            HeuristicFeature::Holes => {
+            HeuristicFeature::Holes | HeuristicFeature::HolesNorm => {
                 need_holes_col = true;
                 need_heights = true;
             }
@@ -256,7 +276,7 @@ pub fn compute_feature_values(grid: &[[u8; W]; H], features: &[HeuristicFeature]
                 need_heights = true;
                 need_holes_std_row = true;
             }
-            HeuristicFeature::CompleteLines => {
+            HeuristicFeature::CompleteLines | HeuristicFeature::CompleteLinesNorm => {
                 need_complete_lines = true;
             }
         }
@@ -359,6 +379,10 @@ pub fn compute_feature_values(grid: &[[u8; W]; H], features: &[HeuristicFeature]
         0.0
     };
 
+    let max_cells = (H * W) as f64;
+    let max_bump = (H * (W - 1)) as f64;
+    let max_lines = 4.0; // max cleared lines per placement for a tetromino
+
     let mut out = Vec::with_capacity(features.len());
     for feat in features {
         let v = match feat {
@@ -372,6 +396,10 @@ pub fn compute_feature_values(grid: &[[u8; W]; H], features: &[HeuristicFeature]
             HeuristicFeature::HolesStdRow => holes_std_row,
             HeuristicFeature::Bumpiness => bump,
             HeuristicFeature::CompleteLines => complete_lines,
+            HeuristicFeature::AggHeightNorm => if max_cells > 0.0 { agg_h / max_cells } else { 0.0 },
+            HeuristicFeature::HolesNorm => if max_cells > 0.0 { holes_total / max_cells } else { 0.0 },
+            HeuristicFeature::BumpinessNorm => if max_bump > 0.0 { bump / max_bump } else { 0.0 },
+            HeuristicFeature::CompleteLinesNorm => if max_lines > 0.0 { complete_lines / max_lines } else { 0.0 },
         };
         out.push(v);
     }
