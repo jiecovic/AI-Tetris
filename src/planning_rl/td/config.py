@@ -25,9 +25,7 @@ class TDConfig:
     advantage_norm: str = "none"
     target_tau: float = 0.0
     target_update_every: int = 1
-    debug_feature_stats: bool = False
-    debug_feature_every: int = 10_000
-    feature_clear_mode: str = "post"  # pre/lock | post/clear
+    feature_clear_mode: str = "auto"  # auto | pre/lock | post/clear
     seed: int = 12345
     max_steps_per_episode: int | None = None
 

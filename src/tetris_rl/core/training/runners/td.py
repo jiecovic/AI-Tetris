@@ -1,6 +1,7 @@
 # src/tetris_rl/core/training/runners/td.py
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import torch
@@ -56,6 +57,27 @@ def _device_from_run(run_cfg: RunConfig) -> torch.device:
     if dev == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(dev)
+
+
+def _resolve_feature_clear_mode(cfg_mode: str, *, env_cfg: dict[str, Any]) -> str:
+    mode = str(cfg_mode).strip().lower()
+    if mode in {"pre", "lock", "pre_clear", "before"}:
+        return "lock"
+    if mode in {"post", "clear", "post_clear", "after"}:
+        return "post"
+    if mode != "auto":
+        return "post"
+
+    params = env_cfg.get("params", {}) if isinstance(env_cfg, dict) else {}
+    env_mode = params.get("feature_clear_mode", None) if isinstance(params, dict) else None
+    if env_mode is None:
+        return "post"
+    env_mode = str(env_mode).strip().lower()
+    if env_mode in {"pre", "lock", "pre_clear", "before"}:
+        return "lock"
+    if env_mode in {"post", "clear", "post_clear", "after"}:
+        return "post"
+    return "post"
 
 
 def run_td_experiment(cfg: DictConfig) -> int:
@@ -117,6 +139,13 @@ def run_td_experiment(cfg: DictConfig) -> int:
         raise TypeError("env_train must be a mapping (or define env as fallback)")
     if not isinstance(env_eval_cfg, dict):
         raise TypeError("env_eval must be a mapping (or define env as fallback)")
+
+    if str(getattr(td_cfg, "feature_clear_mode", "auto")).strip().lower() == "auto":
+        resolved_mode = _resolve_feature_clear_mode(
+            str(getattr(td_cfg, "feature_clear_mode", "auto")),
+            env_cfg=env_train_cfg,
+        )
+        td_cfg = replace(td_cfg, feature_clear_mode=str(resolved_mode))
 
     n_envs = max(1, int(td_cfg.n_envs))
     envs: list[Any] = []

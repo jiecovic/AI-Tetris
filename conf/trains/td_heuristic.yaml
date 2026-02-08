@@ -8,7 +8,7 @@ callbacks:
     every: 50_000
     episodes: 100
     min_steps: 1_000
-    max_steps_per_episode: 1_000
+    max_steps_per_episode: 50_000
     deterministic: true
     seed_offset: 10000
     mode: workers
@@ -26,19 +26,17 @@ algo:
     batch_size: 512               # minibatch size for updates
     n_epochs: 2                   # update epochs per rollout
     rollout_steps: 4096           # steps per env before an update
-    feature_clear_mode: post      # pre/lock | post/clear (lines always from lock grid)
+    feature_clear_mode: auto      # auto | pre/lock | post/clear (lines always from lock grid)
     weight_init_std: 0.01         # init std for linear value head
     weight_norm: l2               # none: raw weights, l2: unit-norm weights (direction only)
     weight_scale: 1.0             # only used with l2 (multiplies the unit-norm weights)
     learn_scale: true             # learn weight_scale (starts at weight_scale)
     weight_norm_eps: 1.0e-8       # epsilon for norm stability
     stats_window: 1000            # moving window for rollout stats
-    target_tau: 0.0               # EMA target update (0 disables)
+    target_tau: 0.005               # EMA target update (0 disables)
     target_update_every: 1        # EMA update cadence (optimizer steps)
-    debug_feature_stats: true     # DEBUG: log feature means/zeros during training
-    debug_feature_every: 5_000    # DEBUG: log cadence in env steps
 learn:
   total_timesteps: 100_000_000
   n_envs: 32                      # parallel envs for rollout collection
   seed: 12345
-  max_steps_per_episode: 500
+  max_steps_per_episode: 10_00

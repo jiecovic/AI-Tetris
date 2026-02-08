@@ -1,7 +1,6 @@
 # src/planning_rl/td/learn.py
 from __future__ import annotations
 
-import logging
 from collections import deque
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Deque, Sequence
@@ -48,7 +47,6 @@ def learn_td(
     logger: ScalarLogger | None = None,
 ) -> None:
     cb = callback
-    log = logging.getLogger("tetris_rl.td")
 
     n_envs = max(1, int(cfg.n_envs))
     if len(envs) != n_envs:
@@ -78,79 +76,40 @@ def learn_td(
     rollout_steps = max(1, int(cfg.rollout_steps))
     total_steps_target = max(0, int(cfg.total_timesteps))
 
-    feature_clear_mode = str(getattr(cfg, "feature_clear_mode", "pre")).strip().lower()
+    feature_clear_mode = str(getattr(cfg, "feature_clear_mode", "auto")).strip().lower()
+    if feature_clear_mode == "auto":
+        env_mode = None
+        for env in envs:
+            mode = getattr(env, "feature_clear_mode", None)
+            if mode is None:
+                continue
+            mode = str(mode).strip().lower()
+            if mode in {"pre", "lock", "pre_clear", "before"}:
+                mode = "lock"
+            elif mode in {"post", "clear", "post_clear", "after"}:
+                mode = "post"
+            else:
+                continue
+            if env_mode is None:
+                env_mode = mode
+            elif env_mode != mode:
+                raise ValueError("TD envs disagree on feature_clear_mode")
+        feature_clear_mode = env_mode or "post"
+
     if feature_clear_mode in {"pre", "lock", "pre_clear", "before"}:
         pre_clear = True
     elif feature_clear_mode in {"post", "clear", "post_clear", "after"}:
         pre_clear = False
     else:
         raise ValueError(
-            f"feature_clear_mode must be 'pre' or 'post' (got {feature_clear_mode!r})"
+            "feature_clear_mode must be 'auto', 'pre', or 'post' "
+            f"(got {feature_clear_mode!r})"
         )
 
     line_feature_names = {"complete_lines", "complete_lines_norm", "lines", "lines_norm"}
     line_feature_idx = [
         i for i, name in enumerate(features) if str(name).strip().lower() in line_feature_names
     ]
-
-    debug_enabled = bool(getattr(cfg, "debug_feature_stats", False))
-    debug_every = int(getattr(cfg, "debug_feature_every", 0))
-    debug_next = int(debug_every) if debug_enabled and debug_every > 0 else 0
-
-    policy_feat_sum = np.zeros((len(features),), dtype=np.float64)
-    policy_feat_zero = np.zeros((len(features),), dtype=np.float64)
-    policy_feat_count = 0
-
-    reward_keys = (
-        "cleared_lines",
-        "delta_holes",
-        "delta_max_height",
-        "delta_bumpiness",
-        "delta_agg_height",
-        "holes",
-        "max_height",
-        "bumpiness",
-        "agg_height",
-    )
-    reward_sum = {k: 0.0 for k in reward_keys}
-    reward_zero = {k: 0 for k in reward_keys}
-    reward_count = {k: 0 for k in reward_keys}
-
-    def _maybe_log_feature_debug(step: int) -> None:
-        nonlocal policy_feat_sum, policy_feat_zero, policy_feat_count, debug_next
-        if not debug_enabled or debug_next <= 0 or step < debug_next:
-            return
-
-        if policy_feat_count > 0:
-            policy_mean = policy_feat_sum / float(policy_feat_count)
-            policy_zero_rate = policy_feat_zero / float(policy_feat_count)
-            policy_parts = [
-                f"{name} mean={float(m):.4g} zero={float(z):.2f}"
-                for name, m, z in zip(features, policy_mean, policy_zero_rate)
-            ]
-            log.info("[td][dbg] policy_features %s", " | ".join(policy_parts))
-
-        reward_parts = []
-        for key in reward_keys:
-            cnt = reward_count.get(key, 0)
-            if cnt <= 0:
-                continue
-            mean = reward_sum[key] / float(cnt)
-            zero_rate = float(reward_zero[key]) / float(cnt)
-            reward_parts.append(f"{key} mean={mean:.4g} zero={zero_rate:.2f}")
-        if reward_parts:
-            log.info("[td][dbg] reward_features %s", " | ".join(reward_parts))
-
-        policy_feat_sum = np.zeros((len(features),), dtype=np.float64)
-        policy_feat_zero = np.zeros((len(features),), dtype=np.float64)
-        policy_feat_count = 0
-        for key in reward_keys:
-            reward_sum[key] = 0.0
-            reward_zero[key] = 0
-            reward_count[key] = 0
-
-        if debug_enabled and debug_every > 0:
-            debug_next = int(step + debug_every)
 
     def _features_for_action(*, env: Any, action: Any) -> np.ndarray:
         phi = extract_features(
@@ -204,23 +163,12 @@ def learn_td(
                 features_batch.append(phi)
                 actions_batch.append(action)
 
-            if debug_enabled and features_batch:
-                feats = np.asarray(features_batch, dtype=np.float32)
-                policy_feat_sum += feats.sum(axis=0)
-                policy_feat_zero += np.sum(np.isclose(feats, 0.0, atol=1e-12), axis=0)
-                policy_feat_count += int(feats.shape[0])
-
             feats_arr = np.asarray(features_batch, dtype=np.float32)
             with torch.no_grad():
                 v = model(torch.tensor(feats_arr, device=device)).detach().cpu().numpy()
             v = np.asarray(v, dtype=np.float32).reshape(-1)
             if v.shape[0] != n_envs:
                 if v.shape[0] == 1:
-                    if debug_enabled:
-                        log.warning(
-                            "[td][dbg] value batch size=1; repeating to n_envs=%d (check feature extraction).",
-                            int(n_envs),
-                        )
                     v = np.repeat(v, n_envs)
                 else:
                     raise RuntimeError(
@@ -233,7 +181,7 @@ def learn_td(
 
             for env_idx, env in enumerate(envs):
                 action = actions_batch[env_idx]
-                _obs, reward, terminated, truncated, info = env.step(action)
+                _obs, reward, terminated, truncated, _info = env.step(action)
                 done = bool(terminated) or bool(truncated)
 
                 ep_returns[env_idx] += float(reward)
@@ -252,22 +200,6 @@ def learn_td(
                 if cb is not None:
                     cb.on_event(event="step", num_timesteps=int(algo.num_timesteps))
 
-                if debug_enabled and isinstance(info, dict):
-                    tf = info.get("tf")
-                    if isinstance(tf, dict):
-                        for key in reward_keys:
-                            if key not in tf:
-                                continue
-                            val = tf.get(key)
-                            if val is None:
-                                continue
-                            v = float(val)
-                            reward_sum[key] += v
-                            reward_zero[key] += 1 if abs(v) <= 1e-12 else 0
-                            reward_count[key] += 1
-
-                _maybe_log_feature_debug(int(algo.num_timesteps))
-
                 if done:
                     ep_ret_hist.append(float(ep_returns[env_idx]))
                     ep_len_hist.append(int(ep_steps[env_idx]))
@@ -284,11 +216,6 @@ def learn_td(
             next_v = np.asarray(next_v, dtype=np.float32).reshape(-1)
             if next_v.shape[0] != n_envs:
                 if next_v.shape[0] == 1:
-                    if debug_enabled:
-                        log.warning(
-                            "[td][dbg] next value batch size=1; repeating to n_envs=%d (check feature extraction).",
-                            int(n_envs),
-                        )
                     next_v = np.repeat(next_v, n_envs)
                 else:
                     raise RuntimeError(
