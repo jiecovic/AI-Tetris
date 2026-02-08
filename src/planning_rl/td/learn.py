@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import deque
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Deque, Sequence
 
 import numpy as np
@@ -56,6 +57,15 @@ def learn_td(
     model.train()
     if algo.optimizer is None:
         raise RuntimeError("TD algorithm missing optimizer")
+
+    target_tau = float(getattr(cfg, "target_tau", 0.0))
+    target_update_every = max(1, int(getattr(cfg, "target_update_every", 1)))
+    target_model = None
+    if target_tau > 0.0:
+        target_model = deepcopy(model)
+        target_model.eval()
+        for p in target_model.parameters():
+            p.requires_grad_(False)
 
     gamma = float(cfg.gamma)
     gae_lambda = float(cfg.gae_lambda)
@@ -154,7 +164,8 @@ def learn_td(
 
             next_feats_arr = np.asarray(next_features_batch, dtype=np.float32)
             with torch.no_grad():
-                next_v = model(torch.tensor(next_feats_arr, device=device)).detach().cpu().numpy()
+                target = target_model if target_model is not None else model
+                next_v = target(torch.tensor(next_feats_arr, device=device)).detach().cpu().numpy()
 
             for i, done_flag in enumerate(dones_batch):
                 if done_flag > 0.0:
@@ -203,6 +214,7 @@ def learn_td(
         idx = np.arange(targets_flat.shape[0])
         rng.shuffle(idx)
         last_loss = 0.0
+        update_step = 0
         for _ in range(int(n_epochs)):
             rng.shuffle(idx)
             for start in range(0, len(idx), batch_size):
@@ -233,6 +245,11 @@ def learn_td(
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float(grad_clip))
                 algo.optimizer.step()
                 last_loss = float(loss.detach().cpu().item())
+                update_step += 1
+                if target_model is not None and (update_step % target_update_every == 0):
+                    with torch.no_grad():
+                        for p_t, p in zip(target_model.parameters(), model.parameters()):
+                            p_t.data.mul_(1.0 - target_tau).add_(p.data, alpha=target_tau)
 
         algo.policy.sync_from_model()
         algo.stats.append(

@@ -23,6 +23,8 @@ class TDConfig:
     weight_norm_eps: float = 1e-8
     stats_window: int = 100
     advantage_norm: str = "none"
+    target_tau: float = 0.0
+    target_update_every: int = 1
     seed: int = 12345
     max_steps_per_episode: int | None = None
 

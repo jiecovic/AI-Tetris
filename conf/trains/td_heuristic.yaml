@@ -17,7 +17,7 @@ callbacks:
 algo:
   type: td
   params:
-    gamma: 0.999                  # discount for value targets
+    gamma: 0.99                  # discount for value targets
     gae_lambda: 0.95              # lambda for GAE advantage estimate
     advantage_norm: none          # none | scale (std-only)
     learning_rate: 5.0e-5         # Adam step size
@@ -25,15 +25,17 @@ algo:
     clip_range_vf: 0.2            # value clipping range (0 disables)
     batch_size: 512               # minibatch size for updates
     n_epochs: 1                   # update epochs per rollout
+    rollout_steps: 2048           # steps per env before an update
     weight_init_std: 0.01         # init std for linear value head
     weight_norm: l2               # none: raw weights, l2: unit-norm weights (direction only)
     weight_scale: 1.0             # only used with l2 (multiplies the unit-norm weights)
     learn_scale: false             # learn weight_scale (starts at weight_scale)
     weight_norm_eps: 1.0e-8       # epsilon for norm stability
     stats_window: 1000            # moving window for rollout stats
+    target_tau: 0.005               # EMA target update (0 disables)
+    target_update_every: 1        # EMA update cadence (optimizer steps)
 learn:
   total_timesteps: 100_000_000
-  rollout_steps: 4096
-  n_envs: 32
+  n_envs: 16                      # parallel envs for rollout collection
   seed: 12345
   max_steps_per_episode: 500
