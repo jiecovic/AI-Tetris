@@ -117,7 +117,7 @@ def _build_eval_vec_env(
       - forces vec="dummy"
     """
     eval_run: RunConfig = run_cfg.model_copy(
-        update={"vec": "dummy", "n_envs": int(num_envs)},
+        update={"vec": "dummy", "n_envs": int(num_envs), "max_episode_steps": None},
     )
 
     built = make_vec_env_from_cfg(cfg=cfg, run_cfg=eval_run)

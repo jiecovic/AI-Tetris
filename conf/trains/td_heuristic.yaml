@@ -28,6 +28,7 @@ learn:
   weight_init_std: 0.01
   stats_window: 100
   seed: 12345
+  max_steps_per_episode: 500
 
 algo:
   type: td

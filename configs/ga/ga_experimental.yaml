@@ -1,9 +1,9 @@
 # @package _global_
 defaults:
   - hydra: default
-  - conf/envs@env_train: eval_empty
+  - conf/envs@env_train: empty
   - conf/rewards@env_train.reward: lines
-  - conf/envs@env_eval: eval_empty
+  - conf/envs@env_eval: empty
   - conf/rewards@env_eval.reward: lines
   - conf/planning_policies@policy: heuristic_new
   - conf/trains@_global_: ga_heuristic

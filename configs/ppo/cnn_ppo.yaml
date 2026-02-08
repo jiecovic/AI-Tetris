@@ -1,9 +1,9 @@
 # @package _global_
 defaults:
   - hydra: default
-  - conf/envs@env_train: train_warmup
+  - conf/envs@env_train: warmup
   - conf/rewards@env_train.reward: codemy_heuristic_delta
-  - conf/envs@env_eval: eval_empty
+  - conf/envs@env_eval: empty
   - conf/rewards@env_eval.reward: codemy_heuristic_delta
   - conf/sb3_policies@policy: cnn1
   - conf/trains@_global_: ppo_eval
@@ -19,3 +19,4 @@ run:
   device: cuda
   n_envs: 12
   vec: subproc
+  max_episode_steps: 500

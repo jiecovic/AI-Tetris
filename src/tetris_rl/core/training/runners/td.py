@@ -50,9 +50,22 @@ def _parse_td_config(obj: Any, *, seed_default: int) -> TDConfig:
     return TDConfig(**data)
 
 
-def _with_env_cfg(*, cfg: dict[str, Any], env_cfg: dict[str, Any]) -> dict[str, Any]:
+def _with_env_cfg(
+    *,
+    cfg: dict[str, Any],
+    env_cfg: dict[str, Any],
+    max_steps_per_episode: int | None = None,
+) -> dict[str, Any]:
     out = dict(cfg)
-    out["env"] = dict(env_cfg)
+    env_out = dict(env_cfg)
+    if max_steps_per_episode is not None:
+        params = env_out.get("params", {}) or {}
+        if not isinstance(params, dict):
+            params = {}
+        params = dict(params)
+        params["max_steps"] = int(max_steps_per_episode)
+        env_out["params"] = params
+    out["env"] = env_out
     return out
 
 
@@ -124,7 +137,16 @@ def run_td_experiment(cfg: DictConfig) -> int:
     envs: list[Any] = []
     for i in range(n_envs):
         seed_i = int(seed32_from(base_seed=int(td_cfg.seed), stream_id=int(0x7D00 + i)))
-        envs.append(make_env_from_cfg(cfg=_with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg), seed=seed_i).env)
+        envs.append(
+            make_env_from_cfg(
+                cfg=_with_env_cfg(
+                    cfg=cfg_dict,
+                    env_cfg=env_train_cfg,
+                    max_steps_per_episode=td_cfg.max_steps_per_episode,
+                ),
+                seed=seed_i,
+            ).env
+        )
 
     device = _device_from_run(run_cfg)
     value_model = LinearValueModel(num_features=int(len(features))).to(device=device)

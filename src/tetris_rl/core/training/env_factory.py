@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from gymnasium.wrappers import TimeLimit
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
@@ -52,7 +53,11 @@ def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_cfg: RunConfig) -> BuiltVe
             built = make_env_from_cfg(cfg=root, seed=int(env_seeds[int(rank)]))
 
             # Monitor expects a Gym Env, not your wrapper object.
-            env = Monitor(built.env)
+            env = built.env
+            max_episode_steps = getattr(run_cfg, "max_episode_steps", None)
+            if max_episode_steps is not None:
+                env = TimeLimit(env, max_episode_steps=int(max_episode_steps))
+            env = Monitor(env)
 
             # IMPORTANT: do NOT reset here.
             # VecEnv/SB3 will reset when needed; manual reset can double-reset

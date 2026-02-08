@@ -26,6 +26,7 @@ class RunConfig(ConfigBase):
     n_envs: int = Field(default=8, ge=1)
     workers: int = Field(default=1, ge=1)
     vec: VecKind = "subproc"
+    max_episode_steps: int | None = Field(default=None, ge=1)
 
     @field_validator("name")
     @classmethod

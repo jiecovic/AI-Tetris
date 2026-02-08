@@ -19,6 +19,7 @@ class TDConfig:
     weight_init_std: float = 0.01
     stats_window: int = 100
     seed: int = 12345
+    max_steps_per_episode: int | None = None
 
 
 __all__ = ["TDConfig"]
