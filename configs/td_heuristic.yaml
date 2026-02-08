@@ -1,10 +1,10 @@
 # @package _global_
 defaults:
   - hydra: default
-  - envs@env_train: eval_empty
-  - rewards@env_train.reward: lines
+  - envs@env_train: train_empty
+  - rewards@env_train.reward: lines_survival
   - envs@env_eval: eval_empty
-  - rewards@env_eval.reward: lines
+  - rewards@env_eval.reward: lines_survival
   - planning_policies@policy: heuristic
   - trains@_global_: td_heuristic
   - _self_

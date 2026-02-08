@@ -14,4 +14,4 @@ game:
       params:
         min_rows: 2              # lower bound of initialized rows
         max_rows: 18             # upper bound (engine will clamp to spawn-safe max)
-        holes: 3                 # fixed holes per row (current rust support)
+        holes: 2                 # fixed holes per row (current rust support)
