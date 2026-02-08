@@ -78,6 +78,29 @@ def _as_int(v: Any, default: int = 0) -> int:
         return int(default)
 
 
+def _fmt_compact_int(v: int) -> str:
+    abs_v = abs(int(v))
+    if abs_v < 1_000_000:
+        return f"{int(v)}"
+    for suffix, scale in (
+        ("T", 1_000_000_000_000),
+        ("B", 1_000_000_000),
+        ("M", 1_000_000),
+        ("K", 1_000),
+    ):
+        if abs_v >= scale:
+            value = abs_v / float(scale)
+            if value >= 100:
+                out = f"{value:.0f}"
+            elif value >= 10:
+                out = f"{value:.1f}"
+            else:
+                out = f"{value:.2f}"
+            sign = "-" if v < 0 else ""
+            return f"{sign}{out}{suffix}"
+    return f"{int(v)}"
+
+
 def _fmt_value(v: Any) -> str:
     """
     Generic "safe display" formatter for values coming from env/game.
@@ -89,7 +112,7 @@ def _fmt_value(v: Any) -> str:
         return "yes" if v else "no"
     try:
         if isinstance(v, int):
-            return f"{int(v)}"
+            return _fmt_compact_int(int(v))
         if isinstance(v, float):
             return f"{float(v):.2f}"
 
