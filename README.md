@@ -4,7 +4,7 @@
 
 Experimental playground for teaching AI to play Tetris.
 
-The project is a research and learning sandbox focused on model-free RL, planning policies, imitation, and representation learning. The codebase is YAML-driven (Hydra + Pydantic) to support fast experimentation.
+The project is a research and learning sandbox focused on planning policies, reinforcement learning, imitation, and representation learning. The codebase is YAML-driven (Hydra + Pydantic) to support fast experimentation.
 
 ---
 
