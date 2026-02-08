@@ -15,7 +15,7 @@ callbacks:
   eval_checkpoint:
     enabled: true                 # run eval + save best checkpoints
     every: 1                      # eval cadence in generations
-    episodes: 10                  # target completed episodes
+    episodes: 1000                  # target completed episodes
     min_steps: 1_000              # minimum total steps collected
     max_steps_per_episode: 1_000  # cap per episode (eval-only)
     deterministic: true           # planning policies are deterministic
@@ -26,7 +26,7 @@ callbacks:
 algo:
   type: ga
   params:
-    population_size: 100           # individuals per generation
+    population_size: 24           # individuals per generation
     selection: tournament           # tournament | elite_pool
     offspring_frac: 0.3             # fraction replaced by offspring
     tournament_frac: 0.1            # fraction sampled per tournament
