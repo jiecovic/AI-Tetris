@@ -73,9 +73,6 @@ class StatsAccumulator:
         self._sum_delta_agg_height = 0.0
         self._cnt_delta_agg_height = 0
 
-        self._sum_placed_cells_cleared = 0.0
-        self._cnt_placed_cells_cleared = 0
-
         # --- tf absolutes means ---
         self._sum_holes = 0.0
         self._cnt_holes = 0
@@ -90,9 +87,6 @@ class StatsAccumulator:
         self._cnt_agg_height = 0
 
         # --- tf rates ---
-        self._sum_all_cells_cleared = 0.0
-        self._cnt_all_cells_cleared = 0
-
         self._sum_invalid_action = 0.0
         self._cnt_invalid_action = 0
 
@@ -172,11 +166,6 @@ class StatsAccumulator:
             self._sum_delta_agg_height += float(v)
             self._cnt_delta_agg_height += 1
 
-        v = _as_float(tf.get("placed_cells_cleared"))
-        if v is not None:
-            self._sum_placed_cells_cleared += float(v)
-            self._cnt_placed_cells_cleared += 1
-
         # --- tf absolutes means ---
         v = _as_float(tf.get("holes"))
         if v is not None:
@@ -199,11 +188,6 @@ class StatsAccumulator:
             self._cnt_agg_height += 1
 
         # --- tf rates ---
-        b = _as_bool(tf.get("placed_all_cells_cleared"))
-        if b is not None:
-            self._sum_all_cells_cleared += 1.0 if b else 0.0
-            self._cnt_all_cells_cleared += 1
-
         b = _as_bool(tf.get("invalid_action"))
         if b is not None:
             self._sum_invalid_action += 1.0 if b else 0.0
@@ -276,15 +260,7 @@ class StatsAccumulator:
         if m is not None:
             out["tf/delta_agg_height_mean"] = m
 
-        m = self._mean(self._sum_placed_cells_cleared, self._cnt_placed_cells_cleared)
-        if m is not None:
-            out["tf/placed_cells_cleared_mean"] = m
-
         # tf rates
-        r = self._rate(self._sum_all_cells_cleared, self._cnt_all_cells_cleared)
-        if r is not None:
-            out["tf/placed_all_cells_cleared_rate"] = r
-
         r = self._rate(self._sum_invalid_action, self._cnt_invalid_action)
         if r is not None:
             out["tf/invalid_action_rate"] = r
@@ -344,8 +320,6 @@ class StatsAccumulator:
             "cnt_delta_bumpiness": int(self._cnt_delta_bumpiness),
             "sum_delta_agg_height": float(self._sum_delta_agg_height),
             "cnt_delta_agg_height": int(self._cnt_delta_agg_height),
-            "sum_placed_cells_cleared": float(self._sum_placed_cells_cleared),
-            "cnt_placed_cells_cleared": int(self._cnt_placed_cells_cleared),
             "sum_holes": float(self._sum_holes),
             "cnt_holes": int(self._cnt_holes),
             "sum_max_height": float(self._sum_max_height),
@@ -354,8 +328,6 @@ class StatsAccumulator:
             "cnt_bumpiness": int(self._cnt_bumpiness),
             "sum_agg_height": float(self._sum_agg_height),
             "cnt_agg_height": int(self._cnt_agg_height),
-            "sum_all_cells_cleared": float(self._sum_all_cells_cleared),
-            "cnt_all_cells_cleared": int(self._cnt_all_cells_cleared),
             "sum_invalid_action": float(self._sum_invalid_action),
             "cnt_invalid_action": int(self._cnt_invalid_action),
             "sum_game_over": float(self._sum_game_over),
@@ -385,8 +357,6 @@ class StatsAccumulator:
         self._cnt_delta_bumpiness += int(state.get("cnt_delta_bumpiness", 0))
         self._sum_delta_agg_height += float(state.get("sum_delta_agg_height", 0.0))
         self._cnt_delta_agg_height += int(state.get("cnt_delta_agg_height", 0))
-        self._sum_placed_cells_cleared += float(state.get("sum_placed_cells_cleared", 0.0))
-        self._cnt_placed_cells_cleared += int(state.get("cnt_placed_cells_cleared", 0))
 
         self._sum_holes += float(state.get("sum_holes", 0.0))
         self._cnt_holes += int(state.get("cnt_holes", 0))
@@ -397,8 +367,6 @@ class StatsAccumulator:
         self._sum_agg_height += float(state.get("sum_agg_height", 0.0))
         self._cnt_agg_height += int(state.get("cnt_agg_height", 0))
 
-        self._sum_all_cells_cleared += float(state.get("sum_all_cells_cleared", 0.0))
-        self._cnt_all_cells_cleared += int(state.get("cnt_all_cells_cleared", 0))
         self._sum_invalid_action += float(state.get("sum_invalid_action", 0.0))
         self._cnt_invalid_action += int(state.get("cnt_invalid_action", 0))
         self._sum_game_over += float(state.get("sum_game_over", 0.0))

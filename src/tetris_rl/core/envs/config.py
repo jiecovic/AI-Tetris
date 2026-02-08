@@ -1,14 +1,13 @@
 # src/tetris_rl/core/envs/config.py
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Mapping
 
 from pydantic import Field, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
-from tetris_rl.core.envs.invalid_action import InvalidActionPolicy
-from tetris_rl.core.envs.macro_actions import ActionMode
+from tetris_rl.core.envs.actions import ActionMode, InvalidActionPolicy
 from tetris_rl.core.envs.rewards.params import REWARD_PARAMS_REGISTRY, RewardParams
 from tetris_rl.core.game.config import GameConfig
 

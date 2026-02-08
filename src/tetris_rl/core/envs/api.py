@@ -19,15 +19,13 @@ class TransitionFeatures:
 
     Action identity (requested vs actually executed):
       - requested_rotation / requested_column: what the policy/agent asked for (macro action).
-      - used_rotation / used_column: the action actually executed (may differ if remapped).
+      - used_rotation / used_column: the action actually executed (same as requested unless engine remaps).
 
-    Strict legality (invariant: invalid_rot OR oob OR collision at current py):
+    Strict legality (engine truth):
       - applied: True iff we actually applied *some* placement to the active piece and executed hard_drop.
-                (False for noop/terminate, or if remap fails / no legal actions exist.)
+                (False for noop/terminate or invalid actions.)
       - invalid_action: True iff the originally requested action was illegal under strict rules.
-      - illegal_reason: why it was illegal ("invalid_rotation" | "oob" | "collision" | ...), else None.
-      - remapped: True iff we executed a different (rot,col) than requested due to invalid_action_policy.
-      - invalid_action_policy: "closest_legal" | "random_legal" if remapped, else None.
+      - invalid_action_policy: env-level policy for illegal actions ("noop" | "terminate").
 
     Mask/debug-only signals (mainly for MaskablePPO / sanity checks):
       - masked_action: whether the requested joint Discrete(rot×col) action was masked out as illegal.
@@ -36,12 +34,8 @@ class TransitionFeatures:
     Optional shaping/diagnostics:
       - delta_holes / delta_max_height / delta_bumpiness / delta_agg_height: board metric deltas vs previous step.
       - agg_height: current aggregate height (after step), if computed.
-      - board_before / board_after: optional raw grids (expensive; usually None).
       - max_height / holes / bumpiness: absolute metrics after step, if computed.
-
-    New “piece vanished” signals (line-clear interaction):
-      - placed_cells_cleared: how many of the 4 placed tetromino cells vanished due to cleared lines (0..4).
-      - placed_all_cells_cleared: True iff all 4 placed cells vanished (strong “perfect fit” signal).
+      - lock_* / lock_delta_*: same metrics on the lock grid (after placement, before line clear).
     """
 
     cleared_lines: int
@@ -65,12 +59,15 @@ class TransitionFeatures:
     delta_bumpiness: int | None = None
     delta_agg_height: int | None = None
     agg_height: int | None = None
+    lock_holes: int | None = None
+    lock_max_height: int | None = None
+    lock_bumpiness: int | None = None
+    lock_agg_height: int | None = None
+    lock_delta_holes: int | None = None
+    lock_delta_max_height: int | None = None
+    lock_delta_bumpiness: int | None = None
+    lock_delta_agg_height: int | None = None
 
-    placed_cells_cleared: int | None = None
-    placed_all_cells_cleared: bool | None = None
-
-    board_before: np.ndarray | None = None
-    board_after: np.ndarray | None = None
     max_height: int | None = None
     holes: int | None = None
     bumpiness: int | None = None
