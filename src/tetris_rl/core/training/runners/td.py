@@ -42,7 +42,7 @@ def _parse_td_config(obj: Any, *, seed_default: int) -> TDConfig:
     if isinstance(obj, TDConfig):
         return obj
     if not isinstance(obj, dict):
-        raise TypeError("learn config must be a mapping for TD runs")
+        raise TypeError("TD params must be a mapping for TD runs")
     allowed = set(TDConfig.__dataclass_fields__.keys())
     data = {k: v for k, v in obj.items() if k in allowed}
     if "seed" not in data:
@@ -104,10 +104,6 @@ def run_td_experiment(cfg: DictConfig) -> int:
         raise TypeError("policy.search must be a mapping")
     search = HeuristicSearch.model_validate(search_cfg)
 
-    learn_block = cfg_dict.get("learn", None)
-    if not isinstance(learn_block, dict):
-        raise TypeError("learn must be a mapping for TD runs")
-
     algo_block = cfg_dict.get("algo", None)
     if not isinstance(algo_block, dict):
         raise TypeError("algo must be a mapping for TD runs")
@@ -115,7 +111,19 @@ def run_td_experiment(cfg: DictConfig) -> int:
     if algo_type != "td":
         raise ValueError(f"algo.type must be 'td' for TD runs (got {algo_type!r})")
 
-    td_cfg = _parse_td_config(learn_block, seed_default=int(run_cfg.seed))
+    learn_block = cfg_dict.get("learn", None)
+    if learn_block is None:
+        learn_block = {}
+    if not isinstance(learn_block, dict):
+        raise TypeError("learn must be a mapping for TD runs")
+
+    algo_params = algo_block.get("params", None)
+    if algo_params is None:
+        algo_params = {}
+    if not isinstance(algo_params, dict):
+        raise TypeError("algo.params must be a mapping for TD runs")
+
+    td_cfg = _parse_td_config({**learn_block, **algo_params}, seed_default=int(run_cfg.seed))
     callbacks_cfg = CallbacksConfig.model_validate(cfg_dict.get("callbacks", {}) or {})
     eval_cfg = callbacks_cfg.eval_checkpoint
 
