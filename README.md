@@ -16,7 +16,7 @@ This project combines planning, imitation learning, and reinforcement learning f
 
 - Heuristic planning policies (Codemy-style linear heuristics with lookahead)
 - Genetic Algorithm (GA) optimization of heuristic weights
-- Temporal-difference (TD) learning for heuristic weights (GAE-style, optional EMA target net)
+- Temporal-difference (TD) learning for heuristic weights (custom planning/value TD for lookahead, with GAE-style updates and optional EMA target net)
 - Imitation learning (behavior cloning from expert data)
 - Reinforcement learning (PPO, Maskable PPO)
 
