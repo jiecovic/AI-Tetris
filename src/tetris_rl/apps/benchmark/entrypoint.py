@@ -134,7 +134,7 @@ class BenchTotals:
         denom_steps = float(max(1, self.steps))
 
         avg_ep_len_done_only = (
-            (self.sum_ep_len_done / float(self.episodes_done)) if self.episodes_done > 0 else 0.0
+            (self.sum_ep_len_done / float(self.episodes_done)) if self.episodes_done > 0 else None
         )
         # Option A: include the partial/in-progress episode at the end of the benchmark
         denom_eps_started = float(max(1, self.episodes_started))
@@ -147,7 +147,7 @@ class BenchTotals:
             "avg_reward_per_step": float(self.sum_reward / denom_steps),
             "avg_lines_per_step": float(self.sum_lines / denom_steps),
             "avg_score_per_step": float(self.sum_score_delta / denom_steps),
-            "avg_episode_len_done_only": float(avg_ep_len_done_only),
+            "avg_episode_len_done_only": avg_ep_len_done_only,
             "avg_episode_len_including_partial": float(avg_ep_len_including_partial),
             "illegal_step_pct": float(100.0 * float(self.illegal_steps) / denom_steps),
             "masked_step_pct": float(100.0 * float(self.masked_steps) / denom_steps),
@@ -174,12 +174,18 @@ def _format_report(*, meta: dict[str, Any], stats: dict[str, Any]) -> str:
     lines.append(f"  score/step  : {stats['avg_score_per_step']:.6f}")
     lines.append("")
     lines.append("Episode length")
-    lines.append(f"  avg (done-only)         : {stats['avg_episode_len_done_only']:.1f}")
+    if stats.get("avg_episode_len_done_only") is None:
+        lines.append("  avg (done-only)         : n/a")
+    else:
+        lines.append(f"  avg (done-only)         : {float(stats['avg_episode_len_done_only']):.1f}")
     lines.append(f"  avg (including partial) : {stats['avg_episode_len_including_partial']:.1f}")
     lines.append("")
     lines.append("Quality / safety")
     lines.append(f"  illegal steps : {stats['illegal_step_pct']:.3f}%")
     lines.append(f"  masked steps  : {stats['masked_step_pct']:.3f}%")
+    lines.append("")
+    lines.append("Speed")
+    lines.append(f"  steps/sec    : {stats.get('steps_per_sec', 0.0):.1f}")
     lines.append("=" * 86)
     return "\n".join(lines)
 
@@ -215,6 +221,7 @@ def _render_report_table(*, meta: dict[str, Any], stats: dict[str, Any]) -> Any 
     add_row("steps", int(stats["steps"]))
     add_row("episodes_started", int(stats["episodes_started"]))
     add_row("episodes_done", int(stats["episodes_done"]))
+    add_row("steps/sec", f"{stats.get('steps_per_sec', 0.0):.1f}")
 
     table.add_section()
     add_row("reward/step", f"{stats['avg_reward_per_step']:.6f}")
@@ -222,7 +229,8 @@ def _render_report_table(*, meta: dict[str, Any], stats: dict[str, Any]) -> Any 
     add_row("score/step", f"{stats['avg_score_per_step']:.6f}")
 
     table.add_section()
-    add_row("avg ep len (done-only)", f"{stats['avg_episode_len_done_only']:.1f}")
+    done_len = stats.get("avg_episode_len_done_only")
+    add_row("avg ep len (done-only)", "n/a" if done_len is None else f"{float(done_len):.1f}")
     add_row("avg ep len (+partial)", f"{stats['avg_episode_len_including_partial']:.1f}")
 
     table.add_section()
@@ -255,29 +263,51 @@ class _BenchInterimTable:
     def __init__(self, *, emit) -> None:
         self._emit = emit
         self._header_emitted = False
+        self._cols: list[tuple[str, int]] = [
+            ("steps", 8),
+            ("eps_done", 8),
+            ("r/step", 8),
+            ("lines/step", 10),
+            ("score/step", 10),
+            ("ep_len(done)", 12),
+            ("ep_len(+partial)", 16),
+            ("steps/s", 8),
+        ]
 
     def _emit_header(self) -> None:
-        self._emit(
-            "[bench]    steps  eps_done    r/step  lines/step  score/step  ep_len(done)  ep_len(+partial)"
-        )
-        self._emit(
-            "[bench] -------- -------- -------- ---------- ---------- ------------ ----------------"
-        )
+        header = "[bench] " + " ".join(f"{name:>{width}}" for name, width in self._cols)
+        sep = "[bench] " + " ".join("-" * width for _, width in self._cols)
+        self._emit(header)
+        self._emit(sep)
         self._header_emitted = True
 
     def emit_row(self, stats: dict[str, Any]) -> None:
         if not self._header_emitted:
             self._emit_header()
-        self._emit(
-            "[bench] "
-            f"{int(stats['steps']):>8} "
-            f"{int(stats['episodes_done']):>8} "
-            f"{float(stats['avg_reward_per_step']):>8.4f} "
-            f"{float(stats['avg_lines_per_step']):>10.4f} "
-            f"{float(stats['avg_score_per_step']):>10.2f} "
-            f"{float(stats['avg_episode_len_done_only']):>12.1f} "
-            f"{float(stats['avg_episode_len_including_partial']):>16.1f}"
+        values = [
+            f"{int(stats['steps'])}",
+            f"{int(stats['episodes_done'])}",
+            f"{float(stats['avg_reward_per_step']):.4f}",
+            f"{float(stats['avg_lines_per_step']):.4f}",
+            f"{float(stats['avg_score_per_step']):.2f}",
+            "n/a"
+            if stats.get("avg_episode_len_done_only") is None
+            else f"{float(stats['avg_episode_len_done_only']):.1f}",
+            f"{float(stats['avg_episode_len_including_partial']):.1f}",
+            f"{float(stats.get('steps_per_sec', 0.0)):.1f}",
+        ]
+        row = "[bench] " + " ".join(
+            f"{val:>{width}}" for val, (_name, width) in zip(values, self._cols)
         )
+        self._emit(row)
+
+
+def _speed_stats(*, steps: int, episodes_done: int, start_time_s: float) -> dict[str, float]:
+    elapsed = max(1e-9, float(time.perf_counter() - start_time_s))
+    return {
+        "elapsed_s": float(elapsed),
+        "steps_per_sec": float(steps) / float(elapsed),
+    }
 
 
 def run_benchmark(args: argparse.Namespace) -> int:
@@ -328,6 +358,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
         interim_table = _BenchInterimTable(emit=emit)
 
     totals = BenchTotals()
+    bench_start_s = time.perf_counter()
 
     obs, info = env.reset(seed=int(args.seed))
     totals.start_episode()
@@ -417,6 +448,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
             if print_every > 0 and (totals.steps % print_every) == 0 and (not bool(args.json)):
                 d = totals.to_dict()
+                d.update(_speed_stats(steps=int(d["steps"]), episodes_done=int(d["episodes_done"]), start_time_s=bench_start_s))
                 if interim_table is not None:
                     interim_table.emit_row(d)
 
@@ -440,6 +472,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
         env.close()
 
     stats = totals.to_dict()
+    stats.update(_speed_stats(steps=int(stats["steps"]), episodes_done=int(stats["episodes_done"]), start_time_s=bench_start_s))
     meta = {
         "run": str(args.run),
         "env": str(args.env).strip().lower(),
