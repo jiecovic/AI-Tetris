@@ -70,15 +70,21 @@ def parse_args() -> argparse.Namespace:
     )
 
     # --- benchmark controls ---
-    ap.add_argument("--steps", type=int, default=200_000, help="total env steps to run (across many episodes)")
-    ap.add_argument("--max-episodes", type=int, default=0, help="stop after N finished episodes (0 disables)")
+    ap.add_argument(
+        "--steps",
+        type=int,
+        default=0,
+        help="max env steps to run (0 disables; use with --episodes for a safety cap)",
+    )
+    ap.add_argument("--episodes", type=int, default=10, help="collect N finished episodes (0 disables)")
+    ap.add_argument("--max-episodes", type=int, default=0, help="alias for --episodes (deprecated)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--print-every", type=int, default=20_000, help="print interim stats every N steps (0 disables)")
     ap.add_argument("--json", action="store_true", help="print final stats as JSON only")
 
     # --- progress bar ---
-    ap.add_argument("--progress", action="store_true", help="show progress bar")
-    ap.add_argument("--no-progress", action="store_true", help="disable progress bar (overrides --progress)")
+    ap.add_argument("--progress", action="store_true", help="force progress bar on (default)")
+    ap.add_argument("--no-progress", action="store_true", help="disable progress bar")
 
     return ap.parse_args()
 
@@ -178,6 +184,102 @@ def _format_report(*, meta: dict[str, Any], stats: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_report_table(*, meta: dict[str, Any], stats: dict[str, Any]) -> Any | None:
+    try:
+        from rich import box
+        from rich.table import Table
+    except Exception:
+        return None
+
+    table = Table(title="[bench] RESULT", box=box.SIMPLE_HEAVY)
+    table.add_column("Metric", style="bold")
+    table.add_column("Value")
+
+    def add_row(label: str, value: Any) -> None:
+        table.add_row(str(label), str(value))
+
+    add_row("run", meta.get("run", "-"))
+    add_row("env", meta.get("env", "-"))
+    add_row("which", meta.get("which", "-"))
+    add_row("agent", meta.get("agent", "-"))
+    add_row("ckpt", meta.get("ckpt", "-"))
+    add_row("seed", meta.get("seed", "-"))
+    steps_cap = meta.get("steps_cap", 0)
+    episodes_target = meta.get("episodes_target", 0)
+    if int(steps_cap) > 0:
+        add_row("steps_cap", int(steps_cap))
+    if int(episodes_target) > 0:
+        add_row("episodes_target", int(episodes_target))
+
+    table.add_section()
+    add_row("steps", int(stats["steps"]))
+    add_row("episodes_started", int(stats["episodes_started"]))
+    add_row("episodes_done", int(stats["episodes_done"]))
+
+    table.add_section()
+    add_row("reward/step", f"{stats['avg_reward_per_step']:.6f}")
+    add_row("lines/step", f"{stats['avg_lines_per_step']:.6f}")
+    add_row("score/step", f"{stats['avg_score_per_step']:.6f}")
+
+    table.add_section()
+    add_row("avg ep len (done-only)", f"{stats['avg_episode_len_done_only']:.1f}")
+    add_row("avg ep len (+partial)", f"{stats['avg_episode_len_including_partial']:.1f}")
+
+    table.add_section()
+    add_row("illegal steps", f"{stats['illegal_step_pct']:.3f}%")
+    add_row("masked steps", f"{stats['masked_step_pct']:.3f}%")
+
+    return table
+
+
+def _emit_table(*, logger, table: Any) -> None:
+    if logger is None:
+        from rich.console import Console  # type: ignore
+
+        Console().print(table)
+        return
+    console = None
+    for handler in getattr(logger, "handlers", []):
+        console = getattr(handler, "console", None)
+        if console is not None:
+            break
+    if console is None:
+        from rich.console import Console  # type: ignore
+
+        Console().print(table)
+        return
+    console.print(table)
+
+
+class _BenchInterimTable:
+    def __init__(self, *, emit) -> None:
+        self._emit = emit
+        self._header_emitted = False
+
+    def _emit_header(self) -> None:
+        self._emit(
+            "[bench]    steps  eps_done    r/step  lines/step  score/step  ep_len(done)  ep_len(+partial)"
+        )
+        self._emit(
+            "[bench] -------- -------- -------- ---------- ---------- ------------ ----------------"
+        )
+        self._header_emitted = True
+
+    def emit_row(self, stats: dict[str, Any]) -> None:
+        if not self._header_emitted:
+            self._emit_header()
+        self._emit(
+            "[bench] "
+            f"{int(stats['steps']):>8} "
+            f"{int(stats['episodes_done']):>8} "
+            f"{float(stats['avg_reward_per_step']):>8.4f} "
+            f"{float(stats['avg_lines_per_step']):>10.4f} "
+            f"{float(stats['avg_score_per_step']):>10.2f} "
+            f"{float(stats['avg_episode_len_done_only']):>12.1f} "
+            f"{float(stats['avg_episode_len_including_partial']):>16.1f}"
+        )
+
+
 def run_benchmark(args: argparse.Namespace) -> int:
     ctx = build_run_context(
         run=str(args.run),
@@ -208,7 +310,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
     logger = None
     if not bool(args.json):
-        logger = setup_logger(name="tetris_rl.apps.benchmark", use_rich=False, level="info")
+        logger = setup_logger(name="tetris_rl.apps.benchmark", use_rich=True, level="info")
         logger.info("[bench] run_dir=%s", str(spec.run_dir))
         logger.info("[bench] cfg=%s", str(spec.cfg_path.name))
         logger.info("[bench] env=%s", str(args.env).strip().lower())
@@ -220,6 +322,10 @@ def run_benchmark(args: argparse.Namespace) -> int:
         logger.info("[bench] agent=%s", str(agent_name))
 
     poller = ctx.poller
+    interim_table = None
+    if not bool(args.json):
+        emit = logger.info if logger is not None else print
+        interim_table = _BenchInterimTable(emit=emit)
 
     totals = BenchTotals()
 
@@ -227,7 +333,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
     totals.start_episode()
 
     step_budget = max(0, int(args.steps))
-    max_eps_done = max(0, int(args.max_episodes))
+    episodes_target = max(0, int(args.episodes), int(args.max_episodes))
     print_every = max(0, int(args.print_every))
 
     last_reload_at_s: float | None = time.time()
@@ -245,16 +351,29 @@ def run_benchmark(args: argparse.Namespace) -> int:
         model, ckpt, algo_type = maybe
         last_reload_at_s = now_s
 
-    use_bar = bool(args.progress) and (not bool(args.no_progress)) and (not bool(args.json)) and step_budget > 0
-    pbar = tqdm(total=step_budget, unit="step", dynamic_ncols=True) if use_bar else None
+    use_steps = step_budget > 0
+    use_episodes = episodes_target > 0
+    if not use_steps and not use_episodes:
+        raise ValueError("benchmark requires --steps > 0 or --episodes > 0")
+
+    use_bar = (not bool(args.no_progress)) and (not bool(args.json)) and (use_steps or use_episodes)
+    pbar_total = step_budget if use_steps else episodes_target
+    pbar_unit = "step" if use_steps else "episode"
+    pbar = tqdm(total=pbar_total, unit=pbar_unit, dynamic_ncols=True) if use_bar else None
 
     # Throttle these to keep benchmark fast.
     POSTFIX_EVERY = 2000
 
     try:
-        while totals.steps < step_budget:
-            if max_eps_done > 0 and totals.episodes_done >= max_eps_done:
+        while True:
+            if use_episodes and totals.episodes_done >= episodes_target:
                 break
+            if use_steps and totals.steps >= step_budget:
+                if use_episodes and totals.cur_ep_len > 0:
+                    # Finish the in-progress episode when collecting full episodes.
+                    pass
+                else:
+                    break
 
             _maybe_reload()
 
@@ -284,7 +403,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
             )
 
             if pbar is not None:
-                pbar.update(1)
+                if use_steps:
+                    pbar.update(1)
                 if (totals.steps % POSTFIX_EVERY) == 0:
                     d = totals.to_dict()
                     pbar.set_postfix(
@@ -295,24 +415,17 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         ep_len=f"{d['avg_episode_len_including_partial']:.0f}",
                     )
 
-            if print_every > 0 and (totals.steps % print_every) == 0 and (not bool(args.json)) and logger is not None:
+            if print_every > 0 and (totals.steps % print_every) == 0 and (not bool(args.json)):
                 d = totals.to_dict()
-                logger.info(
-                    "[bench] interim steps=%s eps_done=%s r/step=%.4f lines/step=%.4f score/step=%.2f "
-                    "avg_ep_len(done)=%.1f avg_ep_len(+partial)=%.1f",
-                    str(d["steps"]),
-                    str(d["episodes_done"]),
-                    float(d["avg_reward_per_step"]),
-                    float(d["avg_lines_per_step"]),
-                    float(d["avg_score_per_step"]),
-                    float(d["avg_episode_len_done_only"]),
-                    float(d["avg_episode_len_including_partial"]),
-                )
+                if interim_table is not None:
+                    interim_table.emit_row(d)
 
             if bool(terminated or truncated):
                 totals.finish_episode()
                 obs, info = env.reset()
                 totals.start_episode()
+                if pbar is not None and (not use_steps):
+                    pbar.update(1)
 
     finally:
         if pbar is not None:
@@ -327,6 +440,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
         "agent": agent_name,
         "ckpt": str(getattr(ckpt, "name", str(ckpt))),
         "seed": int(args.seed),
+        "steps_cap": int(step_budget),
+        "episodes_target": int(episodes_target),
     }
 
     out = {**meta, **stats}
@@ -334,7 +449,16 @@ def run_benchmark(args: argparse.Namespace) -> int:
     if bool(args.json):
         print(json.dumps(out, indent=2, sort_keys=True))
     else:
-        print(_format_report(meta=meta, stats=stats))
+        report_table = _render_report_table(meta=meta, stats=stats)
+        if report_table is None:
+            report = _format_report(meta=meta, stats=stats)
+            if logger is None:
+                print(report)
+            else:
+                for line in report.splitlines():
+                    logger.info(line)
+        else:
+            _emit_table(logger=logger, table=report_table)
         # Still print JSON as a single line for copy/paste and quick diffing:
         print("[bench] json:", json.dumps(out, sort_keys=True))
 

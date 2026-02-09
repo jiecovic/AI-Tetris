@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import signal
+import threading
 from multiprocessing import get_context
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
@@ -255,19 +256,35 @@ def evaluate_planning_policy(
 
 _WORKER_ENV: Any | None = None
 _WORKER_POLICY: HeuristicPlanningPolicy | None = None
+_WORKER_PROGRESS: Any | None = None
 
 
-def _init_worker(env_cfg: Mapping[str, Any], spec: HeuristicSpec) -> None:
+def _init_worker(env_cfg: Mapping[str, Any], spec: HeuristicSpec, progress_queue: Any | None) -> None:
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    global _WORKER_ENV, _WORKER_POLICY
+    global _WORKER_ENV, _WORKER_POLICY, _WORKER_PROGRESS
     _WORKER_POLICY = HeuristicPlanningPolicy.from_spec(spec)
     _WORKER_ENV = make_env_from_cfg(cfg={"env": dict(env_cfg)}, seed=int(seed32_from(base_seed=0, stream_id=0))).env
+    _WORKER_PROGRESS = progress_queue
 
 
 def _worker_eval(args: tuple[int, int, int, int, Optional[int]]) -> Dict[str, Any]:
     eval_episodes, min_steps, seed_base, deterministic, max_steps_per_episode = args
     if _WORKER_ENV is None or _WORKER_POLICY is None:
         raise RuntimeError("worker not initialized")
+    steps_buf = 0
+
+    def _on_step(k: int) -> None:
+        nonlocal steps_buf
+        steps_buf += int(k)
+
+    def _on_episode(_done_eps: int, ret: Optional[float]) -> None:
+        nonlocal steps_buf
+        if _WORKER_PROGRESS is not None:
+            _WORKER_PROGRESS.put(("episode", int(steps_buf), _as_float(ret)))
+        steps_buf = 0
+
+    on_episode = _on_episode if _WORKER_PROGRESS is not None else None
+    on_step = _on_step if _WORKER_PROGRESS is not None else None
     return _planning_eval_state(
         policy=_WORKER_POLICY,
         env=_WORKER_ENV,
@@ -276,8 +293,8 @@ def _worker_eval(args: tuple[int, int, int, int, Optional[int]]) -> Dict[str, An
         max_steps_per_episode=max_steps_per_episode,
         seed_base=int(seed_base),
         deterministic=bool(deterministic),
-        on_episode=None,
-        on_step=None,
+        on_episode=on_episode,
+        on_step=on_step,
     )
 
 
@@ -344,6 +361,8 @@ def evaluate_planning_policy_parallel(
     pool = None
     terminated = False
     prev_handler = signal.getsignal(signal.SIGINT)
+    progress_queue = None
+    progress_thread = None
 
     def _sigint_handler(_signum, _frame) -> None:
         if pool is not None:
@@ -352,19 +371,42 @@ def evaluate_planning_policy_parallel(
 
     signal.signal(signal.SIGINT, _sigint_handler)
     try:
+        if on_episode is not None or on_step is not None:
+            progress_queue = ctx.Queue()
+
+            def _drain_progress() -> None:
+                nonlocal done_eps
+                if progress_queue is None:
+                    return
+                while True:
+                    msg = progress_queue.get()
+                    if msg is None:
+                        break
+                    kind, steps, ret = msg
+                    if kind != "episode":
+                        continue
+                    if on_step is not None and int(steps) > 0:
+                        on_step(int(steps))
+                    if on_episode is not None:
+                        done_eps += 1
+                        on_episode(int(done_eps), _as_float(ret))
+
+            progress_thread = threading.Thread(target=_drain_progress, daemon=True)
+            progress_thread.start()
+
         pool = ctx.Pool(
             processes=len(tasks),
             initializer=_init_worker,
-            initargs=(dict(env_cfg), spec),
+            initargs=(dict(env_cfg), spec, progress_queue),
         )
         for state in pool.imap(_worker_eval, tasks):
             states.append(state)
-            if on_step is not None:
+            if progress_queue is None and on_step is not None:
                 acc_state = state.get("acc_state", {})
                 steps = int(acc_state.get("n_steps", 0)) if isinstance(acc_state, Mapping) else 0
                 if steps > 0:
                     on_step(int(steps))
-            if on_episode is not None:
+            if progress_queue is None and on_episode is not None:
                 ep_returns = state.get("ep_returns", [])
                 if not isinstance(ep_returns, list):
                     ep_returns = []
@@ -388,6 +430,10 @@ def evaluate_planning_policy_parallel(
         if pool is not None and not terminated:
             pool.close()
             pool.join()
+        if progress_queue is not None:
+            progress_queue.put(None)
+        if progress_thread is not None:
+            progress_thread.join()
 
     return _summarize_eval_state(
         states=states,

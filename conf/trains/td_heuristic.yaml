@@ -2,13 +2,13 @@
 callbacks:
   latest:
     enabled: true
-    every: 50_000
+    every: 100_000
   eval_checkpoint:
     enabled: true
-    every: 50_000
-    episodes: 100
-    min_steps: 1_000
-    max_steps_per_episode: 50_000
+    every: 400_000
+    episodes: 1000
+    min_steps: 10_000
+    max_steps_per_episode: 100_000
     deterministic: true
     seed_offset: 10000
     mode: workers
@@ -39,4 +39,4 @@ learn:
   total_timesteps: 100_000_000
   n_envs: 32                      # parallel envs for rollout collection
   seed: 12345
-  max_steps_per_episode: 10_00
+  max_steps_per_episode: 50_00

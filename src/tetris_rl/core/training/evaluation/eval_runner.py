@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import signal
 import tempfile
+import threading
 from dataclasses import dataclass
 from multiprocessing import get_context
 from pathlib import Path
@@ -507,6 +508,7 @@ _WORKER_RUN_CFG: Dict[str, Any] | None = None
 _WORKER_MODEL_PATH: str | None = None
 _WORKER_ALGO_BLOCK: Dict[str, Any] | None = None
 _WORKER_DEVICE: str = "cpu"
+_WORKER_PROGRESS: Any | None = None
 
 
 def _init_eval_worker(
@@ -515,14 +517,16 @@ def _init_eval_worker(
     model_path: str,
     algo_block: Dict[str, Any],
     device: str,
+    progress_queue: Any | None,
 ) -> None:
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    global _WORKER_CFG, _WORKER_RUN_CFG, _WORKER_MODEL_PATH, _WORKER_ALGO_BLOCK, _WORKER_DEVICE
+    global _WORKER_CFG, _WORKER_RUN_CFG, _WORKER_MODEL_PATH, _WORKER_ALGO_BLOCK, _WORKER_DEVICE, _WORKER_PROGRESS
     _WORKER_CFG = cfg
     _WORKER_RUN_CFG = run_cfg
     _WORKER_MODEL_PATH = model_path
     _WORKER_ALGO_BLOCK = algo_block
     _WORKER_DEVICE = device
+    _WORKER_PROGRESS = progress_queue
 
 
 def _load_worker_model(*, env: Any) -> Any:
@@ -553,11 +557,24 @@ def _worker_eval(args: tuple[int, int, int, int, Optional[int]]) -> Dict[str, An
     eval_episodes, min_steps, seed_base, deterministic, max_steps_per_episode = args
     if _WORKER_CFG is None or _WORKER_RUN_CFG is None:
         raise RuntimeError("worker not initialized")
+    steps_buf = 0
+
+    def _on_step(k: int) -> None:
+        nonlocal steps_buf
+        steps_buf += int(k)
+
+    def _on_episode(_done_eps: int, ret: Optional[float]) -> None:
+        nonlocal steps_buf
+        if _WORKER_PROGRESS is not None:
+            _WORKER_PROGRESS.put(("episode", int(steps_buf), _as_float(ret)))
+        steps_buf = 0
 
     run_cfg = RunConfig.model_validate(_WORKER_RUN_CFG)
     vec_env, _built = _build_eval_vec_env(cfg=_WORKER_CFG, run_cfg=run_cfg, num_envs=1)
     try:
         model = _load_worker_model(env=vec_env)
+        on_episode = _on_episode if _WORKER_PROGRESS is not None else None
+        on_step = _on_step if _WORKER_PROGRESS is not None else None
         return _eval_state_loop(
             model=model,
             vec_env=vec_env,
@@ -566,8 +583,8 @@ def _worker_eval(args: tuple[int, int, int, int, Optional[int]]) -> Dict[str, An
             max_steps_per_episode=max_steps_per_episode,
             deterministic=bool(deterministic),
             seed_base=int(seed_base),
-            on_episode=None,
-            on_step=None,
+            on_episode=on_episode,
+            on_step=on_step,
         )
     finally:
         vec_env.close()
@@ -642,6 +659,9 @@ def evaluate_model_workers(
         pool = None
         terminated = False
         prev_handler = signal.getsignal(signal.SIGINT)
+        progress_queue = None
+        progress_thread = None
+        done_eps = 0
 
         def _sigint_handler(_signum, _frame) -> None:
             if pool is not None:
@@ -650,6 +670,29 @@ def evaluate_model_workers(
 
         signal.signal(signal.SIGINT, _sigint_handler)
         try:
+            if on_episode is not None or on_step is not None:
+                progress_queue = ctx.Queue()
+
+                def _drain_progress() -> None:
+                    nonlocal done_eps
+                    if progress_queue is None:
+                        return
+                    while True:
+                        msg = progress_queue.get()
+                        if msg is None:
+                            break
+                        kind, steps, ret = msg
+                        if kind != "episode":
+                            continue
+                        if on_step is not None and int(steps) > 0:
+                            on_step(int(steps))
+                        if on_episode is not None:
+                            done_eps += 1
+                            on_episode(int(done_eps), _as_float(ret))
+
+                progress_thread = threading.Thread(target=_drain_progress, daemon=True)
+                progress_thread.start()
+
             pool = ctx.Pool(
                 processes=len(tasks),
                 initializer=_init_eval_worker,
@@ -659,11 +702,12 @@ def evaluate_model_workers(
                     str(tmp_path),
                     dict(algo_block),
                     str(run_cfg.device),
+                    progress_queue,
                 ),
             )
             for state in pool.imap(_worker_eval, tasks):
                 states.append(state)
-                if on_step is not None:
+                if progress_queue is None and on_step is not None:
                     acc_state = state.get("acc_state", {})
                     steps = int(acc_state.get("n_steps", 0)) if isinstance(acc_state, Mapping) else 0
                     if steps > 0:
@@ -679,8 +723,10 @@ def evaluate_model_workers(
             if pool is not None and not terminated:
                 pool.close()
                 pool.join()
-
-    _ = on_episode
+            if progress_queue is not None:
+                progress_queue.put(None)
+            if progress_thread is not None:
+                progress_thread.join()
 
     return _summarize_eval_states(
         states=states,
