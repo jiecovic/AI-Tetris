@@ -1,21 +1,21 @@
 # @package _global_
 callbacks:
   latest:
-    enabled: true
-    every: 100_000
+    enabled: true                 # save latest checkpoints
+    every: 100_000                # save latest every N env steps
   eval_checkpoint:
-    enabled: true
-    every: 400_000
-    episodes: 1000
-    min_steps: 10_000
-    max_steps_per_episode: 100_000
-    deterministic: true
-    seed_offset: 10000
-    mode: workers
-    workers: 4
+    enabled: true                 # run eval + save best checkpoints
+    every: 400_000                # eval cadence in training env steps
+    episodes: 1000                # target completed episodes
+    min_steps: 10_000             # minimum total steps collected
+    max_steps_per_episode: 100_000  # cap per episode (eval-only)
+    deterministic: true           # planning policies are deterministic
+    seed_offset: 10000            # offset from run.seed for eval seeds
+    mode: workers                 # vectorized | workers
+    workers: 4                    # parallel eval workers
 
 algo:
-  type: td
+  type: td                        # td
   params:
     gamma: 0.99                  # discount for value targets
     gae_lambda: 0.95              # lambda for GAE advantage estimate
@@ -33,10 +33,10 @@ algo:
     learn_scale: true             # learn weight_scale (starts at weight_scale)
     weight_norm_eps: 1.0e-8       # epsilon for norm stability
     stats_window: 1000            # moving window for rollout stats
-    target_tau: 0.005               # EMA target update (0 disables)
+    target_tau: 0.005             # EMA target update (0 disables)
     target_update_every: 1        # EMA update cadence (optimizer steps)
 learn:
-  total_timesteps: 100_000_000
+  total_timesteps: 100_000_000    # total env steps for TD training
   n_envs: 32                      # parallel envs for rollout collection
-  seed: 12345
-  max_steps_per_episode: 50_00
+  seed: 12345                     # TD RNG seed
+  max_steps_per_episode: 50_00    # cap per training episode

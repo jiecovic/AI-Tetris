@@ -2,21 +2,22 @@
 callbacks:
   latest:
     enabled: true                     # save latest checkpoints
-    every: 20_000                     # save latest every N env steps
+    every: 50_000                     # save latest every N env steps
   eval_checkpoint:
     enabled: true                     # run eval + save best checkpoints
-    every: 5_000_000                  # eval cadence in training env steps
-    episodes: 200                     # target completed episodes
-    min_steps: 100_000                # minimum total steps collected
-    max_steps_per_episode: 5_000      # cap per episode (eval-only)
+    every: 100_000                  # eval cadence in training env steps
+    episodes: 500                     # target completed episodes
+    min_steps: 1_000                # minimum total steps collected
+    max_steps_per_episode: 50_000      # cap per episode (eval-only)
     deterministic: true               # SB3 eval uses deterministic actions
     seed_offset: 10_000               # offset from run.seed for eval seeds
     mode: vectorized                  # vectorized | workers
-    num_envs: 1                       # eval env count
+    num_envs: 12                       # eval env count
     workers: 1                        # parallel workers (workers mode)
 
 learn:
   total_timesteps: 800_000_000        # total env steps for RL training
+  max_steps_per_episode: 500          # cap per training episode (env truncation)
 #  resume: experiments/cnn_run_013
 
 algo:

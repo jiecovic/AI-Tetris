@@ -96,6 +96,7 @@ class AlgoConfig(ConfigBase):
 
 class LearnConfig(ConfigBase):
     total_timesteps: int = Field(default=200_000, ge=0)
+    max_steps_per_episode: Optional[int] = Field(default=None, ge=1)
 
     # Resume training from a previous run folder.
     resume: Optional[str] = None

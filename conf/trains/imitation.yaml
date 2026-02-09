@@ -16,7 +16,7 @@ callbacks:
     workers: 1                        # parallel workers (workers mode)
 
 learn:
-  dataset_dir: datasets/bc/codemy2_uniform_noise
+  dataset_dir: datasets/bc/codemy2_uniform_noise  # dataset root (BC samples)
   epochs: 10                          # number of epochs over dataset
   batch_size: 512                     # batch size for BC updates
   learning_rate: 1.0e-4               # optimizer learning rate
@@ -28,6 +28,6 @@ learn:
   resume: null                        # optional: run dir or checkpoint path
 
 algo:
-  type: imitation
+  type: imitation                     # imitation
   params:
     policy_backend: maskable_ppo        # ppo | maskable_ppo

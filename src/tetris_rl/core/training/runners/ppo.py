@@ -54,6 +54,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
     env_eval_cfg = exp_cfg.env_eval
     policy_cfg = exp_cfg.policy
     seed_all(int(run_cfg.seed))
+    max_steps_per_episode = getattr(learn_cfg, "max_steps_per_episode", None)
 
     logger = setup_logger(name="tetris_rl.core.training", use_rich=True, level=str(exp_cfg.log_level))
     artifacts = init_run_artifacts(cfg_dict=cfg_dict, run_cfg=run_cfg, logger=logger)
@@ -63,14 +64,18 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
 
     t0 = time.perf_counter()
     logger.info("[timing] building vec env...")
-    cfg_train = with_env_cfg(cfg=cfg_dict, env_cfg=env_train_cfg.model_dump(mode="json"))
+    cfg_train = with_env_cfg(
+        cfg=cfg_dict,
+        env_cfg=env_train_cfg.model_dump(mode="json"),
+        max_steps_per_episode=max_steps_per_episode,
+    )
     probe_train = make_env_from_cfg(cfg=cfg_train, seed=int(run_cfg.seed))
     log_env_reward_summary(
         logger=logger,
         label="train",
         built_env=probe_train,
         env_cfg=env_train_cfg.model_dump(mode="json"),
-        time_limit_steps=run_cfg.max_episode_steps,
+        time_limit_steps=None,
     )
     try:
         probe_train.env.close()
