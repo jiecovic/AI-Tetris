@@ -16,7 +16,7 @@ This project combines planning, imitation learning, and reinforcement learning f
 
 - Heuristic planning policies (Codemy-style linear heuristics with lookahead)
 - Genetic Algorithm (GA) optimization of heuristic weights
-- Temporal-difference (TD) learning for heuristic weights (GAE-style value updates)
+- Temporal-difference (TD) learning for heuristic weights (GAE-style, optional EMA target net)
 - Imitation learning (behavior cloning from expert data)
 - Reinforcement learning (PPO, Maskable PPO)
 
@@ -82,6 +82,8 @@ TD heuristic training:
 ```bash
 tetris-train -cfg .\configs\td\td_heuristic.yaml
 ```
+
+TD config supports weight normalization/scale, EMA target updates, and auto feature-clear mode (pre/post).
 
 Config layout (Hydra):
 

@@ -422,10 +422,17 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
             if bool(terminated or truncated):
                 totals.finish_episode()
-                obs, info = env.reset()
-                totals.start_episode()
                 if pbar is not None and (not use_steps):
                     pbar.update(1)
+                stop_now = False
+                if use_episodes and totals.episodes_done >= episodes_target:
+                    stop_now = True
+                if use_steps and totals.steps >= step_budget:
+                    stop_now = True
+                if stop_now:
+                    break
+                obs, info = env.reset()
+                totals.start_episode()
 
     finally:
         if pbar is not None:
