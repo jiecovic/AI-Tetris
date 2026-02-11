@@ -1,5 +1,6 @@
 // rust/py/src/expert_policy.rs
 #![forbid(unsafe_code)]
+#![allow(clippy::useless_conversion)]
 
 use pyo3::prelude::*;
 
@@ -98,7 +99,7 @@ impl ExpertPolicy {
             feats.push(f);
         }
         let beam = beam_width.map(|w| BeamConfig::new(beam_from_depth, w));
-        let policy = HeuristicPolicy::new(feats, weights, plies, beam, bool::from(after_clear)).map_err(|e| {
+        let policy = HeuristicPolicy::new(feats, weights, plies, beam, after_clear).map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!("heuristic policy: {e}"))
         })?;
         Ok(Self {

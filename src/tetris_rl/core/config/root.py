@@ -1,7 +1,7 @@
 # src/tetris_rl/core/config/root.py
 from __future__ import annotations
 
-from pydantic import model_validator
+from pydantic import field_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.datagen.config import (
@@ -43,12 +43,13 @@ class ImitationExperimentConfig(ConfigBase):
     algo: ImitationAlgoConfig = ImitationAlgoConfig()
     callbacks: CallbacksConfig = CallbacksConfig()
 
-    @model_validator(mode="after")
-    def _validate_imitation_dataset(self) -> "ImitationExperimentConfig":
-        dataset_dir = self.learn.dataset_dir
+    @field_validator("learn")
+    @classmethod
+    def _validate_imitation_dataset(cls, v: ImitationLearnConfig) -> ImitationLearnConfig:
+        dataset_dir = v.dataset_dir
         if not str(dataset_dir).strip():
             raise ValueError("imitation.dataset_dir must be set")
-        return self
+        return v
 
 
 class DataGenConfig(ConfigBase):

@@ -142,7 +142,7 @@ fn main() {
         // Header cadence is a formatting detail; cadence in *steps* is handled by Runner.
         Box::new(TableSink::new(20))
     } else {
-        Box::new(NoopSink::default())
+        Box::new(NoopSink)
     };
 
     let mut runner = Runner::new(cfg, sink);

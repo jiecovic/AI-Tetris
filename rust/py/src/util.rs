@@ -22,12 +22,8 @@ pub(crate) fn grid_rows_to_pyarray2<'py>(
     let r0 = r0.min(r1);
 
     let mut rows: Vec<Vec<u8>> = Vec::with_capacity(r1 - r0);
-    for r in r0..r1 {
-        let mut row: Vec<u8> = Vec::with_capacity(W);
-        for c in 0..W {
-            row.push(grid[r][c]);
-        }
-        rows.push(row);
+    for row in grid.iter().take(r1).skip(r0) {
+        rows.push(row.to_vec());
     }
 
     PyArray2::from_vec2_bound(py, &rows).expect("from_vec2 failed")

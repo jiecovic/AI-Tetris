@@ -3,7 +3,7 @@
 
 use std::sync::OnceLock;
 
-use crate::engine::{Game, Kind, ACTION_DIM, H, W};
+use crate::engine::{Game, Kind, H, W};
 
 #[inline]
 fn kind_idx0(k: Kind) -> usize {
@@ -43,12 +43,11 @@ pub(crate) fn empty_valid_action_ids(kind: Kind) -> &'static [usize] {
         for &k in Kind::all() {
             let mask = Game::action_mask_for_grid(&empty, k);
 
-            let mut v = Vec::new();
             // Tighter upper bound than ACTION_DIM; still safe.
-            v.reserve(k.num_rots() * W);
+            let mut v = Vec::with_capacity(k.num_rots() * W);
 
-            for aid in 0..ACTION_DIM {
-                if mask[aid] {
+            for (aid, is_valid) in mask.iter().enumerate() {
+                if *is_valid {
                     v.push(aid);
                 }
             }

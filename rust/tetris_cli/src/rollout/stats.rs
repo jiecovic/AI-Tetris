@@ -233,6 +233,7 @@ impl RolloutStats {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn final_report(
         &self,
         policy_name: &str,

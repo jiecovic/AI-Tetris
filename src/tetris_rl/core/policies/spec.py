@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from omegaconf import OmegaConf
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from tetris_rl.core.config.io import load_yaml
 
@@ -16,18 +16,34 @@ class HeuristicSearch(BaseModel):
     beam_from_depth: int = 0
     feature_clear_mode: str = "post"
 
-    @model_validator(mode="after")
-    def _validate(self) -> "HeuristicSearch":
-        if self.plies < 1:
+    @field_validator("plies")
+    @classmethod
+    def _validate_plies(cls, v: int) -> int:
+        if int(v) < 1:
             raise ValueError("search.plies must be >= 1")
-        if self.beam_width is not None and self.beam_width < 1:
+        return v
+
+    @field_validator("beam_width")
+    @classmethod
+    def _validate_beam_width(cls, v: int | None) -> int | None:
+        if v is not None and int(v) < 1:
             raise ValueError("search.beam_width must be >= 1")
-        if self.beam_from_depth < 0:
+        return v
+
+    @field_validator("beam_from_depth")
+    @classmethod
+    def _validate_beam_from_depth(cls, v: int) -> int:
+        if int(v) < 0:
             raise ValueError("search.beam_from_depth must be >= 0")
-        mode = str(self.feature_clear_mode).strip().lower()
+        return v
+
+    @field_validator("feature_clear_mode", mode="before")
+    @classmethod
+    def _validate_feature_clear_mode(cls, v: object) -> str:
+        mode = str(v).strip().lower()
         if mode not in {"lock", "pre", "post", "clear"}:
             raise ValueError("search.feature_clear_mode must be pre|lock|post|clear")
-        return self
+        return mode
 
 
 class HeuristicSpec(BaseModel):
@@ -37,13 +53,22 @@ class HeuristicSpec(BaseModel):
     weights: list[float] = Field(default_factory=list)
     search: HeuristicSearch = Field(default_factory=HeuristicSearch)
 
-    @model_validator(mode="after")
-    def _validate(self) -> "HeuristicSpec":
-        if not self.features:
+    @field_validator("features")
+    @classmethod
+    def _validate_features(cls, v: list[str]) -> list[str]:
+        if not v:
             raise ValueError("features must be non-empty")
-        if len(self.features) != len(self.weights):
+        return v
+
+    @field_validator("weights", mode="after")
+    @classmethod
+    def _validate_weights(cls, v: list[float], info: ValidationInfo) -> list[float]:
+        features = info.data.get("features", [])
+        if not features:
+            raise ValueError("features must be non-empty")
+        if len(features) != len(v):
             raise ValueError("features/weights length mismatch")
-        return self
+        return v
 
 
 def load_heuristic_spec(path: Path) -> HeuristicSpec:

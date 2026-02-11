@@ -58,8 +58,8 @@ pub fn compute_grid_features(grid: &[[u8; W]; H]) -> GridFeatures {
 /// (hidden spawn rows are zeroed before feature extraction).
 pub fn compute_grid_features_visible(grid: &[[u8; W]; H]) -> GridFeatures {
     let mut g = *grid;
-    for r in 0..HIDDEN_ROWS {
-        g[r] = [0u8; W];
+    for row in g.iter_mut().take(HIDDEN_ROWS) {
+        *row = [0u8; W];
     }
     compute_grid_features(&g)
 }
@@ -87,8 +87,8 @@ pub fn compute_step_features(grid: &[[u8; W]; H], prev: Option<GridFeatures>) ->
 fn column_heights(grid: &[[u8; W]; H]) -> [u32; W] {
     let mut h = [0u32; W];
     for c in 0..W {
-        for r in 0..H {
-            if grid[r][c] != 0 {
+        for (r, row) in grid.iter().enumerate() {
+            if row[c] != 0 {
                 h[c] = (H - r) as u32;
                 break;
             }
@@ -119,7 +119,7 @@ fn bumpiness(heights: &[u32; W]) -> u32 {
     for i in 0..(W - 1) {
         let a = heights[i] as i32;
         let c = heights[i + 1] as i32;
-        b += (a - c).abs() as u32;
+        b += (a - c).unsigned_abs();
     }
     b
 }

@@ -10,9 +10,7 @@ use tetris_engine::{H, HIDDEN_ROWS, W};
 /// and zero on hidden rows. This allows reuse of feature functions that expect [[u8; W]; H].
 pub(crate) fn visible_grid_as_full_h(grid: &[[u8; W]; H]) -> [[u8; W]; H] {
     let mut out = [[0u8; W]; H];
-    for r in HIDDEN_ROWS..H {
-        out[r] = grid[r];
-    }
+    out[HIDDEN_ROWS..H].copy_from_slice(&grid[HIDDEN_ROWS..H]);
     out
 }
 

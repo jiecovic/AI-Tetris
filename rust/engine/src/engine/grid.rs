@@ -69,14 +69,15 @@ pub fn clear_lines_inplace(grid: &mut [[u8; W]; H]) -> (u32, bool) {
     }
 
     if write_row >= 0 {
-        for r in 0..=write_row {
-            grid[r as usize] = [0u8; W];
+        let max_r = (write_row as usize) + 1;
+        for row in grid.iter_mut().take(max_r) {
+            *row = [0u8; W];
         }
     }
 
     let mut spawn_occupied = false;
-    for r in 0..HIDDEN_ROWS {
-        if grid[r].iter().any(|&c| c != 0) {
+    for row in grid.iter().take(HIDDEN_ROWS) {
+        if row.iter().any(|&c| c != 0) {
             spawn_occupied = true;
             break;
         }
@@ -108,15 +109,12 @@ pub fn apply_warmup_garbage(grid: &mut [[u8; W]; H], seed: u64, rows: u8, holes:
         let r = H - 1 - i;
 
         // Fill row
-        for c in 0..W {
-            grid[r][c] = 1;
-        }
+        grid[r].fill(1);
 
         // Sample `holes` distinct columns: shuffle prefix of [0..W)
         cols.shuffle(&mut rng);
-        for j in 0..holes_usize {
-            let hole_c = cols[j];
-            grid[r][hole_c] = 0;
+        for hole_c in cols.iter().take(holes_usize) {
+            grid[r][*hole_c] = 0;
         }
     }
 }
@@ -128,8 +126,8 @@ pub fn apply_warmup_garbage(grid: &mut [[u8; W]; H], seed: u64, rows: u8, holes:
 /// want "visible-only" metrics you should start scanning from `HIDDEN_ROWS` instead of `0`.
 #[inline]
 pub fn col_height(grid: &[[u8; W]; H], c: usize) -> u32 {
-    for r in 0..H {
-        if grid[r][c] != 0 {
+    for (r, row) in grid.iter().enumerate() {
+        if row[c] != 0 {
             return (H - r) as u32;
         }
     }

@@ -8,6 +8,8 @@ use super::empty_cache::{empty_valid_action_ids, kind_idx0_u8};
 use super::score::score_grid;
 use super::unknown::UnknownModel;
 
+pub(super) type BestResponseCache = rustc_hash::FxHashMap<(u64, u8), (usize, f64, [[u8; W]; H])>;
+
 pub trait GridScorer {
     fn score(&self, grid: &[[u8; W]; H]) -> f64;
 }
@@ -122,8 +124,8 @@ impl<S: GridScorer> SearchCore<S> {
         let kept = prune_top_n_scores_inplace(&mut scores, len, n);
 
         let mut best = f64::NEG_INFINITY;
-        for i in 0..kept {
-            best = best.max(scores[i].1);
+        for &(_, score) in scores.iter().take(kept) {
+            best = best.max(score);
         }
         best
     }
@@ -196,8 +198,7 @@ impl<S: GridScorer> SearchCore<S> {
         let kept = prune_top_n_scores_inplace(&mut proxies, len, n);
 
         let mut best = f64::NEG_INFINITY;
-        for i in 0..kept {
-            let aid = proxies[i].0;
+        for &(aid, _score) in proxies.iter().take(kept) {
             let sim = Game::apply_action_id_to_grid(grid, kind, aid);
             if sim.invalid {
                 continue;
@@ -228,8 +229,8 @@ impl<S: GridScorer> SearchCore<S> {
         let mask = g.action_mask();
         let mut out: Vec<(usize, f64)> = Vec::with_capacity(ACTION_DIM);
 
-        for aid0 in 0..ACTION_DIM {
-            if !mask[aid0] {
+        for (aid0, is_valid) in mask.iter().enumerate() {
+            if !*is_valid {
                 continue; // invalid by engine mask (includes redundant rotation slots)
             }
             if self.score_after_clear {
@@ -261,9 +262,9 @@ impl<S: GridScorer> SearchCore<S> {
     #[inline]
     pub(crate) fn hash_grid(grid: &[[u8; W]; H]) -> u64 {
         let mut h: u64 = 1469598103934665603;
-        for r in 0..H {
-            for c in 0..W {
-                h ^= grid[r][c] as u64;
+        for row in grid.iter() {
+            for &cell in row.iter() {
+                h ^= cell as u64;
                 h = h.wrapping_mul(1099511628211);
             }
         }
@@ -276,7 +277,7 @@ impl<S: GridScorer> SearchCore<S> {
         &self,
         grid: &[[u8; W]; H],
         kind: Kind,
-        cache: &mut rustc_hash::FxHashMap<(u64, u8), (usize, f64, [[u8; W]; H])>,
+        cache: &mut BestResponseCache,
     ) -> Option<(usize, f64, [[u8; W]; H])> {
         let key = (Self::hash_grid(grid), kind_idx0_u8(kind));
         if let Some(v) = cache.get(&key) {

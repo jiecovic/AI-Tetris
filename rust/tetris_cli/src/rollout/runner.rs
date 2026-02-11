@@ -176,7 +176,10 @@ impl Runner {
             // Periodic table report (verbosity == 2 only).
             // IMPORTANT: the table prints only AGGREGATE stats.
             // ------------------------------------------------------------
-            if cfg.verbosity == 2 && cfg.report_every > 0 && (stats.steps_done % cfg.report_every == 0) {
+            if cfg.verbosity == 2
+                && cfg.report_every > 0
+                && stats.steps_done.is_multiple_of(cfg.report_every)
+            {
                 let live_total_lines = total_lines_finished + game.lines_cleared;
                 let live_total_score = total_score_finished + game.score;
 
@@ -214,7 +217,7 @@ impl Runner {
             // ------------------------------------------------------------
             // Live progress message cadence (fixed internal cadence).
             // ------------------------------------------------------------
-            if cfg.verbosity >= 1 && (stats.steps_done % LIVE_EVERY == 0) {
+            if cfg.verbosity >= 1 && stats.steps_done.is_multiple_of(LIVE_EVERY) {
                 let live_total_lines = total_lines_finished + game.lines_cleared;
                 let live_total_score = total_score_finished + game.score;
 

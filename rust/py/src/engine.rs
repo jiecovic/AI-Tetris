@@ -1,5 +1,6 @@
 // rust/py/src/engine.rs
 #![forbid(unsafe_code)]
+#![allow(clippy::useless_conversion)]
 
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::PyValueError;

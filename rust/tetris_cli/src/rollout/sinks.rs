@@ -130,7 +130,7 @@ impl RolloutSink for TableSink {
     fn on_report_row(&mut self, row: &ReportRow, pb: Option<&indicatif::ProgressBar>) {
         let mut lines: Vec<String> = Vec::new();
 
-        if self.rows_printed == 0 || (self.rows_printed % self.header_every == 0) {
+        if self.rows_printed == 0 || self.rows_printed.is_multiple_of(self.header_every) {
             lines.push(self.header_line());
             lines.push(self.sep_line());
         }

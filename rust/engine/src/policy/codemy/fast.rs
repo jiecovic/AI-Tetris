@@ -3,10 +3,10 @@
 
 use rustc_hash::FxHashMap;
 
-use crate::engine::{Game, ACTION_DIM, H, W};
+use crate::engine::Game;
 use crate::policy::base::Policy;
 
-use super::core::CodemyCore;
+use super::core::{BestResponseCache, CodemyCore};
 
 /// "codemy2fast": codemy1 exact best-response to known next piece,
 /// plus a cheap one-step tail estimate for the unknown next-next piece.
@@ -29,14 +29,13 @@ impl Policy for Codemy2FastPolicy {
         //  - tail_cache: grid_hash -> best leaf scores for each kind (7)
         //  - br_cache: (grid_hash, kind) -> (best_aid, best_score_lock, best_grid_after_clear)
         let mut tail_cache: FxHashMap<u64, [f64; 7]> = FxHashMap::default();
-        let mut br_cache: FxHashMap<(u64, u8), (usize, f64, [[u8; W]; H])> =
-            FxHashMap::default();
+        let mut br_cache: BestResponseCache = FxHashMap::default();
 
         let mask1 = g.action_mask();
         let mut best: Option<(usize, f64)> = None;
 
-        for aid0 in 0..ACTION_DIM {
-            if !mask1[aid0] {
+        for (aid0, is_valid) in mask1.iter().enumerate() {
+            if !*is_valid {
                 continue;
             }
             let sim1 = g.simulate_action_id_active(aid0);

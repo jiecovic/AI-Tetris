@@ -130,7 +130,7 @@ pub fn apply_warmup(grid: &mut [[u8; W]; H], episode_seed: u64, spec: &WarmupSpe
 
 fn max_warmup_rows() -> u8 {
     // Enforce invariant: DEFAULT_SPAWN_BUFFER >= HIDDEN_ROWS
-    let sb = (DEFAULT_SPAWN_BUFFER as usize).max(HIDDEN_ROWS);
+    let sb = DEFAULT_SPAWN_BUFFER.max(HIDDEN_ROWS);
 
     let max_rows_usize = H.saturating_sub(sb).min(u8::MAX as usize);
     max_rows_usize as u8
@@ -177,7 +177,7 @@ fn sample_rows(rng: &mut StdRng, dist: RowCountDist) -> u8 {
             if lambda <= 0.0 {
                 base.min(cap)
             } else {
-                let k = poisson_knuth(rng, lambda) as u32;
+                let k = poisson_knuth(rng, lambda);
                 let v = (base as u32).saturating_add(k);
                 (v.min(cap as u32)) as u8
             }

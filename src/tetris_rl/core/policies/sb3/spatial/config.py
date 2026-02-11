@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import field_validator, model_validator
+from pydantic import ValidationInfo, field_validator
 
 from tetris_rl.core.config.base import ConfigBase
 
@@ -85,15 +85,17 @@ class StemConfig(ConfigBase):
     def _type_lower(cls, v: object) -> str:
         return str(v).strip().lower()
 
-    @model_validator(mode="after")
-    def _validate_params(self) -> "StemConfig":
-        if self.type == "cnn":
-            if self.params is None:
+    @field_validator("params", mode="after")
+    @classmethod
+    def _validate_params(cls, v: Optional[CNNStemParams], info: ValidationInfo) -> Optional[CNNStemParams]:
+        stem_type = info.data.get("type")
+        if stem_type == "cnn":
+            if v is None:
                 raise ValueError("stem.type='cnn' requires params")
         else:
-            if self.params is not None:
-                raise ValueError(f"stem.type='{self.type}' must not have params")
-        return self
+            if v is not None:
+                raise ValueError(f"stem.type='{stem_type}' must not have params")
+        return v
 
 
 __all__ = [

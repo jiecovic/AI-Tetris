@@ -174,7 +174,7 @@ impl Game {
     pub fn action_mask_for_grid(grid: &[[u8; W]; H], kind: Kind) -> [bool; ACTION_DIM] {
         let mut m = [false; ACTION_DIM];
 
-        for aid in 0..ACTION_DIM {
+        for (aid, slot) in m.iter_mut().enumerate() {
             let (rot_u, col_u) = decode_action_id(aid);
 
             // Reject redundant/non-existent rotation slots (prevents duplicate action ids).
@@ -195,7 +195,7 @@ impl Game {
 
             let x = bbox_left_to_anchor_x(kind, rot, col_left);
             if fits_on_grid(grid, kind, rot, x, 0) {
-                m[aid] = true;
+                *slot = true;
             }
         }
 
