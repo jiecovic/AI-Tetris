@@ -121,7 +121,7 @@ class EvalCheckpointCore:
         mode = str(self.spec.eval.mode).strip().lower()
         workers = max(1, int(self.spec.eval.workers))
 
-        pbar: Optional[tqdm] = None
+        pbar: Any = None
         if int(self.spec.verbose) >= 1:
             pbar = tqdm(
                 total=eval_episodes,

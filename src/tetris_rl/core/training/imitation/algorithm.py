@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
 from stable_baselines3.common.policies import ActorCriticPolicy
@@ -79,16 +79,21 @@ class ImitationAlgorithm(BaseAlgorithm):
         env: EnvSpec,
         params: ImitationAlgoParams,
         device: str = "cpu",
+        policy_loader: Callable[[str | Path], Any] | None = None,
+        **_kwargs: Any,
     ) -> "ImitationAlgorithm":
-        backend = str(params.policy_backend).strip().lower()
-        if backend == "maskable_ppo":
-            from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
-
-            policy = MaskableActorCriticPolicy.load(str(path), device=str(device))
-        elif backend == "ppo":
-            policy = ActorCriticPolicy.load(str(path), device=str(device))
+        if policy_loader is not None:
+            policy = policy_loader(path)
         else:
-            raise ValueError(f"unsupported policy_backend: {params.policy_backend!r}")
+            backend = str(params.policy_backend).strip().lower()
+            if backend == "maskable_ppo":
+                from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
+
+                policy = MaskableActorCriticPolicy.load(str(path), device=str(device))
+            elif backend == "ppo":
+                policy = ActorCriticPolicy.load(str(path), device=str(device))
+            else:
+                raise ValueError(f"unsupported policy_backend: {params.policy_backend!r}")
         return cls(
             policy=policy,
             env=env,

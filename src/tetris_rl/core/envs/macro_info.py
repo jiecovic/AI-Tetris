@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Literal, Mapping, Optional, cast
 
 from tetris_rl.core.envs.actions import ActionRequest, MaskStats
 from tetris_rl.core.envs.api import TransitionFeatures
@@ -521,6 +521,9 @@ def build_transition_features(
     bumpiness_after: Optional[int],
     agg_height_after: Optional[int],
 ) -> TransitionFeatures:
+    mode = str(feature_clear_mode).strip().lower()
+    if mode not in {"post", "lock"}:
+        mode = "post"
     return TransitionFeatures(
         cleared_lines=int(cleared),
         game_over=bool(terminated),
@@ -534,7 +537,7 @@ def build_transition_features(
         invalid_action=bool(invalid_action),
         invalid_action_policy=str(invalid_action_policy) if invalid_action_policy is not None else None,
         masked_action=bool(masked_action),
-        feature_clear_mode=str(feature_clear_mode),
+        feature_clear_mode=cast(Literal["post", "lock"], mode),
         delta_holes=delta_holes,
         delta_max_height=delta_max_height,
         delta_bumpiness=delta_bumpiness,

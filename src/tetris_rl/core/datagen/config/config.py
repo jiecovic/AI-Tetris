@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 
 from tetris_rl.core.config.base import ConfigBase
 
@@ -41,9 +41,11 @@ class DataGenGenerationConfig(ConfigBase):
     def _normalize_episode_max_steps(cls, v: object) -> Optional[int]:
         if v is None:
             return None
+        if not isinstance(v, (int, float, str, bytes, bytearray)):
+            return None
         try:
             n = int(v)
-        except Exception:
+        except (TypeError, ValueError):
             return None
         return None if n <= 0 else n
 
@@ -58,7 +60,12 @@ class DataGenExpertParams(ConfigBase):
     def _beam_width_positive(cls, v: object) -> Optional[int]:
         if v is None:
             return None
-        n = int(v)
+        if not isinstance(v, (int, float, str, bytes, bytearray)):
+            return None
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            return None
         return None if n <= 0 else n
 
 
@@ -81,11 +88,12 @@ class DataGenExpertConfig(ConfigBase):
     def _type_lower(cls, v: object) -> str:
         return str(v).strip().lower()
 
-    @model_validator(mode="after")
-    def _validate_type(self) -> "DataGenExpertConfig":
-        if self.type not in {"codemy0", "codemy1", "codemy2", "codemy2fast"}:
-            raise ValueError(f"expert.type must be codemy0|codemy1|codemy2|codemy2fast, got {self.type!r}")
-        return self
+    @field_validator("type")
+    @classmethod
+    def _validate_type(cls, v: str) -> str:
+        if v not in {"codemy0", "codemy1", "codemy2", "codemy2fast"}:
+            raise ValueError(f"expert.type must be codemy0|codemy1|codemy2|codemy2fast, got {v!r}")
+        return v
 
 
 __all__ = [

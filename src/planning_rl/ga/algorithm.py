@@ -6,7 +6,7 @@ import json
 import zipfile
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Sequence, TypeVar
 
 import numpy as np
 
@@ -20,12 +20,14 @@ from planning_rl.ga.worker_pool import GAWorkerPool
 from planning_rl.logging import ScalarLogger
 from planning_rl.policies import VectorParamPolicy
 
+PolicyT = TypeVar("PolicyT", bound=VectorParamPolicy)
 
-class GAAlgorithm(PlanningAlgorithm):
+
+class GAAlgorithm(PlanningAlgorithm[PolicyT]):
     def __init__(
         self,
         *,
-        policy: VectorParamPolicy,
+        policy: PolicyT,
         env: GymEnv,
         cfg: GAConfig,
         fitness_cfg: GAFitnessConfig | None = None,
@@ -258,11 +260,11 @@ class GAAlgorithm(PlanningAlgorithm):
         cls,
         path: Path,
         *,
-        policy: VectorParamPolicy,
+        policy: PolicyT,
         env: GymEnv,
         workers: int = 1,
         worker_factory: GAWorkerFactory | None = None,
-    ) -> "GAAlgorithm":
+    ) -> "GAAlgorithm[PolicyT]":
         path = Path(path)
         with zipfile.ZipFile(path, "r") as zf:
             with zf.open("meta.json") as fh:

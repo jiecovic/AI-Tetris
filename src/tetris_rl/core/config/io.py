@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from omegaconf import DictConfig, OmegaConf
 from pydantic import BaseModel
@@ -10,10 +10,10 @@ from pydantic import BaseModel
 from tetris_rl.core.config.root import DataGenConfig, ExperimentConfig, ImitationExperimentConfig
 
 
-def _strip_hydra_key(data: dict[str, Any]) -> dict[str, Any]:
+def _strip_hydra_key(data: dict[Any, Any]) -> dict[str, Any]:
     out = dict(data)
     out.pop("hydra", None)
-    return out
+    return cast(dict[str, Any], out)
 
 
 def to_plain_dict(cfg: Any) -> dict[str, Any]:
@@ -23,7 +23,7 @@ def to_plain_dict(cfg: Any) -> dict[str, Any]:
         data = OmegaConf.to_container(cfg, resolve=True)
         if not isinstance(data, dict):
             raise TypeError("config must resolve to a mapping")
-        return _strip_hydra_key(data)
+        return _strip_hydra_key(cast(dict[Any, Any], data))
     raise TypeError(f"unsupported config type: {type(cfg).__name__}")
 
 
@@ -33,7 +33,7 @@ def load_yaml(path: Path) -> dict[str, Any]:
     data = OmegaConf.to_container(cfg, resolve=True)
     if not isinstance(data, dict):
         raise TypeError(f"config({path}) must be a mapping")
-    return _strip_hydra_key(data)
+    return _strip_hydra_key(cast(dict[Any, Any], data))
 
 
 def load_experiment_config(path: Path) -> ExperimentConfig:

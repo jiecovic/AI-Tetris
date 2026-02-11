@@ -7,8 +7,15 @@ import numpy as np
 
 
 def as_action_scalar(action: Any) -> int:
-    if np.isscalar(action):
+    if isinstance(action, (int, np.integer, np.bool_)):
         return int(action)
+    if isinstance(action, (float, np.floating)):
+        return int(action)
+    if isinstance(action, (str, bytes, bytearray)):
+        try:
+            return int(action)
+        except (TypeError, ValueError):
+            pass
     arr = np.asarray(action).reshape(-1)
     return int(arr[0]) if arr.size > 0 else 0
 

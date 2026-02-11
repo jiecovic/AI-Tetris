@@ -24,7 +24,7 @@ dependencies = [
 
 [project.optional-dependencies]
 viz = ["opencv-python>=4.8,<5.0"]
-dev = ["pre-commit>=3.7", "ruff>=0.6.5"]
+dev = ["pre-commit>=3.7", "ruff>=0.6.5", "pyright>=1.1.370"]
 
 [project.scripts]
 tetris-train = "tetris_rl.cli.train:main"
@@ -53,3 +53,11 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+venvPath = "."
+venv = ".venv"
+include = ["src"]
+extraPaths = ["src"]
+reportMissingTypeStubs = false

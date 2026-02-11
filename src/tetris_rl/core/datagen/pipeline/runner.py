@@ -131,20 +131,29 @@ def _scan_shards_on_disk(*, dataset_dir: Path) -> dict[int, str]:
     return out
 
 
+def _to_int_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, (int, float, str, bytes, bytearray)):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _manifest_shard_ids(manifest: Any) -> set[int]:
     out: set[int] = set()
     shards_any = list(getattr(manifest, "shards", []) or [])
     for s in shards_any:
         if isinstance(s, dict):
-            try:
-                out.add(int(s.get("shard_id")))
-            except Exception:
-                pass
+            sid = _to_int_or_none(s.get("shard_id"))
+            if sid is not None:
+                out.add(int(sid))
         else:
-            try:
-                out.add(int(getattr(s, "shard_id")))
-            except Exception:
-                pass
+            sid = _to_int_or_none(getattr(s, "shard_id", None))
+            if sid is not None:
+                out.add(int(sid))
     return out
 
 
@@ -191,14 +200,8 @@ def _ensure_manifest(
     expected_compression = None
 
     if isinstance(idx, dict):
-        try:
-            expected_num_shards = int(idx.get("num_shards"))
-        except Exception:
-            expected_num_shards = None
-        try:
-            expected_shard_steps = int(idx.get("shard_steps"))
-        except Exception:
-            expected_shard_steps = None
+        expected_num_shards = _to_int_or_none(idx.get("num_shards"))
+        expected_shard_steps = _to_int_or_none(idx.get("shard_steps"))
         try:
             expected_compression = bool(idx.get("compression"))
         except Exception:

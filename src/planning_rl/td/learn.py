@@ -145,11 +145,11 @@ def learn_td(
         env.reset(seed=int(seed))
 
     while int(algo.num_timesteps) < int(total_steps_target):
-        rollout_features: list[list[float]] = []
-        rollout_values: list[list[float]] = []
-        rollout_rewards: list[list[float]] = []
-        rollout_dones: list[list[float]] = []
-        rollout_next_values: list[list[float]] = []
+        rollout_features: list[np.ndarray] = []
+        rollout_values: list[np.ndarray] = []
+        rollout_rewards: list[np.ndarray] = []
+        rollout_dones: list[np.ndarray] = []
+        rollout_next_values: list[np.ndarray] = []
 
         for _ in range(int(rollout_steps)):
             if int(algo.num_timesteps) >= int(total_steps_target):

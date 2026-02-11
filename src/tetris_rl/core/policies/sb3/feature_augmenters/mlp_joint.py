@@ -45,22 +45,21 @@ class JointMLPAugmenter(BaseFeatureAugmenter):
 
         self.params = params
         self.n_kinds = int(n_kinds)
+        self.mlp: nn.Module | None = None
 
         use_active = bool(params.use_active)
         use_next = bool(params.use_next)
 
         self._enabled = (use_active or use_next) and int(params.out_dim) > 0
         if not self._enabled:
-            self.mlp = None
             return
 
         in_dim = (self.n_kinds if use_active else 0) + (self.n_kinds if use_next else 0)
         if in_dim <= 0:
             self._enabled = False
-            self.mlp = None
             return
 
-        self.mlp: nn.Module = _build_mlp(
+        self.mlp = _build_mlp(
             in_dim=int(in_dim),
             hidden_dims=_as_int_tuple(params.hidden_dims),
             out_dim=int(params.out_dim),

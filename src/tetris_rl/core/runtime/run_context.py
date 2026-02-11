@@ -156,6 +156,8 @@ def build_run_context(
             )
             algo_type = getattr(model, "_tetris_algo_type", "ppo")
         elif spec.algo_type not in {"ga", "td"}:
+            if spec.algo_cfg is None:
+                raise RuntimeError("run spec missing algo_cfg for non-planning runs")
             loaded = load_model_from_algo_config(
                 algo_cfg=spec.algo_cfg,
                 ckpt=ckpt,
@@ -173,6 +175,7 @@ def build_run_context(
         spec.algo_type not in {"ga", "td", "imitation"}
         and model is not None
         and float(reload_every_s) > 0.0
+        and spec.algo_cfg is not None
     ):
         poller = CheckpointPoller(
             run_dir=spec.run_dir,

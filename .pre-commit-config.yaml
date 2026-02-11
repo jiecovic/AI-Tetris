@@ -3,3 +3,15 @@ repos:
     rev: v0.6.5
     hooks:
       - id: ruff
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.370
+    hooks:
+      - id: pyright
+  - repo: local
+    hooks:
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --workspace --all-targets -- -D warnings
+        language: system
+        pass_filenames: false
+        files: \.rs$

@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 import torch
 from omegaconf import DictConfig
 from rich.progress import (
     BarColumn,
     Progress,
+    ProgressColumn,
+    TaskID,
     TextColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
@@ -329,27 +331,27 @@ def run_td_experiment(cfg: DictConfig) -> int:
         TextColumn("[progress.description]{task.description}"),
         TextColumn("[progress.percentage]{task.percentage:>4.0f}%"),
         BarColumn(bar_width=None),
-        FractionColumn(),
+        cast(ProgressColumn, FractionColumn()),
         TextColumn("["),
         TimeElapsedColumn(),
         TextColumn("<"),
         TimeRemainingColumn(),
         TextColumn(","),
-        RateColumn(unit="it"),
+        cast(ProgressColumn, RateColumn(unit="it")),
         TextColumn("]"),
         TextColumn("{task.fields[tail]}"),
     )
 
     try:
         with progress:
-            task = progress.add_task(
+            task: TaskID = progress.add_task(
                 "TD steps",
                 total=int(td_cfg.total_timesteps),
                 tail="loss=-",
             )
 
             class _ProgressCallback(PlanningCallback):
-                def __init__(self, *, progress: Progress, task_id: int) -> None:
+                def __init__(self, *, progress: Progress, task_id: TaskID) -> None:
                     super().__init__()
                     self._progress = progress
                     self._task_id = task_id
@@ -379,7 +381,7 @@ def run_td_experiment(cfg: DictConfig) -> int:
                     tail = f"{loss_str} {best_str}"
                     self._progress.update(self._task_id, completed=int(step), tail=tail)
 
-            cb_items = list(callback_items)
+            cb_items: list[PlanningCallback] = list(callback_items)
             cb_items.append(_ProgressCallback(progress=progress, task_id=task))
 
             algo.learn(

@@ -149,33 +149,43 @@ def make_model_from_cfg(
     # ------------------------------------------------------------------
     # PPO / MaskablePPO
     # ------------------------------------------------------------------
-    if algo_type in {"ppo", "maskable_ppo"}:
-        if algo_type == "maskable_ppo":
-            from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
-            from sb3_contrib.ppo_mask import MaskablePPO
-
-            Algo = MaskablePPO
-            Policy = MaskableActorCriticPolicy
-        else:
-            Algo = PPO
-            Policy = ActorCriticPolicy
+    if algo_type == "maskable_ppo":
+        from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
+        from sb3_contrib.ppo_mask import MaskablePPO
 
         model_kwargs = build_algo_kwargs(
-            algo_cls=Algo,
+            algo_cls=MaskablePPO,
             raw=algo_params,
             seed=run_cfg.seed,
             where="algo.params",
         )
-
-        model = Algo(
-            policy=Policy,
+        model = MaskablePPO(
+            policy=MaskableActorCriticPolicy,
             env=vec_env,
             device=device,
             tensorboard_log=str(tensorboard_log) if tensorboard_log else None,
             policy_kwargs=policy_kwargs,
             **model_kwargs,
         )
-        model._tetris_algo_type = algo_type
+        setattr(model, "_tetris_algo_type", algo_type)
+        return model
+
+    if algo_type == "ppo":
+        model_kwargs = build_algo_kwargs(
+            algo_cls=PPO,
+            raw=algo_params,
+            seed=run_cfg.seed,
+            where="algo.params",
+        )
+        model = PPO(
+            policy=ActorCriticPolicy,
+            env=vec_env,
+            device=device,
+            tensorboard_log=str(tensorboard_log) if tensorboard_log else None,
+            policy_kwargs=policy_kwargs,
+            **model_kwargs,
+        )
+        setattr(model, "_tetris_algo_type", algo_type)
         return model
 
     raise ValueError(f"unsupported algo type: {algo_type!r}")

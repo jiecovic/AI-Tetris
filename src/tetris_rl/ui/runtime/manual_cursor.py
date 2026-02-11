@@ -32,9 +32,10 @@ class ManualMacroCursor:
 
     def __init__(self, *, game: Any, env: Any) -> None:
         self.env = env
-        self.engine = getattr(env, "game", None)
-        if self.engine is None:
+        engine = getattr(env, "game", None)
+        if engine is None:
             raise RuntimeError("ManualMacroCursor expects env.game to be the PyO3 TetrisEngine")
+        self.engine = engine
 
         self.board_w = int(self.engine.board_w())
         self.max_rots = int(self.engine.max_rots())

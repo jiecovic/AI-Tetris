@@ -16,7 +16,7 @@ from planning_rl.td.learn import learn_td
 from planning_rl.td.policy import TDPolicy
 
 
-class TDAlgorithm(PlanningAlgorithm):
+class TDAlgorithm(PlanningAlgorithm[TDPolicy]):
     def __init__(
         self,
         *,

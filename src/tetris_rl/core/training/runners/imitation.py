@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Literal, cast
 
 from omegaconf import DictConfig
 
@@ -69,6 +70,8 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
         raise ValueError(f"imitation algo type must be 'imitation' (got {algo_cfg.type!r})")
 
     policy_backend = str(imitation_params.policy_backend).strip().lower()
+    if policy_backend not in {"ppo", "maskable_ppo"}:
+        raise ValueError(f"imitation policy_backend must be 'ppo' or 'maskable_ppo' (got {policy_backend!r})")
     logger.info("[timing] building policy (%s)...", policy_backend)
     policy = build_policy_from_cfg(
         policy_cfg=policy_cfg,
@@ -99,8 +102,9 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
             except Exception as e:
                 raise RuntimeError(f"failed to load imitation weights from {resume_path}") from e
         else:
+            algo_type = cast(Literal["ppo", "maskable_ppo"], policy_backend)
             loaded = load_model_from_algo_config(
-                algo_cfg=AlgoConfig(type=policy_backend),
+                algo_cfg=AlgoConfig(type=algo_type),
                 ckpt=resume_path,
                 device=str(run_cfg.device),
             )

@@ -1,7 +1,7 @@
 # src/tetris_rl/core/envs/config.py
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Mapping, cast
 
 from pydantic import Field, model_validator
 
@@ -63,7 +63,7 @@ class EnvConfig(ConfigBase):
 
 class RewardConfig(ConfigBase):
     type: str
-    params: RewardParams = Field(default_factory=lambda: REWARD_PARAMS_REGISTRY["lines"]())
+    params: RewardParams = Field(default_factory=lambda: cast(RewardParams, REWARD_PARAMS_REGISTRY["lines"]()))
 
     @model_validator(mode="before")
     @classmethod
@@ -78,7 +78,7 @@ class RewardConfig(ConfigBase):
             registry=REWARD_PARAMS_REGISTRY,
             where="env.reward",
         )
-        return {"type": tag, "params": params}
+        return {"type": tag, "params": cast(RewardParams, params)}
 
 
 __all__ = ["EnvConfig", "RewardConfig", "MacroEnvParams"]

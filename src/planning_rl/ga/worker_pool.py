@@ -5,16 +5,17 @@ import os
 import signal
 from dataclasses import asdict
 from multiprocessing import current_process, get_context
-from typing import Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from planning_rl.ga.config import GAFitnessConfig
 from planning_rl.ga.types import GAWorkerFactory
 from planning_rl.ga.utils import episode_seeds
+from planning_rl.policies import VectorParamPolicy
 from planning_rl.utils.seed import seed32_from
 
 _WORKER_FACTORY: GAWorkerFactory | None = None
 _WORKER_ENV = None
-_WORKER_POLICY = None
+_WORKER_POLICY: VectorParamPolicy | None = None
 _WORKER_SEEDS: list[int] | None = None
 _WORKER_FITNESS: GAFitnessConfig | None = None
 
@@ -29,7 +30,7 @@ def _worker_id() -> int:
     return int(ident[0])
 
 
-def _init_worker(factory: GAWorkerFactory, fitness_cfg: dict[str, int | float | str], seed_base: int) -> None:
+def _init_worker(factory: GAWorkerFactory, fitness_cfg: Mapping[str, Any], seed_base: int) -> None:
     if os.name == "nt":
         try:
             import ctypes

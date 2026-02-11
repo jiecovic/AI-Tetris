@@ -48,6 +48,15 @@ Python dependencies are declared in `pyproject.toml` and installed via `pip inst
 
 ## Installation
 
+For dev tooling (ruff/pyright), use a local venv so Pyright can resolve imports:
+
+```bash
+python -m venv .venv
+.\.venv\Scripts\pip install -e .[dev]
+```
+
+Base install:
+
 ```bash
 pip install -e .
 ```

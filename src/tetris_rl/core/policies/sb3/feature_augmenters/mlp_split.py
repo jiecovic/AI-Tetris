@@ -90,12 +90,15 @@ class SplitMLPAugmenter(BaseFeatureAugmenter):
             da = total // 2
             dn = total - int(da)
         elif da is None:
+            assert dn is not None
             dn_i = int(dn)
             da = total - dn_i
         elif dn is None:
+            assert da is not None
             da_i = int(da)
             dn = total - da_i
 
+        assert da is not None and dn is not None
         da_i = int(da)
         dn_i = int(dn)
 

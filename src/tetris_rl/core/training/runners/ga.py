@@ -2,18 +2,20 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from omegaconf import DictConfig
 from rich.progress import (
     BarColumn,
     Progress,
+    ProgressColumn,
     TextColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
 from tqdm.rich import FractionColumn, RateColumn
 
+from planning_rl.callbacks import PlanningCallback
 from planning_rl.ga import GAAlgorithm, GAConfig, GAFitnessConfig
 from planning_rl.ga.types import GAStats
 from tetris_rl.core.callbacks import EvalCallback, LatestCallback, PlanningCallbackAdapter
@@ -340,13 +342,13 @@ def run_ga_experiment(cfg: DictConfig) -> int:
         TextColumn("[progress.description]{task.description}"),
         TextColumn("[progress.percentage]{task.percentage:>4.0f}%"),
         BarColumn(bar_width=None),
-        FractionColumn(),
+        cast(ProgressColumn, FractionColumn()),
         TextColumn("["),
         TimeElapsedColumn(),
         TextColumn("<"),
         TimeRemainingColumn(),
         TextColumn(","),
-        RateColumn(unit="it"),
+        cast(ProgressColumn, RateColumn(unit="it")),
         TextColumn("]"),
         TextColumn("{task.fields[tail]}"),
     )
@@ -434,11 +436,12 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                     )
                 progress.update(cand_task, advance=1)
 
+            cb_list: list[PlanningCallback] = list(callback_items)
             stats = algo.learn(
                 generations=generations,
                 on_generation=_on_generation,
                 on_candidate=_on_candidate,
-                callback=callback_items or None,
+                callback=cb_list or None,
                 logger=tb_logger,
             )
     finally:

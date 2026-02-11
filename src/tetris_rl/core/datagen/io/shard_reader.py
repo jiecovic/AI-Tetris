@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, Optional, Tuple, cast
 
 import numpy as np
 
@@ -85,7 +85,8 @@ class ShardDataset:
         if not isinstance(manifest_raw, dict):
             _raise_missing_manifest(self.dataset_dir, self.manifest_path)
 
-        self.manifest = DatasetManifest(**manifest_raw)
+        manifest_dict = cast(dict[str, Any], manifest_raw)
+        self.manifest = DatasetManifest(**manifest_dict)
 
         # Basic sanity
         if int(self.manifest.board_h) <= 0 or int(self.manifest.board_w) <= 0:

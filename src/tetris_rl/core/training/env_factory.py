@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, cast
 
 import numpy as np
+from gymnasium import Env
 from gymnasium.wrappers import TimeLimit
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.utils import set_random_seed
@@ -66,7 +67,9 @@ def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_cfg: RunConfig) -> BuiltVe
 
         return _thunk
 
-    env_fns = [make_one(i) for i in range(int(n_envs))]
+    env_fns: list[Callable[[], Env]] = [
+        cast(Callable[[], Env], make_one(i)) for i in range(int(n_envs))
+    ]
     if vec_kind == "subproc":
         vec_env: VecEnv = SubprocVecEnv(env_fns, start_method="spawn")
     elif vec_kind == "dummy":

@@ -7,7 +7,7 @@ import tempfile
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import numpy as np
 
@@ -26,7 +26,7 @@ def _ensure_parent_dir(path: Path) -> None:
 
 
 def _json_default(o: Any) -> Any:
-    if is_dataclass(o):
+    if is_dataclass(o) and not isinstance(o, type):
         return asdict(o)
     if isinstance(o, Path):
         return str(o)
@@ -123,7 +123,8 @@ def read_manifest(*, dataset_dir: Path) -> DatasetManifest:
         raw = json.loads(f.read().decode("utf-8"))
     if not isinstance(raw, dict):
         raise FileNotFoundError(f"missing or invalid manifest.json: {path}")
-    return DatasetManifest(**raw)
+    raw_dict = cast(dict[str, Any], raw)
+    return DatasetManifest(**raw_dict)
 
 
 def append_shard_to_manifest(*, dataset_dir: Path, shard: ShardInfo) -> Path:

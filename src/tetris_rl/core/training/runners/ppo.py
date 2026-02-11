@@ -121,7 +121,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
                 model.policy.load_state_dict(loaded_policy.state_dict(), strict=True)
             except Exception as e:
                 raise RuntimeError(f"failed to load imitation weights from {resume_ckpt}") from e
-            model._tetris_algo_type = algo_type
+            setattr(model, "_tetris_algo_type", algo_type)
             logger.info("[resume] loaded imitation weights (timesteps reset)")
             logger.info(f"[timing] model initialized: {time.perf_counter() - t0:.2f}s")
         else:
@@ -133,7 +133,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
                 env=built.vec_env,
             )
             model = loaded.model
-            model._tetris_algo_type = str(loaded.algo_type)
+            setattr(model, "_tetris_algo_type", str(loaded.algo_type))
             logger.info(f"[timing] model loaded: {time.perf_counter() - t0:.2f}s")
     else:
         logger.info("[timing] building model...")

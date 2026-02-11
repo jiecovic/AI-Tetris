@@ -31,7 +31,15 @@ from pydantic import BaseModel
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
 
-from tetris_rl.core.policies.sb3.api import BoardSpec, SpatialFeatures, SpatialSpec, Specials, TokenStream
+from tetris_rl.core.policies.sb3.api import (
+    BoardSpec,
+    SpatialFeatures,
+    SpatialPreprocessor,
+    SpatialSpec,
+    SpatialStem,
+    Specials,
+    TokenStream,
+)
 from tetris_rl.core.policies.sb3.catalog import (
     FEATURE_AUGMENTER_REGISTRY,
     SPATIAL_HEAD_REGISTRY,
@@ -93,13 +101,13 @@ class TetrisFeatureExtractor(BaseFeaturesExtractor):
         # ------------------------------------------------------------------
         # 1) Spatial preprocessor (built at init)
         # ------------------------------------------------------------------
-        self.spatial_preprocessor = _build_spatial_preprocessor(cfg=spatial_preprocessor)
+        self.spatial_preprocessor: SpatialPreprocessor = _build_spatial_preprocessor(cfg=spatial_preprocessor)
         self._spatial_spec_pre: SpatialSpec = self.spatial_preprocessor.out_spec(board=self._board_spec)
 
         # ------------------------------------------------------------------
         # 2) Optional stem (spatial -> spatial) (built at init)
         # ------------------------------------------------------------------
-        self.stem: Optional[nn.Module] = (
+        self.stem: SpatialStem | None = (
             _build_stem(cfg=stem, in_channels=int(self._spatial_spec_pre.c)) if stem is not None else None
         )
         self._spatial_spec: SpatialSpec = (
@@ -255,7 +263,7 @@ def _infer_grid_hw_from_obs_space(observation_space: spaces.Space) -> tuple[int,
     return H, W
 
 
-def _build_spatial_preprocessor(*, cfg: SpatialPreprocessorConfig) -> nn.Module:
+def _build_spatial_preprocessor(*, cfg: SpatialPreprocessorConfig) -> SpatialPreprocessor:
     key = str(cfg.type).strip().lower()
     cls = SPATIAL_PREPROCESSOR_REGISTRY.get(key)
     if cls is None:
@@ -263,21 +271,21 @@ def _build_spatial_preprocessor(*, cfg: SpatialPreprocessorConfig) -> nn.Module:
 
     params = cfg.params
     if params is None:
-        return cast(nn.Module, cls())
+        return cast(SpatialPreprocessor, cls())
     if isinstance(params, dict):
-        return cast(nn.Module, cls(**params))
-    return cast(nn.Module, cls(params=params))
+        return cast(SpatialPreprocessor, cls(**params))
+    return cast(SpatialPreprocessor, cls(params=params))
 
 
-def _build_stem(*, cfg: StemConfig, in_channels: int) -> nn.Module:
+def _build_stem(*, cfg: StemConfig, in_channels: int) -> SpatialStem:
     cls = STEM_REGISTRY[cfg.type]
 
     if cfg.params is None:
         # preset stem
-        return cast(nn.Module, cls(in_channels=int(in_channels)))
+        return cast(SpatialStem, cls(in_channels=int(in_channels)))
 
     # configurable stem
-    return cast(nn.Module, cls(in_channels=int(in_channels), spec=cfg.params))
+    return cast(SpatialStem, cls(in_channels=int(in_channels), spec=cfg.params))
 
 
 def _build_tokenizer(*, cfg: TokenizerConfig, n_kinds: Optional[int], in_spec: SpatialSpec) -> TetrisTokenizer:
@@ -377,9 +385,11 @@ def _infer_feature_augmenter_extra_dim(*, cfg: FeatureAugmenterConfig, n_kinds: 
             da_i = total // 2
             dn_i = total - da_i
         elif da is None:
+            assert dn is not None
             dn_i = int(dn)
             da_i = total - dn_i
         elif dn is None:
+            assert da is not None
             da_i = int(da)
             dn_i = total - da_i
         else:
