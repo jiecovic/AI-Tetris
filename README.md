@@ -61,6 +61,15 @@ Base install:
 pip install -e .
 ```
 
+CUDA (optional):
+
+Install a CUDA-enabled PyTorch wheel first (Windows example), then install the project:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install -e .
+```
+
 Optional visualization extras:
 
 ```bash
