@@ -60,10 +60,6 @@ class CNNStemParams(ConfigBase):
 StemType = Literal[
     "cnn",
     "conv3x3_32_32_64",
-    "conv1x3_32x4_64_5l",
-    "conv3x3_32_32_64_64_128_5l",
-    "conv3x3_32_32_64_row1_col2_128",
-    "conv3x3_32_32_64_row1_col3_128",
 ]
 
 
