@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 from torch import nn
@@ -43,6 +44,63 @@ class SplitMLPParams(FeatureAugmenterBaseParams):
 
 
 class SplitMLPAugmenter(BaseFeatureAugmenter):
+    @staticmethod
+    def _resolve_split_dims(
+        *,
+        total: int,
+        out_dim_active: int | None,
+        out_dim_next: int | None,
+    ) -> tuple[int, int]:
+        if total == 0:
+            return 0, 0
+
+        da = out_dim_active
+        dn = out_dim_next
+
+        if da is None and dn is None:
+            da = total // 2
+            dn = total - int(da)
+        elif da is None:
+            assert dn is not None
+            dn_i = int(dn)
+            da = total - dn_i
+        elif dn is None:
+            assert da is not None
+            da_i = int(da)
+            dn = total - da_i
+
+        assert da is not None and dn is not None
+        da_i = int(da)
+        dn_i = int(dn)
+
+        if da_i < 0 or dn_i < 0:
+            raise ValueError("out_dim_active/out_dim_next must be >= 0")
+        if da_i + dn_i != total:
+            raise ValueError(f"out_dim_active + out_dim_next must equal out_dim_total ({total}), got {da_i}+{dn_i}")
+
+        return da_i, dn_i
+
+    @classmethod
+    def infer_extra_dim(cls, *, params: Any, n_kinds: int | None) -> int:
+        if n_kinds is None or int(n_kinds) <= 0:
+            raise ValueError("n_kinds must be > 0")
+        total = int(getattr(params, "out_dim_total", 0))
+        if total <= 0:
+            return 0
+        da_i, dn_i = cls._resolve_split_dims(
+            total=total,
+            out_dim_active=getattr(params, "out_dim_active", None),
+            out_dim_next=getattr(params, "out_dim_next", None),
+        )
+        use_active = bool(getattr(params, "use_active", True))
+        use_next = bool(getattr(params, "use_next", False))
+        used = 0
+        if use_active:
+            used += da_i
+        if use_next:
+            used += dn_i
+        return max(0, int(used))
+
     def __init__(self, *, params: SplitMLPParams, n_kinds: int) -> None:
         super().__init__()
         if int(n_kinds) <= 0:
@@ -80,34 +138,11 @@ class SplitMLPAugmenter(BaseFeatureAugmenter):
 
     def _resolve_dims(self) -> tuple[int, int]:
         total = int(self.params.out_dim_total)
-        if total == 0:
-            return 0, 0
-
-        da = self.params.out_dim_active
-        dn = self.params.out_dim_next
-
-        if da is None and dn is None:
-            da = total // 2
-            dn = total - int(da)
-        elif da is None:
-            assert dn is not None
-            dn_i = int(dn)
-            da = total - dn_i
-        elif dn is None:
-            assert da is not None
-            da_i = int(da)
-            dn = total - da_i
-
-        assert da is not None and dn is not None
-        da_i = int(da)
-        dn_i = int(dn)
-
-        if da_i < 0 or dn_i < 0:
-            raise ValueError("out_dim_active/out_dim_next must be >= 0")
-        if da_i + dn_i != total:
-            raise ValueError(f"out_dim_active + out_dim_next must equal out_dim_total ({total}), got {da_i}+{dn_i}")
-
-        return da_i, dn_i
+        return self._resolve_split_dims(
+            total=total,
+            out_dim_active=self.params.out_dim_active,
+            out_dim_next=self.params.out_dim_next,
+        )
 
     def forward(self, *, features: torch.Tensor, specials: Specials) -> torch.Tensor:
         B, _F = _validate_features(features)

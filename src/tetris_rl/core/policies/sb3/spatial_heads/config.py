@@ -11,10 +11,11 @@ from tetris_rl.core.policies.sb3.types import (
     CollapseKindName,
     LayerActivationName,
     PoolAvgMaxCatName,
+    SpatialHeadName,
 )
 
 Pool2D = PoolAvgMaxCatName
-SpatialHeadType = Literal["global_pool", "flatten", "flatten_mlp", "attn_pool", "col_collapse"]
+SpatialHeadType = SpatialHeadName
 
 
 class SpatialHeadParamsBase(ConfigBase):

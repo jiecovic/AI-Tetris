@@ -8,15 +8,22 @@ Baseline:
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 from torch import nn
 
-from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, SpatialSpec, Specials
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
 from tetris_rl.core.policies.sb3.spatial_heads.config import FlattenParams
 
 
 class FlattenHead(BaseSpatialHead):
+    @classmethod
+    def infer_auto_features_dim(cls, *, spec: Any, in_spec: SpatialSpec) -> int:
+        _ = spec
+        return int(in_spec.h) * int(in_spec.w) * int(in_spec.c)
+
     def __init__(
         self,
         *,

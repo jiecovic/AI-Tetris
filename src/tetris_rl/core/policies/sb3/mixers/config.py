@@ -1,13 +1,11 @@
 # src/tetris_rl/core/policies/sb3/mixers/config.py
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import Field, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
-from tetris_rl.core.policies.sb3.types import TokenPoolKind
+from tetris_rl.core.policies.sb3.types import MixerName, TokenPoolKind
 
 PoolKind = TokenPoolKind
 
@@ -59,7 +57,7 @@ class TransformerMixerParams(ConfigBase):
 # ---------------------------------------------------------------------
 
 
-MixerType = Literal["mlp", "transformer"]
+MixerType = MixerName
 
 
 MIXER_PARAMS_REGISTRY = {

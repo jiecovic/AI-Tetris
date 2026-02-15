@@ -13,16 +13,25 @@ Learned attention pooling over spatial positions (token-free):
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 from torch import nn
 
-from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, SpatialSpec, Specials
 from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
 from tetris_rl.core.policies.sb3.spatial_heads.config import AttentionPoolParams
 
 
 class AttentionPoolHead(BaseSpatialHead):
+    @classmethod
+    def infer_auto_features_dim(cls, *, spec: Any, in_spec: SpatialSpec) -> int:
+        n_queries = int(getattr(spec, "n_queries", 1))
+        if n_queries <= 0:
+            raise ValueError(f"n_queries must be > 0, got {n_queries}")
+        return int(n_queries) * int(in_spec.c)
+
     def __init__(self, *, in_channels: int, features_dim: int, spec: AttentionPoolParams) -> None:
         super().__init__(features_dim=int(features_dim))
 

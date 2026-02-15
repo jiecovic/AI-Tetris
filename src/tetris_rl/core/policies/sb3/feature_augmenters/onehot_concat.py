@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 
@@ -28,6 +29,15 @@ class OneHotConcatParams(FeatureAugmenterBaseParams):
 
 
 class OneHotConcatAugmenter(BaseFeatureAugmenter):
+    @classmethod
+    def infer_extra_dim(cls, *, params: Any, n_kinds: int | None) -> int:
+        if n_kinds is None or int(n_kinds) <= 0:
+            raise ValueError("n_kinds must be > 0")
+        K = int(n_kinds)
+        use_active = bool(getattr(params, "use_active", True))
+        use_next = bool(getattr(params, "use_next", False))
+        return (K if use_active else 0) + (K if use_next else 0)
+
     def __init__(self, *, params: OneHotConcatParams, n_kinds: int) -> None:
         super().__init__()
         if int(n_kinds) <= 0:

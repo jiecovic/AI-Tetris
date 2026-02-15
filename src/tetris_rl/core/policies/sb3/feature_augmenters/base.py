@@ -1,8 +1,9 @@
 # src/tetris_rl/core/policies/sb3/feature_augmenters/base.py
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Optional, Sequence
 
 import torch
 from torch import nn
@@ -100,7 +101,7 @@ class FeatureAugmenterBaseParams:
     pass
 
 
-class BaseFeatureAugmenter(nn.Module):
+class BaseFeatureAugmenter(nn.Module, ABC):
     """
     Helper base:
       - validate feature tensor
@@ -111,6 +112,13 @@ class BaseFeatureAugmenter(nn.Module):
 
     def __init__(self) -> None:
         super().__init__()
+
+    @classmethod
+    @abstractmethod
+    def infer_extra_dim(cls, *, params: Any, n_kinds: Optional[int]) -> int:
+        """
+        Return how many dimensions this augmenter appends to base features.
+        """
 
     @staticmethod
     def _maybe_onehot_specials(

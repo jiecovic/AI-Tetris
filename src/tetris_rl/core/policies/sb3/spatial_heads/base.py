@@ -1,13 +1,16 @@
 # src/tetris_rl/core/policies/sb3/spatial_heads/base.py
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from typing import Any
+
 import torch
 from torch import nn
 
-from tetris_rl.core.policies.sb3.api import SpatialFeatures
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, SpatialSpec
 
 
-class BaseSpatialHead(nn.Module):
+class BaseSpatialHead(nn.Module, ABC):
     """
     Tiny base class for SpatialHead implementations.
 
@@ -22,6 +25,13 @@ class BaseSpatialHead(nn.Module):
         if F <= 0:
             raise ValueError(f"features_dim must be > 0, got {features_dim}")
         self.features_dim: int = F
+
+    @classmethod
+    @abstractmethod
+    def infer_auto_features_dim(cls, *, spec: Any, in_spec: SpatialSpec) -> int:
+        """
+        Compute output feature width for `features_dim='auto'`.
+        """
 
     @staticmethod
     def _check_spatial(spatial: SpatialFeatures) -> torch.Tensor:

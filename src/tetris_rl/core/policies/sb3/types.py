@@ -1,3 +1,4 @@
+# src/tetris_rl/core/policies/sb3/types.py
 from __future__ import annotations
 
 from typing import Literal, TypeAlias
@@ -59,6 +60,19 @@ TokenPoolKind: TypeAlias = Literal[
 # Column collapse reducer kind.
 CollapseKindName: TypeAlias = Literal["avg", "max", "linear"]
 
+# ---------------------------------------------------------------------
+# Component names (typed tags)
+# ---------------------------------------------------------------------
+
+SpatialHeadName: TypeAlias = Literal["global_pool", "flatten", "flatten_mlp", "attn_pool", "col_collapse"]
+FeatureAugmenterName: TypeAlias = Literal["none", "null", "onehot_concat", "mlp_joint", "mlp_split"]
+MixerName: TypeAlias = Literal["mlp", "transformer"]
+StemName: TypeAlias = Literal["cnn", "conv3x3_32_32_64"]
+
+# Minimal disabled tags accepted in SB3 config sections.
+NullComponentTag: TypeAlias = Literal["none", "null"]
+NULL_COMPONENT_TAGS: frozenset[str] = frozenset({"none", "null"})
+
 
 __all__ = [
     "LayerActivationName",
@@ -67,4 +81,10 @@ __all__ = [
     "PoolAvgMaxCatName",
     "TokenPoolKind",
     "CollapseKindName",
+    "SpatialHeadName",
+    "FeatureAugmenterName",
+    "MixerName",
+    "StemName",
+    "NullComponentTag",
+    "NULL_COMPONENT_TAGS",
 ]

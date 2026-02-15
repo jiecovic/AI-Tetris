@@ -8,12 +8,12 @@ GlobalPoolHead (spatial -> feature vector)
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Sequence
 
 import torch
 from torch import nn
 
-from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, SpatialSpec, Specials
 from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
 from tetris_rl.core.policies.sb3.spatial_heads.config import GlobalPoolParams, Pool2D
@@ -26,6 +26,17 @@ def _as_int_tuple(xs: Sequence[int] | None) -> tuple[int, ...]:
 
 
 class GlobalPoolHead(BaseSpatialHead):
+    @classmethod
+    def infer_auto_features_dim(cls, *, spec: Any, in_spec: SpatialSpec) -> int:
+        conv_channels = _as_int_tuple(getattr(spec, "conv_channels", ()))
+        c_after = int(conv_channels[-1]) if len(conv_channels) > 0 else int(in_spec.c)
+        pool = str(getattr(spec, "pool", "avg")).strip().lower()
+        if pool in {"avg", "max"}:
+            return int(c_after)
+        if pool == "avgmax":
+            return int(2 * c_after)
+        raise ValueError(f"pool must be one of avg|max|avgmax, got {getattr(spec, 'pool', None)!r}")
+
     def __init__(self, *, in_channels: int, features_dim: int, spec: GlobalPoolParams) -> None:
         super().__init__(features_dim=int(features_dim))
 

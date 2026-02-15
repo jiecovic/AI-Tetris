@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 from torch import nn
@@ -34,6 +35,17 @@ class JointMLPParams(FeatureAugmenterBaseParams):
 
 
 class JointMLPAugmenter(BaseFeatureAugmenter):
+    @classmethod
+    def infer_extra_dim(cls, *, params: Any, n_kinds: int | None) -> int:
+        if n_kinds is None or int(n_kinds) <= 0:
+            raise ValueError("n_kinds must be > 0")
+        out_dim = int(getattr(params, "out_dim", 0))
+        use_active = bool(getattr(params, "use_active", True))
+        use_next = bool(getattr(params, "use_next", False))
+        if (not use_active) and (not use_next):
+            return 0
+        return max(0, out_dim)
+
     def __init__(self, *, params: JointMLPParams, n_kinds: int) -> None:
         super().__init__()
         if int(n_kinds) <= 0:

@@ -1,15 +1,15 @@
 # src/tetris_rl/core/policies/sb3/feature_augmenters/config.py
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
-from tetris_rl.core.policies.sb3.types import LayerActivationName
+from tetris_rl.core.policies.sb3.types import FeatureAugmenterName, LayerActivationName
 
-FeatureAugmenterType = Literal["none", "null", "onehot_concat", "mlp_joint", "mlp_split"]
+FeatureAugmenterType = FeatureAugmenterName
 
 
 # -----------------------------

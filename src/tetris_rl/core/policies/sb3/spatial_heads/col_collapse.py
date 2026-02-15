@@ -61,13 +61,13 @@ Notes
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
+from tetris_rl.core.policies.sb3.api import SpatialFeatures, SpatialSpec, Specials
 from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
 from tetris_rl.core.policies.sb3.spatial_heads.config import ColumnCollapseParams
@@ -172,6 +172,16 @@ class ColumnCollapseHead(BaseSpatialHead):
       - any learnable parameters must be created in __init__, not lazily in forward.
       - therefore we require in_h at construction time for the linear collapse case.
     """
+
+    @classmethod
+    def infer_auto_features_dim(cls, *, spec: Any, in_spec: SpatialSpec) -> int:
+        _ = in_spec
+        fc_hidden = tuple(int(h) for h in (getattr(spec, "fc_hidden", ()) or ()))
+        if len(fc_hidden) == 0:
+            raise ValueError("fc_hidden must be non-empty for col_collapse when features_dim='auto'")
+        if any(int(h) <= 0 for h in fc_hidden):
+            raise ValueError(f"fc_hidden must contain only >0 dims, got {fc_hidden}")
+        return int(fc_hidden[-1])
 
     def __init__(
             self,

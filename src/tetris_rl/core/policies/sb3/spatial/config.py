@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal, Optional
 from pydantic import ValidationInfo, field_validator, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
-from tetris_rl.core.policies.sb3.types import LayerActivationName, PoolAvgMaxName
+from tetris_rl.core.policies.sb3.types import LayerActivationName, PoolAvgMaxName, StemName
 
 Activation = LayerActivationName
 
@@ -166,10 +166,7 @@ class CNNStemParams(ConfigBase):
         return data
 
 
-StemType = Literal[
-    "cnn",
-    "conv3x3_32_32_64",
-]
+StemType = StemName
 
 
 class StemConfig(ConfigBase):
