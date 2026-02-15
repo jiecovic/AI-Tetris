@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, cast
 
 import numpy as np
 
-from tetris_rl.core.datagen.io.schema import DatasetManifest, ShardInfo, validate_shard_arrays
+from tetris_rl.core.datagen.io.schema import DatasetManifest, ShardInfo
 
 # -----------------------------------------------------------------------------
 # helpers
@@ -175,105 +175,9 @@ def append_shard_to_manifest(*, dataset_dir: Path, shard: ShardInfo) -> Path:
     return write_manifest(dataset_dir=ds, manifest=updated, overwrite=True)
 
 
-# -----------------------------------------------------------------------------
-# shard writer (BC-only)
-# -----------------------------------------------------------------------------
-
-class ShardWriter:
-    def __init__(
-        self,
-        *,
-        dataset_dir: Path,
-        shard_id: int,
-        compression: bool,
-        board_h: int,
-        board_w: int,
-        num_kinds: int,
-        action_dim: int,
-        seed: int,
-    ) -> None:
-        self.dataset_dir = Path(dataset_dir)
-        self.shard_id = int(shard_id)
-        self.compression = bool(compression)
-        self.board_h = int(board_h)
-        self.board_w = int(board_w)
-        self.num_kinds = int(num_kinds)
-        self.action_dim = int(action_dim)
-        self.seed = int(seed)
-
-        (self.dataset_dir / "shards").mkdir(parents=True, exist_ok=True)
-
-    def _rel_file(self) -> str:
-        return f"shards/shard_{self.shard_id:04d}.npz"
-
-    def _abs_file(self) -> Path:
-        return self.dataset_dir / self._rel_file()
-
-    def write(
-        self,
-        *,
-        grid: np.ndarray,
-        active_kind: np.ndarray,
-        next_kind: np.ndarray,
-        action: np.ndarray,
-    ) -> ShardInfo:
-        validate_shard_arrays(
-            grid=np.asarray(grid),
-            active_kind=np.asarray(active_kind),
-            next_kind=np.asarray(next_kind),
-            action=np.asarray(action),
-            board_h=self.board_h,
-            board_w=self.board_w,
-            num_kinds=self.num_kinds,
-            action_dim=self.action_dim,
-        )
-
-        payload: Dict[str, Any] = {
-            "grid": np.asarray(grid, dtype=np.uint8),
-            "active_kind": np.asarray(active_kind, dtype=np.uint8),
-            "next_kind": np.asarray(next_kind, dtype=np.uint8),
-            "action": np.asarray(action, dtype=np.uint8),
-        }
-
-        out_path = self._abs_file()
-        _ensure_parent_dir(out_path)
-
-        tmp_path: Optional[Path] = None
-        try:
-            fd, tmp_name = tempfile.mkstemp(
-                dir=str(out_path.parent),
-                prefix=out_path.name + ".",
-                suffix=".tmp.npz",
-            )
-            os.close(fd)
-            tmp_path = Path(tmp_name)
-
-            if self.compression:
-                np.savez_compressed(str(tmp_path), **payload)
-            else:
-                np.savez(str(tmp_path), **payload)
-
-            os.replace(str(tmp_path), str(out_path))
-            tmp_path = None
-        finally:
-            if tmp_path is not None:
-                try:
-                    tmp_path.unlink()
-                except Exception:
-                    pass
-
-        return ShardInfo(
-            shard_id=self.shard_id,
-            file=self._rel_file(),
-            num_samples=int(payload["grid"].shape[0]),
-            seed=self.seed,
-        )
-
-
 __all__ = [
     "init_manifest",
     "write_manifest",
     "read_manifest",
     "append_shard_to_manifest",
-    "ShardWriter",
 ]
