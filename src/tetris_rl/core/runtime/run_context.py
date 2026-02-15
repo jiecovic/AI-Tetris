@@ -61,6 +61,27 @@ def _apply_piece_rule_override(cfg: dict[str, Any], piece_rule: str | None) -> d
     return cfg_out
 
 
+def _apply_info_level_override(cfg: dict[str, Any], info_level: str | None) -> dict[str, Any]:
+    if info_level is None:
+        return cfg
+    s = str(info_level).strip().lower()
+    if not s:
+        return cfg
+    cfg_out = dict(cfg)
+    cfg_env = cfg_out.get("env", {}) or {}
+    if not isinstance(cfg_env, dict):
+        cfg_env = {}
+    params = cfg_env.get("params", {}) or {}
+    if not isinstance(params, dict):
+        params = {}
+    params = dict(params)
+    params["info_level"] = s
+    cfg_env = dict(cfg_env)
+    cfg_env["params"] = params
+    cfg_out["env"] = cfg_env
+    return cfg_out
+
+
 def _resolve_device(device: str) -> torch.device:
     dev = str(device).strip().lower()
     if dev == "auto":
@@ -76,6 +97,7 @@ def build_run_context(
     seed: int,
     device: str,
     piece_rule: str | None,
+    info_level: str | None,
     reload_every_s: float,
     use_expert: bool,
     random_action: bool,
@@ -87,6 +109,7 @@ def build_run_context(
     env_cfg = resolve_env_cfg(spec=spec, which_env=str(which_env))
     cfg_ctx = _with_env_cfg(cfg=spec.cfg_plain, env_cfg=env_cfg)
     cfg_ctx = _apply_piece_rule_override(cfg_ctx, piece_rule)
+    cfg_ctx = _apply_info_level_override(cfg_ctx, info_level)
 
     built = make_env_from_cfg(cfg=cfg_ctx, seed=int(seed))
     env = built.env

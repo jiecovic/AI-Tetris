@@ -1,9 +1,9 @@
 # src/tetris_rl/core/envs/config.py
 from __future__ import annotations
 
-from typing import Mapping, cast
+from typing import Literal, Mapping, cast
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
@@ -11,12 +11,15 @@ from tetris_rl.core.envs.actions import ActionMode, InvalidActionPolicy
 from tetris_rl.core.envs.rewards.params import REWARD_PARAMS_REGISTRY, RewardParams
 from tetris_rl.core.game.config import GameConfig
 
+InfoLevel = Literal["train", "watch"]
+
 
 class MacroEnvParams(ConfigBase):
     action_mode: ActionMode = "discrete"
     max_steps: int | None = None
     invalid_action_policy: InvalidActionPolicy = "noop"
     feature_clear_mode: str = "post"
+    info_level: InfoLevel = "train"
 
     @model_validator(mode="before")
     @classmethod
@@ -34,6 +37,16 @@ class MacroEnvParams(ConfigBase):
         out = dict(data)
         out["feature_clear_mode"] = mode
         return out
+
+    @field_validator("info_level", mode="before")
+    @classmethod
+    def _normalize_info_level(cls, v: object) -> str:
+        s = str(v).strip().lower()
+        if s in {"watch", "ui", "full", "debug"}:
+            return "watch"
+        if s in {"train", "min", "minimal"}:
+            return "train"
+        raise ValueError("env.params.info_level must be 'train' or 'watch'")
 
 
 class EnvConfig(ConfigBase):

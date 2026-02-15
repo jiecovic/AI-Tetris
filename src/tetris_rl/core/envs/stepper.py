@@ -96,6 +96,9 @@ class MacroStepRunner:
             payload=payload,
         )
 
+        if str(getattr(env, "info_level", "train")).strip().lower() != "watch":
+            payload.info.pop("ui", None)
+
         obs = env._obs_from_state(st)
         return obs, shaped, bool(step_out.terminated), bool(truncated), payload.info
 

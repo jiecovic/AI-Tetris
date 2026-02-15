@@ -138,9 +138,6 @@ class TransitionFeaturesBuilder:
 @dataclass
 class StepInfoBuilder:
     invalid_action: bool
-    invalid_action_policy: Optional[str]
-    applied: bool
-    mask_mismatch: bool
     game_over: bool
     delta_score: Optional[float]
     state: Any
@@ -153,7 +150,6 @@ class StepInfoBuilder:
     used_col: int
     masked_action: bool
     action_dim: Optional[int] = None
-    masked_action_count: Optional[int] = None
     episode_idx: int = 0
     episode_step: int = 0
     piece_rule: str = ""
@@ -168,7 +164,6 @@ class StepInfoBuilder:
     delta_agg_height: Optional[int] = None
 
     sidebar_env: Optional[list[tuple[str, Any]]] = None
-    engine_info: Optional[Dict[str, Any]] = None
 
     def with_post_features(
         self,
@@ -226,8 +221,6 @@ class ActionContext:
     used_col: int
     used_action_id: int
     masked_action: bool
-    mask_mismatch: bool
-    masked_action_count: int
     action_dim: int
     action_mode: str
 
@@ -243,8 +236,6 @@ class ActionContext:
         used_col: int,
         used_action_id: int,
         masked_action: bool,
-        mask_mismatch: bool,
-        masked_action_count: int,
         action_dim: Optional[int] = None,
     ) -> "ActionContext":
         return cls(
@@ -255,8 +246,6 @@ class ActionContext:
             used_col=int(used_col),
             used_action_id=int(used_action_id),
             masked_action=bool(masked_action),
-            mask_mismatch=bool(mask_mismatch),
-            masked_action_count=int(masked_action_count),
             action_dim=int(action_dim if action_dim is not None else getattr(env, "action_dim", 0)),
             action_mode=str(getattr(env, "action_mode", "")),
         )
@@ -316,7 +305,6 @@ def build_step_payload(
     sf: Mapping[str, Any],
     action: ActionContext,
     step: StepContext,
-    engine_info: Dict[str, Any],
 ) -> StepPayload:
     cur = _get_field(sf, "cur", {}) or {}
     delta = _get_field(sf, "delta", {}) or {}
@@ -347,9 +335,6 @@ def build_step_payload(
     info = (
         StepInfoBuilder(
             invalid_action=bool(step.invalid_action),
-            invalid_action_policy=str(step.invalid_action_policy),
-            applied=bool(step.applied),
-            mask_mismatch=bool(action.mask_mismatch),
             game_over=bool(step.terminated),
             delta_score=float(step.delta_score),
             state=step.state,
@@ -362,12 +347,10 @@ def build_step_payload(
             used_col=int(action.used_col),
             masked_action=bool(action.masked_action),
             action_dim=int(action.action_dim),
-            masked_action_count=int(action.masked_action_count),
             episode_idx=int(step.episode_idx),
             episode_step=int(step.episode_step),
             piece_rule=str(step.piece_rule),
             sidebar_env=step.sidebar_env,
-            engine_info=dict(engine_info),
         )
         .with_post_block(post_block)
         .build()
@@ -393,9 +376,6 @@ def build_step_payload_for_env(
 ) -> StepPayload:
     cur = _get_field(sf, "cur", {}) or {}
     delta = _get_field(sf, "delta", {}) or {}
-    mask_mismatch = False
-    if str(getattr(env, "action_mode", "")) == "discrete":
-        mask_mismatch = bool(mask_stats.masked_action) != bool(invalid_action)
 
     post_block = FeatureBlock.from_step(cur, delta)
 
@@ -422,8 +402,6 @@ def build_step_payload_for_env(
         used_col=int(used_col),
         used_action_id=int(used_action_id),
         masked_action=bool(mask_stats.masked_action),
-        mask_mismatch=bool(mask_mismatch),
-        masked_action_count=int(mask_stats.masked_action_count),
         action_dim=int(mask_stats.action_dim),
     )
     step_ctx = StepContext.from_env(
@@ -441,7 +419,6 @@ def build_step_payload_for_env(
         sf=sf,
         action=action_ctx,
         step=step_ctx,
-        engine_info={},
     )
 
 
@@ -553,9 +530,6 @@ def build_step_info_update(
     *,
     # --- env truth (must be passed in) ---
     invalid_action: bool,
-    invalid_action_policy: Optional[str],
-    applied: bool,
-    mask_mismatch: bool,
     game_over: bool,
     delta_score: Optional[float],
     # --- state / presentation ---
@@ -569,7 +543,6 @@ def build_step_info_update(
     used_col: int,
     masked_action: bool,
     action_dim: Optional[int] = None,
-    masked_action_count: Optional[int] = None,
     episode_idx: int,
     episode_step: int,
     piece_rule: str,
@@ -582,10 +555,8 @@ def build_step_info_update(
     agg_height_after: Optional[int] = None,
     delta_agg_height: Optional[int] = None,
     sidebar_env: Optional[list[tuple[str, Any]]] = None,
-    engine_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     sidebar_env = sidebar_env or []
-    engine_info = engine_info or {}
 
     tf: Dict[str, Any] = {
         "cleared_lines": int(cleared),
@@ -601,14 +572,12 @@ def build_step_info_update(
         "delta_agg_height": delta_agg_height,
     }
 
-    # GAME panel: store "game-ish" metrics here so the sidebar can show them
-    # without needing an extra game_metrics arg plumbed through the renderer.
+    # GAME panel: core KPIs for logging/telemetry.
+    # (Grid/shape metrics live in tf.* and can be rendered from there.)
     game: Dict[str, Any] = {
         "score": int(_get_field(state, "score", 0)),
         "lines_total": int(_get_field(state, "lines", 0)),
         "level": int(_get_field(state, "level", 0)),
-        "holes": holes_after,
-        "max_height": max_height_after,
         # Optional (keep commented unless you want them in GAME column too):
         # "bumpiness": bumpiness_after,
         # "agg_height": agg_height_after,
@@ -618,10 +587,7 @@ def build_step_info_update(
 
     ui: Dict[str, Any] = {
         "sidebar_env": sidebar_env,
-        "active_kind": _get_field(state, "active_kind", None),
         "next_kind": _get_field(state, "next_kind", None),
-        "active_kind_idx": int(_get_field(state, "active_kind_idx", 0)),
-        "next_kind_idx": int(_get_field(state, "next_kind_idx", 0)),
         "action_mode": str(action_mode),
         "piece_rule": str(piece_rule),
         "episode_idx": int(episode_idx),
@@ -632,17 +598,11 @@ def build_step_info_update(
         "used_rotation": int(used_rot),
         "used_column": int(used_col),
         "masked_action": bool(masked_action),
-        "mask_mismatch": bool(mask_mismatch),
-        "invalid_action_policy": str(invalid_action_policy),
-        "applied": bool(applied),
     }
     if action_dim is not None:
         ui["action_dim"] = int(action_dim)
-    if masked_action_count is not None:
-        ui["masked_action_count"] = int(masked_action_count)
 
     info: Dict[str, Any] = {}
-    info["engine_info"] = dict(engine_info)
     info["tf"] = tf
     info["game"] = game
     info["ui"] = ui

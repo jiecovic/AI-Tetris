@@ -79,6 +79,7 @@ def run_watch(args: argparse.Namespace) -> int:
         seed=int(args.seed),
         device=str(args.device),
         piece_rule=args.piece_rule,
+        info_level="watch",
         reload_every_s=float(args.reload),
         use_expert=bool(args.heuristic_agent),
         random_action=bool(args.random_action),

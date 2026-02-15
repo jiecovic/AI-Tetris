@@ -44,6 +44,9 @@ class MacroTetrisEnv(gym.Env):
         self.max_steps = int(spec.max_steps) if spec.max_steps is not None else None
         self.action_mode = spec.action_mode
         self.feature_clear_mode = str(getattr(spec, "feature_clear_mode", "post"))
+        self.info_level = str(getattr(spec, "info_level", "train")).strip().lower()
+        if self.info_level not in {"train", "watch"}:
+            raise ValueError(f"unknown info_level: {self.info_level!r}")
 
         self.invalid_action_policy = str(spec.invalid_action_policy).strip().lower()
         if self.invalid_action_policy not in {"noop", "terminate"}:

@@ -316,14 +316,19 @@ def draw_sidebar(
     st_game_over = _get(state, "game_over", None)
     game_over = bool(done) if st_game_over is None else bool(st_game_over)
 
-    # Preferred source: env_info["game"] (populated by macro_info.build_step_info_update)
+    # Preferred source: game_metrics (derived from info["tf"]); fallback to env_info["game"] for legacy.
     holes = None
     max_height = None
-    if isinstance(env_info, dict):
+    if isinstance(game_metrics, dict):
+        holes = game_metrics.get("holes", None)
+        max_height = game_metrics.get("max_height", None)
+    if (holes is None or max_height is None) and isinstance(env_info, dict):
         g = env_info.get("game", None)
         if isinstance(g, dict):
-            holes = g.get("holes", None)
-            max_height = g.get("max_height", None)
+            if holes is None:
+                holes = g.get("holes", None)
+            if max_height is None:
+                max_height = g.get("max_height", None)
 
     col1_label_x = int(x) + int(_LAYOUT.stats_pad_x)
     col1_value_x = int(col1_label_x) + int(_LAYOUT.stats_value_dx)
