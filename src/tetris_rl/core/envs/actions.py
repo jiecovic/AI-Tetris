@@ -24,7 +24,6 @@ class ActionRequest:
 @dataclass(frozen=True)
 class MaskStats:
     masked_action: bool
-    masked_action_count: int
     action_dim: int
 
 
@@ -54,15 +53,19 @@ def resolve_action_request(*, action: Any, action_mode: str, game: Any) -> Actio
         requested_rot = int(arr[0])
         requested_col = int(arr[1])
 
-    requested_action_id = int(game.encode_action_id(int(requested_rot), int(requested_col)))
+    try:
+        requested_action_id = int(game.encode_action_id(int(requested_rot), int(requested_col)))
+    except Exception:
+        # Keep env.step robust for out-of-range multidiscrete inputs.
+        # The caller will treat action_id < 0 as masked/invalid.
+        requested_action_id = -1
     return ActionRequest(int(requested_rot), int(requested_col), int(requested_action_id))
 
 
 def mask_stats_for_action_id(*, action_id: int, mask: np.ndarray) -> MaskStats:
     aid = int(action_id)
     masked = bool(aid < 0 or aid >= int(mask.size) or (not bool(mask[aid])))
-    masked_count = int((~mask).sum())
-    return MaskStats(masked_action=bool(masked), masked_action_count=int(masked_count), action_dim=int(mask.size))
+    return MaskStats(masked_action=bool(masked), action_dim=int(mask.size))
 
 
 __all__ = [

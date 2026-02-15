@@ -144,6 +144,7 @@ def learn_td(
         seed = episode_seed(base_seed=int(cfg.seed), env_idx=int(i), episode_idx=0)
         env.reset(seed=int(seed))
 
+    target_update_step = 0
     while int(algo.num_timesteps) < int(total_steps_target):
         rollout_features: list[np.ndarray] = []
         rollout_values: list[np.ndarray] = []
@@ -269,7 +270,6 @@ def learn_td(
         idx = np.arange(targets_flat.shape[0])
         rng.shuffle(idx)
         last_loss = 0.0
-        update_step = 0
         for _ in range(int(n_epochs)):
             rng.shuffle(idx)
             for start in range(0, len(idx), batch_size):
@@ -300,8 +300,8 @@ def learn_td(
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float(grad_clip))
                 algo.optimizer.step()
                 last_loss = float(loss.detach().cpu().item())
-                update_step += 1
-                if target_model is not None and (update_step % target_update_every == 0):
+                target_update_step += 1
+                if target_model is not None and (target_update_step % target_update_every == 0):
                     with torch.no_grad():
                         for p_t, p in zip(target_model.parameters(), model.parameters()):
                             p_t.data.mul_(1.0 - target_tau).add_(p.data, alpha=target_tau)
