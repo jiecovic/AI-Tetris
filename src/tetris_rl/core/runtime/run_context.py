@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional, cast
 
 import torch
 
@@ -18,6 +18,7 @@ from tetris_rl.core.runs.run_resolver import (
     resolve_env_cfg,
     resolve_inference_artifact,
 )
+from tetris_rl.core.training.config import AlgoConfig
 from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 from tetris_rl.core.training.model_io import load_model_from_algo_config, warn_if_maskable_with_multidiscrete
 
@@ -194,18 +195,41 @@ def build_run_context(
                 warn_if_maskable_with_multidiscrete(algo_cfg=spec.algo_cfg, env=env)
 
     poller = None
+    reload_algo_cfg: AlgoConfig | None = None
+    checkpoint_loader = None
+    if spec.algo_type == "imitation" and spec.exp_cfg is not None:
+        backend = str(spec.exp_cfg.algo.params.policy_backend).strip().lower()
+        if backend not in {"ppo", "maskable_ppo"}:
+            raise ValueError(f"unsupported imitation policy_backend for watch reload: {backend!r}")
+        reload_algo_cfg = AlgoConfig(type=cast(Literal["ppo", "maskable_ppo"], backend))
+        imitation_params = spec.exp_cfg.algo.params
+
+        def _reload_imitation(path: Path, dev: str) -> tuple[Any, str]:
+            algo = ImitationAlgorithm.load(
+                path,
+                env=env,
+                params=imitation_params,
+                device=str(dev),
+            )
+            return algo, str(backend)
+
+        checkpoint_loader = _reload_imitation
+    elif spec.algo_cfg is not None:
+        reload_algo_cfg = spec.algo_cfg
+
     if (
-        spec.algo_type not in {"ga", "td", "imitation"}
+        spec.algo_type not in {"ga", "td"}
         and model is not None
         and float(reload_every_s) > 0.0
-        and spec.algo_cfg is not None
+        and reload_algo_cfg is not None
     ):
         poller = CheckpointPoller(
             run_dir=spec.run_dir,
             which=str(which),
-            algo_cfg=spec.algo_cfg,
+            algo_cfg=reload_algo_cfg,
             device=str(device),
             reload_every_s=float(reload_every_s),
+            loader=checkpoint_loader,
         )
         poller.set_current(ckpt=ckpt, model=model, algo_type=str(algo_type))
 

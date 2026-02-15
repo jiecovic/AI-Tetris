@@ -288,9 +288,12 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
 
                 if event.key == pygame.K_r:
                     obs, info = env.reset()
-                    window.reset_episode()
+                    # Manual reset should also clear rolling HUD stats/history.
+                    window.clear()
                     state = game.snapshot(include_grid=True, visible=False)
                     acc_s = 0.0
+                    sps_meter.trim_to_last(2)
+                    fps_meter.trim_to_last(2)
                     continue
 
                 if event.key == pygame.K_n:
