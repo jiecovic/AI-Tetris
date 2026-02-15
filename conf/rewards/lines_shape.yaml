@@ -1,7 +1,7 @@
 # @package _group_
 type: lines_shape
 params:
-  illegal_penalty: 10.0  # penalty for invalid action
+  invalid_penalty: 10.0  # penalty for invalid action
   terminal_penalty: 10.0  # penalty on game over
   survival_bonus: 0.0  # per-step bonus if still alive
   line_cleared_bonus: 1.0  # per-line bonus (scaled by cleared_lines)

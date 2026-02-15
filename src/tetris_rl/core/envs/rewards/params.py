@@ -3,17 +3,47 @@ from __future__ import annotations
 
 from typing import Mapping
 
+from pydantic import model_validator
+
 from tetris_rl.core.config.base import ConfigBase
 
 
-class LinesRewardParams(ConfigBase):
-    illegal_penalty: float = 10.0
+class InvalidPenaltyParams(ConfigBase):
+    invalid_penalty: float = 10.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_penalty_key(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        if "illegal_penalty" not in data:
+            return data
+
+        out = dict(data)
+        legacy = out.pop("illegal_penalty")
+        if "invalid_penalty" not in out:
+            out["invalid_penalty"] = legacy
+            return out
+
+        try:
+            if float(out["invalid_penalty"]) != float(legacy):
+                raise ValueError("invalid_penalty and illegal_penalty disagree; use invalid_penalty only")
+        except Exception:
+            raise ValueError("invalid_penalty and illegal_penalty disagree; use invalid_penalty only")
+        return out
+
+    @property
+    def illegal_penalty(self) -> float:
+        # Back-compat attribute shim for older call sites.
+        return float(self.invalid_penalty)
+
+
+class LinesRewardParams(InvalidPenaltyParams):
     terminal_penalty: float = 10.0
     survival_bonus: float = 0.0
 
 
-class HeuristicDeltaRewardParams(ConfigBase):
-    illegal_penalty: float = 10.0
+class HeuristicDeltaRewardParams(InvalidPenaltyParams):
     terminal_penalty: float = 10.0
     w_lines: float = 0.760666
     w_holes: float = -0.35663
@@ -22,15 +52,13 @@ class HeuristicDeltaRewardParams(ConfigBase):
     survival_bonus: float = 0.0
 
 
-class LinesCleanRewardParams(ConfigBase):
-    illegal_penalty: float = 10.0
+class LinesCleanRewardParams(InvalidPenaltyParams):
     terminal_penalty: float = 10.0
     survival_bonus: float = 0.0
     no_new_holes_bonus: float = 1.0
 
 
-class LinesShapeRewardParams(ConfigBase):
-    illegal_penalty: float = 10.0
+class LinesShapeRewardParams(InvalidPenaltyParams):
     terminal_penalty: float = 10.0
     survival_bonus: float = 0.0
     line_cleared_bonus: float = 1.0

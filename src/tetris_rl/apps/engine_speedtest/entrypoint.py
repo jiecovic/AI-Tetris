@@ -140,13 +140,13 @@ def _run_speed_test(
     t0 = time.perf_counter()
 
     while steps_done < steps_target:
-        terminated, _cleared_step, illegal, aid = step_expert(expert)
+        terminated, _cleared_step, invalid, aid = step_expert(expert)
 
         current_ep_len += 1
         steps_done += 1
 
-        if illegal:
-            raise RuntimeError(f"Expert produced illegal action at step={steps_done}, aid={aid}")
+        if invalid:
+            raise RuntimeError(f"Expert produced invalid action at step={steps_done}, aid={aid}")
 
         if verify and (verify_every > 0) and (steps_done % verify_every == 0):
             if aid is not None:

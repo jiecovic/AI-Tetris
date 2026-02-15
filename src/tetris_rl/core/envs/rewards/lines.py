@@ -14,7 +14,7 @@ class LinesReward(RewardFn):
     """
 
     def __init__(self, *, spec: LinesRewardParams) -> None:
-        self.illegal_penalty = float(spec.illegal_penalty)
+        self.invalid_penalty = float(spec.invalid_penalty)
         self.terminal_penalty = float(spec.terminal_penalty)
         self.survival_bonus = float(spec.survival_bonus)
 
@@ -33,7 +33,7 @@ class LinesReward(RewardFn):
         game_over = bool(getattr(features, "game_over", False))
 
         if invalid:
-            r -= float(self.illegal_penalty)
+            r -= float(self.invalid_penalty)
 
         if not invalid and not game_over:
             r += float(self.survival_bonus)

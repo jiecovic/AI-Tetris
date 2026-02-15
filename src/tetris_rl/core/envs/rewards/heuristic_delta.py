@@ -33,14 +33,14 @@ class HeuristicDeltaReward(RewardFn):
       - All penalties are POSITIVE magnitudes.
       - Penalties are SUBTRACTED at computation time.
 
-    Illegal actions:
-      - Subtract illegal_penalty.
+    Invalid actions:
+      - Subtract invalid_penalty.
       - Do NOT receive learned terms (no bias, no deltas).
       - Terminal penalty is still subtracted if game_over is True.
     """
 
     def __init__(self, *, spec: HeuristicDeltaRewardParams) -> None:
-        self.illegal_penalty = float(spec.illegal_penalty)
+        self.invalid_penalty = float(spec.invalid_penalty)
         self.terminal_penalty = float(spec.terminal_penalty)
         self.w_lines = float(spec.w_lines)
         self.w_holes = float(spec.w_holes)
@@ -60,10 +60,10 @@ class HeuristicDeltaReward(RewardFn):
         r = 0.0
 
         # ------------------------------------------------------------
-        # Illegal action: penalties only
+        # Invalid action: penalties only
         # ------------------------------------------------------------
         if bool(getattr(features, "invalid_action", False)):
-            r -= float(self.illegal_penalty)
+            r -= float(self.invalid_penalty)
             if bool(getattr(features, "game_over", False)):
                 r -= float(self.terminal_penalty)
             return float(r)

@@ -107,21 +107,21 @@ class BenchTotals:
     sum_ep_len_done: float = 0.0
 
     # Optional extras
-    illegal_steps: int = 0
+    invalid_steps: int = 0
     masked_steps: int = 0
 
     def start_episode(self) -> None:
         self.episodes_started += 1
         self.cur_ep_len = 0
 
-    def push_step(self, *, r: float, lines: int, score_delta: float, illegal: bool, masked: bool) -> None:
+    def push_step(self, *, r: float, lines: int, score_delta: float, invalid: bool, masked: bool) -> None:
         self.steps += 1
         self.cur_ep_len += 1
         self.sum_reward += float(r)
         self.sum_lines += float(lines)
         self.sum_score_delta += float(score_delta)
-        if bool(illegal):
-            self.illegal_steps += 1
+        if bool(invalid):
+            self.invalid_steps += 1
         if bool(masked):
             self.masked_steps += 1
 
@@ -140,6 +140,7 @@ class BenchTotals:
         denom_eps_started = float(max(1, self.episodes_started))
         avg_ep_len_including_partial = (self.sum_ep_len_done + float(self.cur_ep_len)) / denom_eps_started
 
+        invalid_step_pct = float(100.0 * float(self.invalid_steps) / denom_steps)
         return {
             "steps": int(self.steps),
             "episodes_started": int(self.episodes_started),
@@ -149,7 +150,9 @@ class BenchTotals:
             "avg_score_per_step": float(self.sum_score_delta / denom_steps),
             "avg_episode_len_done_only": avg_ep_len_done_only,
             "avg_episode_len_including_partial": float(avg_ep_len_including_partial),
-            "illegal_step_pct": float(100.0 * float(self.illegal_steps) / denom_steps),
+            "invalid_step_pct": invalid_step_pct,
+            # Back-compat alias for older analysis scripts.
+            "illegal_step_pct": invalid_step_pct,
             "masked_step_pct": float(100.0 * float(self.masked_steps) / denom_steps),
         }
 
@@ -181,7 +184,7 @@ def _format_report(*, meta: dict[str, Any], stats: dict[str, Any]) -> str:
     lines.append(f"  avg (including partial) : {stats['avg_episode_len_including_partial']:.1f}")
     lines.append("")
     lines.append("Quality / safety")
-    lines.append(f"  illegal steps : {stats['illegal_step_pct']:.3f}%")
+    lines.append(f"  invalid steps : {stats['invalid_step_pct']:.3f}%")
     lines.append(f"  masked steps  : {stats['masked_step_pct']:.3f}%")
     lines.append("")
     lines.append("Speed")
@@ -234,7 +237,7 @@ def _render_report_table(*, meta: dict[str, Any], stats: dict[str, Any]) -> Any 
     add_row("avg ep len (+partial)", f"{stats['avg_episode_len_including_partial']:.1f}")
 
     table.add_section()
-    add_row("illegal steps", f"{stats['illegal_step_pct']:.3f}%")
+    add_row("invalid steps", f"{stats['invalid_step_pct']:.3f}%")
     add_row("masked steps", f"{stats['masked_step_pct']:.3f}%")
 
     return table
@@ -430,7 +433,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 r=float(r),
                 lines=int(h2.cleared_lines),
                 score_delta=float(h2.delta_score),
-                illegal=bool(h2.invalid_action),
+                invalid=bool(h2.invalid_action),
                 masked=bool(h2.masked_action),
             )
 

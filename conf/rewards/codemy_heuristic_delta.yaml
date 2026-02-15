@@ -3,7 +3,7 @@
 # https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
 type: heuristic_delta
 params:
-  illegal_penalty: 10.0
+  invalid_penalty: 10.0
   terminal_penalty: 0.0
   w_lines: 0.760666
   w_holes: -0.35663

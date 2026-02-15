@@ -30,7 +30,7 @@ class HudSnapshot:
     win_steps: int
     win_avg_r: float
     win_avg_lines: float
-    win_illegal_pct: float
+    win_invalid_pct: float
     win_avg_score: float
     win_avg_ep_len: float  # rolling average episode length (in steps)
 
@@ -103,7 +103,7 @@ class HudFormatter:
         lines.append(f"# Recent performance (per-step, last {cap} steps)")
         lines.append(f"Samples: {max(0, int(s.win_steps))} | Avg ep len: {float(s.win_avg_ep_len):0.1f}")
         lines.append(f"Avg reward: {float(s.win_avg_r):+0.3f} | Avg score: {float(s.win_avg_score):0.1f}")
-        lines.append(f"Illegal%: {float(s.win_illegal_pct):0.3f}% | Action entropy: {float(s.win_action_entropy):0.3f}")
+        lines.append(f"Invalid%: {float(s.win_invalid_pct):0.3f}% | Action entropy: {float(s.win_action_entropy):0.3f}")
         lines.append(f"Avg lines: {float(s.win_avg_lines):0.4f}")
         lines.append("")
 

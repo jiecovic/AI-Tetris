@@ -13,8 +13,8 @@ class StepWindowSummary:
     avg_reward: float
     sum_lines: int
 
-    # correctness: illegal rate over steps (0..1)
-    avg_illegal: float
+    # correctness: invalid-action rate over steps (0..1)
+    avg_invalid: float
 
     # debug signals (kept for now; may or may not be shown in HUD)
     sum_masked: int
@@ -37,7 +37,7 @@ class StepWindow:
     Tracks (rolling, per-step):
       - reward average
       - cleared lines sum
-      - illegal rate (env truth)
+      - invalid-action rate (env truth)
       - masked count (debug)
       - redundant rotation count (debug)
       - score delta average
@@ -57,7 +57,7 @@ class StepWindow:
 
         self._r: Deque[float] = deque()
         self._lines: Deque[int] = deque()
-        self._illegal: Deque[int] = deque()
+        self._invalid: Deque[int] = deque()
 
         self._masked: Deque[int] = deque()
         self._score_delta: Deque[float] = deque()
@@ -75,7 +75,7 @@ class StepWindow:
     def clear(self) -> None:
         self._r.clear()
         self._lines.clear()
-        self._illegal.clear()
+        self._invalid.clear()
         self._masked.clear()
         self._score_delta.clear()
         self._action_id.clear()
@@ -97,7 +97,7 @@ class StepWindow:
             *,
             step_reward: float,
             cleared_lines: int,
-            illegal: int,
+            invalid: int,
             masked: int,
             score_delta: float = 0.0,
             action_id: Optional[int] = None,
@@ -125,7 +125,7 @@ class StepWindow:
 
         self._r.append(sr)
         self._lines.append(int(cleared_lines))
-        self._illegal.append(1 if int(illegal) != 0 else 0)
+        self._invalid.append(1 if int(invalid) != 0 else 0)
 
         self._masked.append(1 if int(masked) != 0 else 0)
         self._score_delta.append(float(score_delta))
@@ -149,7 +149,7 @@ class StepWindow:
         while len(self._r) > self.capacity:
             self._r.popleft()
             self._lines.popleft()
-            self._illegal.popleft()
+            self._invalid.popleft()
             self._masked.popleft()
             self._score_delta.popleft()
             self._action_id.popleft()
@@ -205,7 +205,7 @@ class StepWindow:
                 steps=0,
                 avg_reward=0.0,
                 sum_lines=0,
-                avg_illegal=0.0,
+                avg_invalid=0.0,
                 sum_masked=0,
                 avg_score_delta=0.0,
                 avg_episode_len=float(avg_ep),
@@ -218,14 +218,14 @@ class StepWindow:
         s_sd = float(sum(self._score_delta))
         denom = float(n)
 
-        s_illegal = int(sum(self._illegal))
-        avg_illegal = float(s_illegal) / denom
+        s_invalid = int(sum(self._invalid))
+        avg_invalid = float(s_invalid) / denom
 
         return StepWindowSummary(
             steps=int(n),
             avg_reward=float(s_r / denom),
             sum_lines=int(sum(self._lines)),
-            avg_illegal=float(avg_illegal),
+            avg_invalid=float(avg_invalid),
             sum_masked=int(sum(self._masked)),
             avg_score_delta=float(s_sd / denom),
             avg_episode_len=float(avg_ep),

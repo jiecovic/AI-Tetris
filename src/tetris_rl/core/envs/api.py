@@ -19,14 +19,14 @@ class TransitionFeatures:
       - requested_rotation / requested_column: what the policy/agent asked for (macro action).
       - used_rotation / used_column: the action actually executed (same as requested unless engine remaps).
 
-    Strict legality (engine truth):
+    Strict validity (engine truth):
       - applied: True iff we actually applied *some* placement to the active piece and executed hard_drop.
                 (False for noop/terminate or invalid actions.)
-      - invalid_action: True iff the originally requested action was illegal under strict rules.
-      - invalid_action_policy: env-level policy for illegal actions ("noop" | "terminate").
+      - invalid_action: True iff the originally requested action was invalid under strict rules.
+      - invalid_action_policy: env-level policy for invalid actions ("noop" | "terminate").
 
     Mask/debug-only signals (mainly for MaskablePPO / sanity checks):
-      - masked_action: whether the requested joint Discrete(rot×col) action was masked out as illegal.
+      - masked_action: whether the requested joint Discrete(rot×col) action was masked out as invalid.
                        In discrete mode, this should agree with invalid_action.
 
     Feature mode:
@@ -81,3 +81,4 @@ class RewardFn(Protocol):
 
 
 __all__ = ["TransitionFeatures", "RewardFn"]
+

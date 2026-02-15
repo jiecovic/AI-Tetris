@@ -68,7 +68,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
             win_steps=0,
             win_avg_r=0.0,
             win_avg_lines=0.0,
-            win_illegal_pct=0.0,
+            win_invalid_pct=0.0,
             win_avg_score=0.0,
             win_avg_ep_len=0.0,
             win_action_entropy=0.0,
@@ -151,7 +151,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
         window.push(
             step_reward=float(r),
             cleared_lines=int(h2.cleared_lines),
-            illegal=int(h2.invalid_action),
+            invalid=int(h2.invalid_action),
             masked=int(h2.masked_action),
             score_delta=float(h2.delta_score),
             action_id=h2.action_id,
@@ -185,7 +185,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
         denom = float(max(1, int(ws.steps)))
 
         avg_lines = float(ws.sum_lines) / denom
-        illegal_pct = 100.0 * float(ws.avg_illegal)
+        invalid_pct = 100.0 * float(ws.avg_invalid)
 
         now_s = time.time()
         last_reload_age_s = float("inf") if last_reload_at_s is None else max(0.0, now_s - float(last_reload_at_s))
@@ -213,7 +213,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
             win_steps=int(ws.steps),
             win_avg_r=float(ws.avg_reward),
             win_avg_lines=float(avg_lines),
-            win_illegal_pct=float(illegal_pct),
+            win_invalid_pct=float(invalid_pct),
             win_avg_score=float(ws.avg_score_delta),
             win_avg_ep_len=float(ws.avg_episode_len),
             win_action_entropy=float(ws.action_entropy),
