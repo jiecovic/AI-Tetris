@@ -49,8 +49,6 @@ from .builders import (
     build_stem,
     build_token_mixer,
     build_tokenizer,
-)
-from .dims import (
     infer_feature_augmenter_extra_dim,
     resolve_spatial_head_features_dim,
 )
