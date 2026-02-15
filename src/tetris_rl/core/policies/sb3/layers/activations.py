@@ -53,21 +53,9 @@ def make_activation(name: LayerActivationName | str) -> nn.Module:
     Conventions:
     - ReLU is non-inplace (safer for residual-style models + debugging).
     - GELU supports both exact/default ("gelu") and tanh-approx ("gelu_tanh").
+    - Uses the same canonical mapping path as SB3 policy activation_fn.
     """
-    n = normalize_activation_name(name)
-    if n == "gelu":
-        return nn.GELU(approximate="none")
-    if n == "gelu_tanh":
-        return nn.GELU(approximate="tanh")
-    if n == "relu":
-        return nn.ReLU(inplace=False)
-    if n == "silu":
-        return nn.SiLU()
-    if n == "tanh":
-        return nn.Tanh()
-    if n == "identity":
-        return nn.Identity()
-    raise ValueError(f"unknown activation: {name!r}")
+    return activation_class(name)()
 
 
 def activation_class(name: PolicyActivationName | str) -> Type[nn.Module]:
