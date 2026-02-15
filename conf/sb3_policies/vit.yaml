@@ -1,7 +1,7 @@
 # @package _group_
 policy_kwargs:
   net_arch: [512]
-  activation_fn: GELU         # or whatever mapping you use
+  activation_fn: gelu         # options: gelu | gelu_tanh | relu | silu | tanh | identity; aliases: gelu_none|gelu_approx|gelu_fast|swish|none
 
 
 feature_extractor:
