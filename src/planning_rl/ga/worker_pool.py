@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import signal
 from dataclasses import asdict
+from multiprocessing import TimeoutError as MPTimeoutError
 from multiprocessing import current_process, get_context
 from typing import Any, Callable, Mapping, Sequence
 
@@ -144,15 +145,25 @@ class GAWorkerPool:
         prev_handler = signal.getsignal(signal.SIGINT)
 
         def _sigint_handler(_signum, _frame) -> None:
-            self._terminate_pool()
             raise KeyboardInterrupt
 
         signal.signal(signal.SIGINT, _sigint_handler)
         try:
-            for idx, score in pool.imap_unordered(_worker_eval, tasks):
+            it = pool.imap_unordered(_worker_eval, tasks)
+            remaining = len(tasks)
+            # Poll so Ctrl+C is responsive on Windows even when workers run long episodes.
+            while remaining > 0:
+                try:
+                    idx, score = it.next(timeout=0.2)
+                except MPTimeoutError:
+                    continue
                 scores[int(idx)] = float(score)
                 if on_candidate is not None:
                     on_candidate(int(idx), float(score))
+                remaining -= 1
+        except KeyboardInterrupt:
+            self._terminate_pool()
+            raise
         finally:
             signal.signal(signal.SIGINT, prev_handler)
 

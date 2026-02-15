@@ -5,6 +5,7 @@ import signal
 import tempfile
 import threading
 from dataclasses import dataclass
+from multiprocessing import TimeoutError as MPTimeoutError
 from multiprocessing import get_context
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, cast
@@ -664,8 +665,6 @@ def evaluate_model_workers(
         done_eps = 0
 
         def _sigint_handler(_signum, _frame) -> None:
-            if pool is not None:
-                pool.terminate()
             raise KeyboardInterrupt
 
         signal.signal(signal.SIGINT, _sigint_handler)
@@ -705,13 +704,21 @@ def evaluate_model_workers(
                     progress_queue,
                 ),
             )
-            for state in pool.imap(_worker_eval, tasks):
+            it = pool.imap(_worker_eval, tasks)
+            remaining = len(tasks)
+            # Poll so Ctrl+C is responsive on Windows for long worker runs.
+            while remaining > 0:
+                try:
+                    state = it.next(timeout=0.2)
+                except MPTimeoutError:
+                    continue
                 states.append(state)
                 if progress_queue is None and on_step is not None:
                     acc_state = state.get("acc_state", {})
                     steps = int(acc_state.get("n_steps", 0)) if isinstance(acc_state, Mapping) else 0
                     if steps > 0:
                         on_step(int(steps))
+                remaining -= 1
         except KeyboardInterrupt:
             terminated = True
             if pool is not None:

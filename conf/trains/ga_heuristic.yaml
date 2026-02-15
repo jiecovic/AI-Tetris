@@ -3,8 +3,8 @@ learn:
   generations: 10                 # number of generations to run
   workers: 12                     # parallel workers for fitness eval
   fitness:
-    episodes: 100                 # episodes per candidate (fitness eval)
-    max_steps: 500                # max steps per episode (fitness eval)
+    episodes: 1_000                 # episodes per candidate (fitness eval)
+    max_steps: 10_000                # max steps per episode (fitness eval)
     fitness_metric: total_reward  # total_reward | reward_per_step
     seed: 12345                   # fitness eval seed base
 
@@ -16,12 +16,12 @@ callbacks:
     enabled: true                 # run eval + save best checkpoints
     every: 1                      # eval cadence in generations
     episodes: 1000                # target completed episodes
-    min_steps: 1_000              # minimum total steps collected
-    max_steps_per_episode: 1_000  # cap per episode (eval-only)
+    min_steps: 10_000              # minimum total steps collected
+    max_steps_per_episode: 100_000  # cap per episode (eval-only)
     deterministic: true           # planning policies are deterministic
     seed_offset: 10000            # offset from run.seed for eval seeds
     mode: workers                 # vectorized | workers (GA requires workers)
-    workers: 4                    # parallel workers for planning eval
+    workers: 8                    # parallel workers for planning eval
 
 algo:
   type: ga                        # ga

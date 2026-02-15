@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import signal
 import threading
+from multiprocessing import TimeoutError as MPTimeoutError
 from multiprocessing import get_context
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
@@ -365,8 +366,6 @@ def evaluate_planning_policy_parallel(
     progress_thread = None
 
     def _sigint_handler(_signum, _frame) -> None:
-        if pool is not None:
-            pool.terminate()
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGINT, _sigint_handler)
@@ -394,31 +393,39 @@ def evaluate_planning_policy_parallel(
             progress_thread = threading.Thread(target=_drain_progress, daemon=True)
             progress_thread.start()
 
-        pool = ctx.Pool(
-            processes=len(tasks),
-            initializer=_init_worker,
-            initargs=(dict(env_cfg), spec, progress_queue),
-        )
-        for state in pool.imap(_worker_eval, tasks):
-            states.append(state)
-            if progress_queue is None and on_step is not None:
-                acc_state = state.get("acc_state", {})
-                steps = int(acc_state.get("n_steps", 0)) if isinstance(acc_state, Mapping) else 0
-                if steps > 0:
-                    on_step(int(steps))
-            if progress_queue is None and on_episode is not None:
-                ep_returns = state.get("ep_returns", [])
-                if not isinstance(ep_returns, list):
-                    ep_returns = []
-                if ep_returns:
-                    for ret in ep_returns:
-                        done_eps += 1
-                        on_episode(int(done_eps), _as_float(ret))
-                else:
-                    n_done = int(state.get("completed_episodes", 0))
-                    for _ in range(n_done):
-                        done_eps += 1
-                        on_episode(int(done_eps), None)
+            pool = ctx.Pool(
+                processes=len(tasks),
+                initializer=_init_worker,
+                initargs=(dict(env_cfg), spec, progress_queue),
+            )
+            it = pool.imap(_worker_eval, tasks)
+            remaining = len(tasks)
+            # Poll so Ctrl+C is responsive on Windows for long worker runs.
+            while remaining > 0:
+                try:
+                    state = it.next(timeout=0.2)
+                except MPTimeoutError:
+                    continue
+                states.append(state)
+                if progress_queue is None and on_step is not None:
+                    acc_state = state.get("acc_state", {})
+                    steps = int(acc_state.get("n_steps", 0)) if isinstance(acc_state, Mapping) else 0
+                    if steps > 0:
+                        on_step(int(steps))
+                if progress_queue is None and on_episode is not None:
+                    ep_returns = state.get("ep_returns", [])
+                    if not isinstance(ep_returns, list):
+                        ep_returns = []
+                    if ep_returns:
+                        for ret in ep_returns:
+                            done_eps += 1
+                            on_episode(int(done_eps), _as_float(ret))
+                    else:
+                        n_done = int(state.get("completed_episodes", 0))
+                        for _ in range(n_done):
+                            done_eps += 1
+                            on_episode(int(done_eps), None)
+                remaining -= 1
     except KeyboardInterrupt:
         terminated = True
         if pool is not None:
