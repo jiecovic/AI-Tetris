@@ -11,6 +11,7 @@ from tetris_rl.core.policies.sb3.mixers.config import MixerConfig
 from tetris_rl.core.policies.sb3.spatial.config import SpatialPreprocessorConfig, StemConfig
 from tetris_rl.core.policies.sb3.spatial_heads.config import SpatialHeadConfig
 from tetris_rl.core.policies.sb3.tokenizers.config import TokenizerConfig
+from tetris_rl.core.policies.sb3.types import PolicyActivationName
 
 
 class TokenEncoderConfig(ConfigBase):
@@ -40,7 +41,7 @@ class FeatureExtractorConfig(ConfigBase):
 class SB3PolicyConfig(ConfigBase):
     policy_kwargs: Dict[str, Any] = Field(default_factory=dict)
     net_arch: Optional[Any] = None
-    activation_fn: Optional[str] = None
+    activation_fn: Optional[PolicyActivationName] = None
     feature_extractor: FeatureExtractorConfig
 
 

@@ -6,8 +6,9 @@ from typing import Any, Dict, Literal, Optional
 from pydantic import ValidationInfo, field_validator, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
+from tetris_rl.core.policies.sb3.types import LayerActivationName, PoolAvgMaxName
 
-Activation = Literal["gelu", "relu", "silu"]
+Activation = LayerActivationName
 
 # ---------------------------------------------------------------------
 # Spatial preprocessor (raw obs dict -> SpatialFeatures + Specials)
@@ -41,7 +42,7 @@ class SpatialPreprocessorConfig(ConfigBase):
 # ---------------------------------------------------------------------
 
 
-PoolType = Literal["avg", "max"]
+PoolType = PoolAvgMaxName
 
 
 class CNNStemPoolSpec(ConfigBase):

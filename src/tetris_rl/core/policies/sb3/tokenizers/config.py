@@ -7,6 +7,7 @@ from pydantic import Field, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
+from tetris_rl.core.policies.sb3.types import LayerActivationName
 
 TokenizerLayout = Literal["row", "column", "patch", "row_column"]
 BoardEmbedType = Literal["linear", "conv1d", "discrete_pattern"]
@@ -61,7 +62,7 @@ class Conv1DEmbedParams(ConfigBase):
     channels: tuple[int, ...] = ()
     kernel_sizes: tuple[int, ...] = ()
     strides: tuple[int, ...] | None = None
-    activation: Literal["gelu", "relu", "silu"] = "gelu"
+    activation: LayerActivationName = "gelu"
     use_batchnorm: bool = False
 
 

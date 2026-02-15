@@ -10,6 +10,8 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
+from tetris_rl.core.policies.sb3.layers.activations import make_activation
+
 
 @dataclass(frozen=True)
 class FFNSpec:
@@ -34,7 +36,7 @@ class FFN(nn.Module):
         H = int(max(1, round(mult * D)))
         self.net = nn.Sequential(
             nn.Linear(D, H),
-            nn.GELU(),
+            make_activation("gelu"),
             nn.Dropout(p) if p > 0.0 else nn.Identity(),
             nn.Linear(H, D),
             nn.Dropout(p) if p > 0.0 else nn.Identity(),

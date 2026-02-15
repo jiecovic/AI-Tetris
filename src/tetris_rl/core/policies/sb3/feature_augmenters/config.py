@@ -7,6 +7,7 @@ from pydantic import model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
+from tetris_rl.core.policies.sb3.types import LayerActivationName
 
 FeatureAugmenterType = Literal["none", "null", "onehot_concat", "mlp_joint", "mlp_split"]
 
@@ -49,7 +50,7 @@ class JointMLPParams(FeatureAugmenterBaseParams):
 
     out_dim: int = 64
     hidden_dims: tuple[int, ...] = (64,)
-    activation: Literal["gelu", "relu", "silu"] = "gelu"
+    activation: LayerActivationName = "gelu"
     dropout: float = 0.0
 
 
@@ -68,7 +69,7 @@ class SplitMLPParams(FeatureAugmenterBaseParams):
     out_dim_next: int | None = None
 
     hidden_dims: tuple[int, ...] = (64,)
-    activation: Literal["gelu", "relu", "silu"] = "gelu"
+    activation: LayerActivationName = "gelu"
     dropout: float = 0.0
 
 

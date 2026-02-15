@@ -40,6 +40,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.tokenizers.config import Conv1DEmbedParams, PaddingMode
 
 StripeKind = Literal["row", "col"]
@@ -67,7 +68,7 @@ def tiny(ctx: ProfileContext) -> list[nn.Module]:
     p = float(ctx.dropout)
     return [
         nn.Conv1d(ctx.in_ch, ctx.d_model, kernel_size=3, stride=1, padding=0, bias=True),
-        nn.GELU(),
+        make_activation("gelu"),
         _drop(p),
     ]
 
@@ -77,10 +78,10 @@ def base(ctx: ProfileContext) -> list[nn.Module]:
     p = float(ctx.dropout)
     return [
         nn.Conv1d(ctx.in_ch, D, kernel_size=3, stride=1, padding=0, bias=True),
-        nn.GELU(),
+        make_activation("gelu"),
         _drop(p),
         nn.Conv1d(D, D, kernel_size=3, stride=1, padding=0, bias=True),
-        nn.GELU(),
+        make_activation("gelu"),
         _drop(p),
     ]
 
@@ -155,17 +156,6 @@ def _as_int_tuple(xs: Sequence[int] | None) -> tuple[int, ...]:
     if xs is None:
         return ()
     return tuple(int(x) for x in xs)
-
-
-def _make_activation(name: str) -> nn.Module:
-    n = str(name).strip().lower()
-    if n == "gelu":
-        return nn.GELU()
-    if n == "relu":
-        return nn.ReLU(inplace=False)
-    if n in {"silu", "swish"}:
-        return nn.SiLU()
-    raise ValueError(f"unknown activation: {name!r}")
 
 
 def _validate_stripes(stripes: torch.Tensor) -> tuple[int, int, int, int]:
@@ -363,7 +353,7 @@ class Conv1DEmbedder(nn.Module):
             )
             if bool(params.use_batchnorm):
                 layers.append(nn.BatchNorm1d(c_out))
-            layers.append(_make_activation(params.activation))
+            layers.append(make_activation(str(params.activation)))
             if p > 0.0:
                 layers.append(nn.Dropout(p))
 

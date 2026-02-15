@@ -367,7 +367,7 @@ def _resolve_spatial_head_features_dim(*, cfg: SpatialHeadConfig, in_spec: Spati
 
     head_type = str(cfg.type).strip().lower()
 
-    if head_type == "flatten":
+    if head_type in {"flatten", "flatten_mlp"}:
         return int(in_spec.h) * int(in_spec.w) * int(in_spec.c)
 
     if head_type == "global_pool":

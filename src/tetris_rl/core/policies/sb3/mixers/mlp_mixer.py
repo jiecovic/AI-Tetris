@@ -26,6 +26,7 @@ import torch
 from torch import nn
 
 from tetris_rl.core.policies.sb3.api import TokenStream
+from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.layers.cls import prepend_cls
 from tetris_rl.core.policies.sb3.layers.ffn import FFN, FFNSpec
 from tetris_rl.core.policies.sb3.layers.pooling import pool_tokens, pooled_dim
@@ -59,7 +60,7 @@ class _TokenMixMLP(nn.Module):
         self.ln = nn.LayerNorm(d_model)
         self.mlp = nn.Sequential(
             nn.Linear(T, hidden),
-            nn.GELU(),
+            make_activation("gelu"),
             nn.Dropout(p) if p > 0.0 else nn.Identity(),
             nn.Linear(hidden, T),
             nn.Dropout(p) if p > 0.0 else nn.Identity(),

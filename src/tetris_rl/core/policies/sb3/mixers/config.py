@@ -7,17 +7,9 @@ from pydantic import Field, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
+from tetris_rl.core.policies.sb3.types import TokenPoolKind
 
-PoolKind = Literal[
-    "cls",
-    "mean",
-    "max",
-    "meanmax",
-    "flatten",
-    "cls_mean",
-    "cls_max",
-    "cls_meanmax",
-]
+PoolKind = TokenPoolKind
 
 
 # ---------------------------------------------------------------------

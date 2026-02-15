@@ -1,7 +1,7 @@
 # @package _group_
 policy_kwargs:
   net_arch: [512]                              # options: [] | [512] | [256,256] | {pi:[...], vf:[...]}
-  activation_fn: relu                          # options: gelu | relu | silu | tanh | identity
+  activation_fn: relu                          # options: gelu | gelu_tanh | relu | silu | tanh | identity
 
 
 feature_extractor:
@@ -14,11 +14,11 @@ feature_extractor:
     type: cnn                                   # options: cnn | conv3x3_32_32_64
     params:
       layers:                                   # options: list[{out,k,s,p,act,pool}]
-        - { out: 16, k: 3, s: 1, p: 0, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|relu|silu
-        - { out: 32, k: 3, s: 1, p: 0, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|relu|silu
-        - { out: 64, k: 3, s: 1, p: 0, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|relu|silu
-        - { out: 64, k: 1, s: 1, p: 0, act: relu }
-#        - { out: 64, k: 1, s: 1, p: 0, act: relu, pool: { type: avg, k: 2, s: 2, p: 0 } }  # pool.type=avg|max; pool k/s>0 p>=0
+        - { out: 16, k: 3, s: 1, p: 0, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|gelu_tanh|relu|silu
+        - { out: 32, k: 3, s: 1, p: 0, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|gelu_tanh|relu|silu
+        - { out: 64, k: 3, s: 1, p: 0, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|gelu_tanh|relu|silu
+        - { out: 128, k: 3, s: 1, p: 0, act: relu }
+        - { out: 128, k: 1, s: 1, p: 0, act: relu, pool: { type: avg, k: 2, s: 2, p: 0 } }  # pool.type=avg|max; pool k/s>0 p>=0
 
       # Global defaults applied to every conv layer.
       use_batchnorm: false                      # options: true | false
@@ -28,12 +28,15 @@ feature_extractor:
     type: spatial                              # token | spatial
 
     spatial_head:
-      type: flatten                       # options: global_pool | flatten | flatten_mlp | col_collapse | attn_pool
+      type: flatten_mlp                       # options: global_pool | flatten | flatten_mlp | col_collapse | attn_pool
       params:
         features_dim: auto                      # options: int>0 | auto; auto resolves from head+shape (flatten => H*W*C)
+        hidden_dims: [512]                 # options: list[int>0]
+        activation: gelu                         # options: gelu | gelu_tanh | relu | silu
+        dropout: 0.0                             # options: float >= 0
 
   feature_augmenter:
-    type: mlp_split                                 # options: none | null | onehot_concat | mlp_joint | mlp_split
+    type: mlp_joint                                 # options: none | null | onehot_concat | mlp_joint | mlp_split
     params:
       use_active: true
       use_next: true
@@ -41,5 +44,5 @@ feature_extractor:
       out_dim_active: null      # optional, default None
       out_dim_next: null        # optional, default None
       hidden_dims: [64]
-      activation: relu          # gelu | relu | silu
+      activation: gelu          # gelu | gelu_tanh | relu | silu
       dropout: 0.0

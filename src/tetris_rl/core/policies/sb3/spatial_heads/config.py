@@ -7,8 +7,13 @@ from pydantic import field_validator, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
+from tetris_rl.core.policies.sb3.types import (
+    CollapseKindName,
+    LayerActivationName,
+    PoolAvgMaxCatName,
+)
 
-Pool2D = Literal["avg", "max", "avgmax"]
+Pool2D = PoolAvgMaxCatName
 SpatialHeadType = Literal["global_pool", "flatten", "flatten_mlp", "attn_pool", "col_collapse"]
 
 
@@ -52,7 +57,7 @@ class GlobalPoolParams(SpatialHeadParamsBase):
     conv_channels: tuple[int, ...] = ()
     conv_kernel_sizes: tuple[int, ...] = ()
     conv_strides: Optional[tuple[int, ...]] = None
-    activation: Literal["gelu", "relu", "silu"] = "gelu"
+    activation: LayerActivationName = "gelu"
     use_batchnorm: bool = False
     dropout: float = 0.0
     pool: Pool2D = "avg"
@@ -76,19 +81,19 @@ class FlattenParams(SpatialHeadParamsBase):
 
 class FlattenMLPParams(SpatialHeadParamsBase):
     hidden_dims: tuple[int, ...] = (256, 256)
-    activation: Literal["gelu", "relu", "silu"] = "gelu"
+    activation: LayerActivationName = "gelu"
     dropout: float = 0.0
 
 
 class AttentionPoolParams(SpatialHeadParamsBase):
     n_queries: int = 1
     mlp_hidden: int = 0
-    activation: Literal["gelu", "relu", "silu"] = "gelu"
+    activation: LayerActivationName = "gelu"
     dropout: float = 0.0
 
 
-CollapseKind = Literal["avg", "max", "linear"]
-Pool1D = Literal["avg", "max", "avgmax"]
+CollapseKind = CollapseKindName
+Pool1D = PoolAvgMaxCatName
 
 
 class ColumnCollapseParams(SpatialHeadParamsBase):
@@ -109,7 +114,7 @@ class ColumnCollapseParams(SpatialHeadParamsBase):
     conv_channels: tuple[int, ...] = (128, 128, 128)
     conv_kernel_sizes: tuple[int, ...] = (3, 1, 3)
 
-    activation: Literal["gelu", "relu", "silu"] = "relu"
+    activation: LayerActivationName = "relu"
     use_batchnorm: bool = True
 
     # paper retention prob 0.75 => dropout p = 0.25

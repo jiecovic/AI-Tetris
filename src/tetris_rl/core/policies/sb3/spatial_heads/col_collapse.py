@@ -61,7 +61,7 @@ Notes
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
 import torch
 from torch import nn
@@ -71,9 +71,10 @@ from tetris_rl.core.policies.sb3.api import SpatialFeatures, Specials
 from tetris_rl.core.policies.sb3.layers.activations import make_activation
 from tetris_rl.core.policies.sb3.spatial_heads.base import BaseSpatialHead
 from tetris_rl.core.policies.sb3.spatial_heads.config import ColumnCollapseParams
+from tetris_rl.core.policies.sb3.types import CollapseKindName, PoolAvgMaxCatName
 
-CollapseKind = Literal["avg", "max", "linear"]
-Pool1D = Literal["avg", "max", "avgmax"]
+CollapseKind = CollapseKindName
+Pool1D = PoolAvgMaxCatName
 
 
 def _normalize_collapse(params: ColumnCollapseParams) -> CollapseKind:

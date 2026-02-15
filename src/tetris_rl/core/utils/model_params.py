@@ -8,6 +8,9 @@ from typing import Any, Dict, Mapping, Optional, Type
 import torch
 from torch import nn
 
+from tetris_rl.core.policies.sb3.layers.activations import activation_class
+from tetris_rl.core.policies.sb3.types import PolicyActivationName
+
 
 @dataclass(frozen=True)
 class ParamCount:
@@ -70,22 +73,11 @@ def parse_net_arch(obj: Any) -> list[int] | dict[str, list[int]]:
     raise TypeError("net_arch must be list[int] or dict(pi=[...], vf=[...])")
 
 
-def parse_activation_fn(name: str) -> Type[nn.Module]:
+def parse_activation_fn(name: PolicyActivationName | str) -> Type[nn.Module]:
     """
     Map config strings to torch activation *classes* (SB3 expects a class).
     """
-    n = str(name).strip().lower()
-    if n == "gelu":
-        return nn.GELU
-    if n == "relu":
-        return nn.ReLU
-    if n in {"silu", "swish"}:
-        return nn.SiLU
-    if n == "tanh":
-        return nn.Tanh
-    if n in {"identity", "none"}:
-        return nn.Identity
-    raise ValueError(f"unknown activation_fn: {name!r}")
+    return activation_class(str(name))
 
 
 def build_algo_kwargs(*, algo_cls: Type[Any], raw: Mapping[str, Any], seed: int, where: str) -> Dict[str, Any]:

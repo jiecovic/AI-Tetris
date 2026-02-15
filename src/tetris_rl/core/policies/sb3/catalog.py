@@ -24,6 +24,7 @@ from tetris_rl.core.policies.sb3.spatial.stems.conv3x3_32_32_64 import Conv3x3_3
 from tetris_rl.core.policies.sb3.spatial_heads.attn_pool import AttentionPoolHead
 from tetris_rl.core.policies.sb3.spatial_heads.col_collapse import ColumnCollapseHead
 from tetris_rl.core.policies.sb3.spatial_heads.flatten import FlattenHead
+from tetris_rl.core.policies.sb3.spatial_heads.flatten_mlp import FlattenMLPHead
 from tetris_rl.core.policies.sb3.spatial_heads.global_pool import GlobalPoolHead
 
 # ---------------------------------------------------------------------
@@ -60,7 +61,8 @@ TOKEN_MIXER_REGISTRY: Mapping[str, Any] = {
 
 SPATIAL_HEAD_REGISTRY: Mapping[str, Any] = {
     "global_pool": GlobalPoolHead,       # avg / max / avgmax (+ optional conv stack)
-    "flatten": FlattenHead,              # flatten H×W×C only (no MLP)
+    "flatten": FlattenHead,              # flatten HxWxC only (no MLP)
+    "flatten_mlp": FlattenMLPHead,       # flatten HxWxC then MLP(hidden_dims) -> features_dim
     "attn_pool": AttentionPoolHead,      # learned attention pooling over spatial grid
     "col_collapse": ColumnCollapseHead,  # column-wise collapse (Tetris inductive bias)
 }
@@ -82,5 +84,4 @@ __all__ = [
     "SPATIAL_HEAD_REGISTRY",
     "FEATURE_AUGMENTER_REGISTRY",
 ]
-
 

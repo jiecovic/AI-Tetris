@@ -21,20 +21,13 @@ Conventions:
 
 from __future__ import annotations
 
-from typing import Literal, Optional, cast
+from typing import Optional, cast
 
 import torch
 
-PoolKind = Literal[
-    "mean",
-    "max",
-    "meanmax",
-    "flatten",
-    "cls",
-    "cls_mean",
-    "cls_max",
-    "cls_meanmax",
-]
+from tetris_rl.core.policies.sb3.types import TokenPoolKind
+
+PoolKind = TokenPoolKind
 
 
 def pooled_dim(*, kind: PoolKind, T: int, D: int, num_cls_tokens: int = 0) -> int:
