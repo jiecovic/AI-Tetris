@@ -43,6 +43,38 @@ class SpatialPreprocessorConfig(ConfigBase):
 
 
 PoolType = PoolAvgMaxName
+IntOrPair = int | tuple[int, int]
+
+
+def _normalize_int_or_pair(value: object, *, field: str, allow_none: bool = False) -> object:
+    if value is None:
+        if allow_none:
+            return None
+        raise ValueError(f"{field} must be an int or pair")
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an int or pair (bool is not allowed)")
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, (list, tuple)):
+        if len(value) != 2:
+            raise ValueError(f"{field} pair must have exactly 2 values, got {len(value)}")
+        a, b = value
+        if isinstance(a, bool) or isinstance(b, bool):
+            raise ValueError(f"{field} pair values must be ints (bool is not allowed)")
+        return (int(a), int(b))
+    if isinstance(value, str):
+        s = value.strip()
+        if s.startswith("(") and s.endswith(")"):
+            s = s[1:-1].strip()
+        elif s.startswith("[") and s.endswith("]"):
+            s = s[1:-1].strip()
+        if "," in s:
+            parts = [p.strip() for p in s.split(",")]
+            if len(parts) != 2:
+                raise ValueError(f"{field} pair must have exactly 2 comma-separated values")
+            return (int(parts[0]), int(parts[1]))
+        return int(s)
+    raise ValueError(f"{field} must be an int or pair, got {value!r}")
 
 
 class CNNStemPoolSpec(ConfigBase):
@@ -51,14 +83,20 @@ class CNNStemPoolSpec(ConfigBase):
     """
 
     type: PoolType = "avg"
-    k: int = 2
-    s: int = 2
-    p: int = 0
+    k: IntOrPair = 2
+    s: IntOrPair = 2
+    p: IntOrPair = 0
 
     @field_validator("type", mode="before")
     @classmethod
     def _type_lower(cls, v: object) -> str:
         return str(v).strip().lower()
+
+    @field_validator("k", "s", "p", mode="before")
+    @classmethod
+    def _normalize_ksp(cls, v: object, info: ValidationInfo) -> object:
+        field_name = str(info.field_name or "value")
+        return _normalize_int_or_pair(v, field=f"pool.{field_name}")
 
 
 class CNNStemLayerSpec(ConfigBase):
@@ -67,9 +105,9 @@ class CNNStemLayerSpec(ConfigBase):
     """
 
     out: int
-    k: int
-    s: int = 1
-    p: Optional[int] = None
+    k: IntOrPair
+    s: IntOrPair = 1
+    p: Optional[IntOrPair] = None
     act: Optional[Activation] = None
     pool: Optional[CNNStemPoolSpec] = None
 
@@ -79,6 +117,18 @@ class CNNStemLayerSpec(ConfigBase):
         if v is None:
             return None
         return str(v).strip().lower()
+
+    @field_validator("k", "s", mode="before")
+    @classmethod
+    def _normalize_ks(cls, v: object, info: ValidationInfo) -> object:
+        field_name = str(info.field_name or "value")
+        return _normalize_int_or_pair(v, field=field_name)
+
+    @field_validator("p", mode="before")
+    @classmethod
+    def _normalize_p(cls, v: object, info: ValidationInfo) -> object:
+        field_name = str(info.field_name or "value")
+        return _normalize_int_or_pair(v, field=field_name, allow_none=True)
 
 
 class CNNStemParams(ConfigBase):
