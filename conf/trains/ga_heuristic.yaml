@@ -1,10 +1,10 @@
 # @package _global_
 learn:
   generations: 10                 # number of generations to run
-  workers: 12                     # parallel workers for fitness eval
+  workers: 4                     # parallel workers for fitness eval
   fitness:
     episodes: 1_000                 # episodes per candidate (fitness eval)
-    max_steps: 10_000                # max steps per episode (fitness eval)
+    max_steps: 1_000                # max steps per episode (fitness eval)
     fitness_metric: total_reward  # total_reward | reward_per_step
     seed: 12345                   # fitness eval seed base
 
@@ -21,12 +21,12 @@ callbacks:
     deterministic: true           # planning policies are deterministic
     seed_offset: 10000            # offset from run.seed for eval seeds
     mode: workers                 # vectorized | workers (GA requires workers)
-    workers: 8                    # parallel workers for planning eval
+    workers: 4                    # parallel workers for planning eval
 
 algo:
   type: ga                        # ga
   params:
-    population_size: 48            # individuals per generation
+    population_size: 1008            # individuals per generation
     selection: tournament          # tournament | elite_pool
     offspring_frac: 0.3            # fraction replaced by offspring
     tournament_frac: 0.1           # fraction sampled per tournament

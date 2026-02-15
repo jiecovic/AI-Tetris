@@ -162,6 +162,9 @@ class ImitationTrainer:
         train_sids = split.train
         eval_sids = split.eval
 
+        counts: dict[int, int] = {int(r.shard_id): int(r.num_samples) for r in ds.shards}
+        train_total_samples_full = sum(int(counts.get(int(sid), 0)) for sid in train_sids)
+
         eval_every = (
             int(self.callbacks_cfg.eval_checkpoint.every)
             if bool(self.callbacks_cfg.eval_checkpoint.enabled)
@@ -316,9 +319,6 @@ class ImitationTrainer:
                     return float(v)
             return None
 
-        counts: dict[int, int] = {int(r.shard_id): int(r.num_samples) for r in ds.shards}
-        train_total_samples_full = sum(int(counts.get(int(sid), 0)) for sid in train_sids)
-
         for e in range(max(1, int(learn.epochs))):
             epoch_seed = seed32_from(base_seed=int(self.run_cfg.seed), stream_id=1009 * (e + 1))
 
@@ -336,21 +336,37 @@ class ImitationTrainer:
                 dynamic_ncols=True,
                 position=0,
                 mininterval=0.1,
-            ) as epoch_bar, tqdm(
-                total=int(len(train_sids)),
-                desc="shards",
-                unit="shard",
-                leave=False,
-                dynamic_ncols=True,
-                position=2,
-                mininterval=0.1,
-            ) as shard_bar:
+            ) as epoch_bar:
+                shard_total = int(len(train_sids))
+                shard_seen = 0
+                last_loss: Optional[float] = None
+                last_acc: Optional[float] = None
+                last_ent: Optional[float] = None
 
-                def _on_shard(_sid: int) -> None:
+                def _refresh_epoch_desc() -> None:
+                    parts = [f"shards={int(shard_seen)}/{int(shard_total)}"]
+                    if last_loss is not None:
+                        parts.append(f"loss={float(last_loss):.4g}")
+                    if last_acc is not None:
+                        parts.append(f"acc={float(last_acc):.3f}")
+                    if last_ent is not None:
+                        parts.append(f"H={float(last_ent):.3f}")
                     try:
-                        shard_bar.update(1)
+                        base = f"bc epoch {int(e + 1)}/{int(learn.epochs)}"
+                        epoch_bar.set_description_str(base + "  " + "  ".join(parts), refresh=True)
+                        epoch_bar.refresh()
                     except Exception:
                         pass
+
+                def _on_shard(_sid: int) -> None:
+                    nonlocal shard_seen
+                    shard_seen += 1
+                    try:
+                        _refresh_epoch_desc()
+                    except Exception:
+                        pass
+
+                _refresh_epoch_desc()
 
                 batch_iter = iter_bc_batches_from_dataset(
                     ds=ds,
@@ -394,28 +410,20 @@ class ImitationTrainer:
                         yield b
 
                 def _on_update(_u: int, stats: Dict[str, float]) -> None:
+                    nonlocal last_loss, last_acc, last_ent
                     nonlocal state
                     state = ImitationRunState(samples_seen=int(state.samples_seen), updates=int(state.updates + 1))
 
                     loss = _get_stat(stats, "bc/loss", "bc_loss", "loss")
                     acc = _get_stat(stats, "bc/acc_top1", "bc_acc_top1", "acc_top1", "acc")
                     ent = _get_stat(stats, "bc/entropy", "bc_entropy", "entropy")
-
-                    parts = []
                     if loss is not None:
-                        parts.append(f"loss={loss:.4g}")
+                        last_loss = float(loss)
                     if acc is not None:
-                        parts.append(f"acc={acc:.3f}")
+                        last_acc = float(acc)
                     if ent is not None:
-                        parts.append(f"H={ent:.3f}")
-
-                    try:
-                        base = f"bc epoch {int(e + 1)}/{int(learn.epochs)}"
-                        if parts:
-                            epoch_bar.set_description_str(base + "  " + "  ".join(parts), refresh=True)
-                            epoch_bar.refresh()
-                    except Exception:
-                        pass
+                        last_ent = float(ent)
+                    _refresh_epoch_desc()
 
                     if callbacks is not None and progress_event == "update":
                         callbacks.on_event(

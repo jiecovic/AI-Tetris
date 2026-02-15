@@ -2,13 +2,13 @@
 callbacks:
   latest:
     enabled: true                     # save latest checkpoints
-    every: 20_000                     # save latest every N samples
+    every: 500_000                     # save latest every N samples
   eval_checkpoint:
     enabled: true                     # run eval + save best checkpoints
     every: 5_000_000                  # eval cadence in samples
     episodes: 200                     # target completed episodes
-    min_steps: 100_000                # minimum total steps collected
-    max_steps_per_episode: 5_000      # cap per episode (eval-only)
+    min_steps: 10_000                # minimum total steps collected
+    max_steps_per_episode: 50_000      # cap per episode (eval-only)
     deterministic: true               # imitation eval uses deterministic actions
     seed_offset: 10_000               # offset from run.seed for eval seeds
     mode: vectorized                  # vectorized | workers

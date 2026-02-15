@@ -152,9 +152,7 @@ class TetrisFeatureExtractor(BaseFeaturesExtractor):
             assert spatial_head is not None
 
             # Pattern "B": SpatialHeadConfig params own base output dim.
-            F_base = int(getattr(spatial_head.params, "features_dim", 0))
-            if F_base <= 0:
-                raise ValueError(f"spatial_head.params.features_dim must be > 0, got {F_base}")
+            F_base = _resolve_spatial_head_features_dim(cfg=spatial_head, in_spec=self._spatial_spec)
 
             self.spatial_head = _build_spatial_head(
                 cfg=spatial_head,
@@ -340,6 +338,65 @@ def _build_spatial_head(*, cfg: SpatialHeadConfig, in_spec: SpatialSpec, feature
         kwargs["features_dim"] = int(features_dim)
 
     return cast(nn.Module, cls(**kwargs))
+
+
+def _resolve_spatial_head_features_dim(*, cfg: SpatialHeadConfig, in_spec: SpatialSpec) -> int:
+    """
+    Resolve base output dim for spatial heads.
+
+    Supports:
+      - explicit int > 0
+      - "auto" (head-specific deterministic inference from in_spec + params)
+    """
+    raw = getattr(cfg.params, "features_dim", None)
+
+    if isinstance(raw, bool):
+        raise ValueError("spatial_head.params.features_dim must be int > 0 or 'auto' (bool is not allowed)")
+
+    if isinstance(raw, int):
+        if int(raw) <= 0:
+            raise ValueError(f"spatial_head.params.features_dim must be > 0, got {raw}")
+        return int(raw)
+
+    if not isinstance(raw, str):
+        raise ValueError(f"spatial_head.params.features_dim must be int > 0 or 'auto', got {raw!r}")
+
+    tag = raw.strip().lower()
+    if tag != "auto":
+        raise ValueError(f"spatial_head.params.features_dim must be int > 0 or 'auto', got {raw!r}")
+
+    head_type = str(cfg.type).strip().lower()
+
+    if head_type == "flatten":
+        return int(in_spec.h) * int(in_spec.w) * int(in_spec.c)
+
+    if head_type == "global_pool":
+        conv_channels = tuple(int(c) for c in (getattr(cfg.params, "conv_channels", ()) or ()))
+        c_after = int(conv_channels[-1]) if len(conv_channels) > 0 else int(in_spec.c)
+        pool = str(getattr(cfg.params, "pool", "avg")).strip().lower()
+        if pool in {"avg", "max"}:
+            return int(c_after)
+        if pool == "avgmax":
+            return int(2 * c_after)
+        raise ValueError(f"invalid spatial_head.params.pool for global_pool: {pool!r}")
+
+    if head_type == "attn_pool":
+        n_queries = int(getattr(cfg.params, "n_queries", 1))
+        if n_queries <= 0:
+            raise ValueError(f"spatial_head.params.n_queries must be > 0, got {n_queries}")
+        return int(n_queries) * int(in_spec.c)
+
+    if head_type == "col_collapse":
+        fc_hidden = tuple(int(h) for h in (getattr(cfg.params, "fc_hidden", ()) or ()))
+        if len(fc_hidden) == 0:
+            raise ValueError("spatial_head.params.fc_hidden must be non-empty for col_collapse when features_dim='auto'")
+        if any(int(h) <= 0 for h in fc_hidden):
+            raise ValueError(f"spatial_head.params.fc_hidden must contain only >0 dims, got {fc_hidden}")
+        return int(fc_hidden[-1])
+
+    raise ValueError(
+        f"spatial_head.params.features_dim='auto' is not supported for spatial_head.type={cfg.type!r}"
+    )
 
 
 def _infer_feature_augmenter_extra_dim(*, cfg: FeatureAugmenterConfig, n_kinds: Optional[int]) -> int:

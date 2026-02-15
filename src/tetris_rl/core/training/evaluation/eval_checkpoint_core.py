@@ -124,38 +124,57 @@ class EvalCheckpointCore:
         pbar: Any = None
         if int(self.spec.verbose) >= 1:
             pbar = tqdm(
-                total=eval_episodes,
+                total=int(eval_episodes),
                 desc=f"eval@{int(progress_step)}",
                 leave=False,
                 dynamic_ncols=True,
                 position=1,
+                unit="ep",
             )
 
         steps_seen = 0
-        def _on_episode(done_eps: int, ret: Optional[float]) -> None:
+        done_eps_seen = 0
+        in_min_steps_drain = False
+
+        def _refresh_postfix(ret: Optional[float] = None) -> None:
             if pbar is None:
                 return
+            if int(min_steps) > 0:
+                suffix = " (collecting min_steps)" if in_min_steps_drain else ""
+                msg = f"ep={done_eps_seen}/{eval_episodes} steps={steps_seen}/{min_steps}{suffix}"
+            else:
+                msg = f"ep={done_eps_seen}/{eval_episodes} steps={steps_seen}"
+            if ret is not None:
+                msg = f"{msg} return={float(ret):.6g}"
+            pbar.set_postfix_str(msg, refresh=True)
+
+        def _on_episode(done_eps: int, ret: Optional[float]) -> None:
+            nonlocal done_eps_seen, in_min_steps_drain
+            if pbar is None:
+                return
+            done_eps_seen = int(done_eps)
             if pbar.total is None:
                 pbar.update(1)
             elif pbar.n < pbar.total:
                 pbar.update(1)
-            if ret is not None:
-                if min_steps > 0:
-                    pbar.set_postfix_str(
-                        f"ep={done_eps}/{eval_episodes} steps={steps_seen}/{min_steps} return={float(ret):.6g}",
-                        refresh=True,
-                    )
-                else:
-                    pbar.set_postfix_str(
-                        f"ep={done_eps} steps={steps_seen} return={float(ret):.6g}",
-                        refresh=True,
-                    )
+            in_min_steps_drain = min_steps > 0 and done_eps_seen >= int(eval_episodes) and int(steps_seen) < int(min_steps)
+            _refresh_postfix(ret)
 
         def _on_step(k: int) -> None:
-            nonlocal steps_seen
+            nonlocal steps_seen, in_min_steps_drain
             if pbar is None:
                 return
-            steps_seen += int(k)
+            dk = int(k)
+            if dk <= 0:
+                return
+            steps_seen += dk
+            in_min_steps_drain = min_steps > 0 and done_eps_seen >= int(eval_episodes) and int(steps_seen) < int(min_steps)
+            # Keep the UI alive when episode target is reached but step target is still not met.
+            if in_min_steps_drain:
+                if (int(steps_seen) % 256) == 0:
+                    _refresh_postfix()
+            elif done_eps_seen > 0 and ((int(steps_seen) % 2048) == 0):
+                _refresh_postfix()
 
         try:
             if self.eval_fn is not None:

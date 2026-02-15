@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import Field, model_validator
+from pydantic import field_validator, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.config.typed_params import parse_typed_params
@@ -13,7 +13,34 @@ SpatialHeadType = Literal["global_pool", "flatten", "flatten_mlp", "attn_pool", 
 
 
 class SpatialHeadParamsBase(ConfigBase):
-    features_dim: int = Field(ge=1)
+    features_dim: int | Literal["auto"]
+
+    @field_validator("features_dim", mode="before")
+    @classmethod
+    def _normalize_features_dim(cls, value: object) -> object:
+        # Accept case-insensitive "auto" and numeric strings.
+        if isinstance(value, str):
+            s = value.strip().lower()
+            if s == "auto":
+                return "auto"
+            try:
+                return int(s)
+            except Exception:
+                return value
+        return value
+
+    @field_validator("features_dim", mode="after")
+    @classmethod
+    def _validate_features_dim(cls, v: int | Literal["auto"]) -> int | Literal["auto"]:
+        if isinstance(v, bool):
+            raise ValueError("features_dim must be int > 0 or 'auto' (bool is not allowed)")
+        if isinstance(v, int):
+            if int(v) <= 0:
+                raise ValueError(f"features_dim must be > 0, got {v}")
+            return v
+        if str(v).strip().lower() != "auto":
+            raise ValueError(f"features_dim must be int > 0 or 'auto', got {v!r}")
+        return "auto"
 
 
 # -----------------------------
@@ -33,7 +60,18 @@ class GlobalPoolParams(SpatialHeadParamsBase):
 
 
 class FlattenParams(SpatialHeadParamsBase):
-    proj: bool = True
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_legacy_proj(cls, data: object) -> object:
+        """
+        Back-compat: older configs used `proj: true|false`.
+        Flatten now always maps to features_dim, so this key is ignored.
+        """
+        if isinstance(data, dict) and "proj" in data:
+            d = dict(data)
+            d.pop("proj", None)
+            return d
+        return data
 
 
 class FlattenMLPParams(SpatialHeadParamsBase):

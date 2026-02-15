@@ -74,7 +74,7 @@ def build_policy_kwargs_from_cfg(
     # NOTE:
     # The feature extractor derives its own output dim from the built branch:
     #   - token route: mixer.params.features_dim
-    #   - spatial route: spatial_head.params.features_dim
+    #   - spatial route: spatial_head.params.features_dim (or "auto", resolved from spatial geometry/params)
     features_extractor_kwargs: Dict[str, Any] = dict(
         spatial_preprocessor=fe_cfg.spatial_preprocessor,
         stem=fe_cfg.stem,

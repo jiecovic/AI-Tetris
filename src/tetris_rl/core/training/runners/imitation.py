@@ -16,7 +16,12 @@ from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 from tetris_rl.core.training.model_factory import build_policy_from_cfg
 from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
-from tetris_rl.core.training.reporting import log_env_reward_summary
+from tetris_rl.core.training.reporting import (
+    log_env_reward_summary,
+    log_policy_compact,
+    log_policy_full,
+    log_runtime_info,
+)
 from tetris_rl.core.training.runners.common import (
     ensure_checkpoint_manifest,
     init_run_artifacts,
@@ -119,6 +124,10 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     logger.info(f"[train] checkpoints={(paths.ckpt_dir.resolve())}")
     logger.info(f"[train] obs_space={built.vec_env.observation_space}")
     logger.info(f"[train] action_space={built.vec_env.action_space}")
+    log_runtime_info(logger=logger)
+    log_policy_compact(model=model, logger=logger)
+    # Imitation training is typically run with small policy variants; keep full layer dump visible.
+    log_policy_full(model=model, logger=logger)
 
     cfg_eval = with_env_cfg(cfg=cfg_dict, env_cfg=env_eval_cfg.model_dump(mode="json"))
     probe_eval = make_env_from_cfg(cfg=cfg_eval, seed=int(run_cfg.seed))
