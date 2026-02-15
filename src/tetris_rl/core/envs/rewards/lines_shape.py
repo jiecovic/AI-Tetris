@@ -12,7 +12,7 @@ class LinesShapeReward(RewardFn):
     Reward shaping from board deltas and special line clears.
 
     Rules (params control magnitudes):
-      - +line_cleared_bonus if cleared_lines > 0.
+      - +line_cleared_bonus * cleared_lines (per-line scaling).
       - -hole_added_penalty if delta_holes > 0.
       - +no_new_holes_bonus if delta_holes <= 0.
       - +hole_removed_bonus if delta_holes < 0.
@@ -55,7 +55,7 @@ class LinesShapeReward(RewardFn):
         cleared = max(0, min(cleared, 4))
 
         if cleared > 0:
-            r += float(self.line_cleared_bonus)
+            r += float(self.line_cleared_bonus) * float(cleared)
 
         if d_holes > 0:
             r -= float(self.hole_added_penalty)

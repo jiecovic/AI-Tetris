@@ -1,11 +1,11 @@
 # @package _group_
 type: lines_shape
 params:
-  illegal_penalty: 10.0
-  terminal_penalty: 10.0
-  survival_bonus: 0.0
-  line_cleared_bonus: 1.0
-  hole_added_penalty: 0.2
-  no_new_holes_bonus: 0.1
-  hole_removed_bonus: 0.3
-  tetris_bonus: 1.0
+  illegal_penalty: 10.0  # penalty for invalid action
+  terminal_penalty: 10.0  # penalty on game over
+  survival_bonus: 0.0  # per-step bonus if still alive
+  line_cleared_bonus: 1.0  # per-line bonus (scaled by cleared_lines)
+  hole_added_penalty: 0.01  # penalty when delta_holes > 0
+  no_new_holes_bonus: 0.01  # bonus when delta_holes <= 0 (also applies if holes decrease)
+  hole_removed_bonus: 0.2  # extra bonus when delta_holes < 0
+  tetris_bonus: 1.0  # extra bonus for clearing 4 lines
