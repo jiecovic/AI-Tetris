@@ -1,6 +1,6 @@
 # @package _group_
 policy_kwargs:
-  net_arch: []
+  net_arch: [512]
   activation_fn: GELU         # or whatever mapping you use
 
 

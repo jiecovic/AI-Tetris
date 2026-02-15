@@ -1,10 +1,10 @@
 # @package _global_
 defaults:
   - /hydra: default
-  - /envs@env_train: warmup
-  - /rewards@env_train.reward: codemy_heuristic_delta
+  - /envs@env_train: empty
+  - /rewards@env_train.reward: lines_shape
   - /envs@env_eval: empty
-  - /rewards@env_eval.reward: codemy_heuristic_delta
+  - /rewards@env_eval.reward: lines_shape
   - /sb3_policies@policy: cnn1
   - /trains@_global_: ppo_eval
   - _self_
@@ -17,8 +17,8 @@ run:
   out_root: experiments              # output root directory
   tensorboard: true                  # enable TensorBoard logging
   device: cuda                       # cuda | cpu | auto
-  n_envs: 12                         # number of parallel envs
-  vec: subproc                       # subproc | dummy
+  n_envs: 64                         # number of parallel envs
+  vec: dummy                       # subproc | dummy
 
 
 
