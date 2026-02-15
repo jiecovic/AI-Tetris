@@ -88,7 +88,7 @@ def _normalize_collapse(params: ColumnCollapseParams) -> CollapseKind:
         return "max"
     if s in {"linear"}:
         return "linear"
-    # allow some accidental values from older experiments
+    # allow some accidental values from older runs
     if s in {"meanmax", "avgmax"}:
         # meanmax is NOT a collapse; treat it as invalid here so configs don't silently change semantics
         raise ValueError("collapse cannot be meanmax/avgmax; use pool='avgmax' for column pooling instead")

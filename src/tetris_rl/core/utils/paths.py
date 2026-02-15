@@ -64,8 +64,9 @@ def resolve_run_dir(repo: Path, run: str) -> Path:
     Accepted:
       - absolute path
       - relative path
-      - bare run name -> repo/experiments/<run>
-      - experiments/<run>
+      - bare run name -> repo/runs/<run>
+      - runs/<run>
+      - experiments/<run> (legacy)
 
     This matches how training + watch refer to runs.
     """
@@ -78,12 +79,17 @@ def resolve_run_dir(repo: Path, run: str) -> Path:
     if p.is_absolute():
         out = p
     else:
-        if p.parts and p.parts[0] == "experiments":
+        if p.parts and p.parts[0] in {"runs", "experiments"}:
             out = (repo / p).resolve()
         elif len(p.parts) > 1:
             out = (repo / p).resolve()
         else:
-            out = (repo / "experiments" / p).resolve()
+            out = (repo / "runs" / p).resolve()
+            # Legacy fallback to the old root.
+            if not out.exists():
+                legacy = (repo / "experiments" / p).resolve()
+                if legacy.exists():
+                    out = legacy
 
     if not out.exists():
         raise FileNotFoundError(f"run dir not found: {out}")

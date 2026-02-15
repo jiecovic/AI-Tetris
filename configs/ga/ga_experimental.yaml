@@ -14,7 +14,7 @@ log_level: info
 run:
   name: ga_experimental_run
   seed: 0                         # base seed
-  out_root: experiments           # output root
+  out_root: runs                  # output root
 
 
 

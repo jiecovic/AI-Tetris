@@ -19,7 +19,7 @@ class RunConfig(ConfigBase):
     """
 
     name: str = "run"
-    out_root: Path = Path("experiments")
+    out_root: Path = Path("runs")
     seed: int = 0
     device: str = "auto"
     tensorboard: bool = True

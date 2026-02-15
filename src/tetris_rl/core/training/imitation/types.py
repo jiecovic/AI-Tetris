@@ -31,7 +31,7 @@ class ImitationSplitSpec:
     eval_mod: int = 50  # ~2% eval if shards are dense
     eval_mod_offset: int = 0  # which residue is eval
 
-    # Optional: shift based on base seed to decorrelate across experiments
+    # Optional: shift based on base seed to decorrelate across runs
     seed_offset: int = 12345
 
 

@@ -212,7 +212,10 @@ __marimo__/
 .vscode/
 *.iml
 
-# Derived experiment outputs (runs, checkpoints, tensorboard logs)
-experiments/
-experiments*/
+# Derived run outputs (checkpoints, tensorboard logs)
+/runs/
+/runs*/
+# Legacy root (pre-rename)
+/experiments/
+/experiments*/
 datasets/

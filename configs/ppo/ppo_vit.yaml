@@ -14,7 +14,7 @@ log_level: info                      # logging verbosity
 run:
   name: ppo_vit_run                  # run name (used for output dir)
   seed: 0                            # base RNG seed
-  out_root: experiments              # output root directory
+  out_root: runs                     # output root directory
   max_episode_steps: 500
   tensorboard: true                  # enable TensorBoard logging
   device: cuda                       # cuda | cpu | auto
