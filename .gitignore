@@ -219,3 +219,6 @@ __marimo__/
 /experiments/
 /experiments*/
 datasets/
+
+# Local agent notes (keep private for now)
+/AGENT.md
