@@ -98,6 +98,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
     paused = False
 
     last_reload_at_s: float | None = time.time()
+    episode_idx_offset = 0
 
     # meters (actual rates)
     sps_meter = RateMeter(window=60)
@@ -194,6 +195,8 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
         if planning_poller is not None:
             reloads = max(reloads, int(getattr(planning_poller, "reload_count", 0)))
 
+        display_episode_idx = max(0, int(h.episode_idx) - int(episode_idx_offset))
+
         snap = HudSnapshot(
             run_name=str(args.run),
             mode=str(h.action_mode),
@@ -203,7 +206,7 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
             reload_every_s=float(args.reload),
             reloads=reloads,
             last_reload_age_s=float(last_reload_age_s),
-            episode_idx=int(h.episode_idx),
+            episode_idx=int(display_episode_idx),
             episode_step=int(h.episode_step),
             episode_reward=float(ws.cur_episode_reward),
             last_step_reward=float(ws.last_step_reward),
@@ -290,6 +293,8 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
                     obs, info = env.reset()
                     # Manual reset should also clear rolling HUD stats/history.
                     window.clear()
+                    # Restart the displayed episode counter with the stats reset.
+                    episode_idx_offset = int(hud_from_info(info).episode_idx) - 1
                     state = game.snapshot(include_grid=True, visible=False)
                     acc_s = 0.0
                     sps_meter.trim_to_last(2)
