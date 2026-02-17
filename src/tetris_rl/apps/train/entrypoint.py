@@ -11,6 +11,24 @@ from omegaconf import DictConfig
 from tetris_rl.core.training.runners import run_experiment
 
 
+def _looks_like_path_or_yaml(arg: str) -> bool:
+    s = str(arg).strip().strip('"').strip("'")
+    if not s:
+        return False
+    if s.endswith((".yaml", ".yml")):
+        return True
+    # Windows/relative path hints. Note: config names may include "/" (e.g. "ppo/ppo_cnn"),
+    # so we do NOT treat a plain "/" as a filesystem path hint.
+    if s.startswith((".", "/", "\\")):
+        return True
+    if "\\" in s:
+        return True
+    # Drive letter path: C:\...
+    if len(s) >= 3 and s[1:3] == ":\\":
+        return True
+    return False
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         description="Train an RL-Tetris agent.",
@@ -19,8 +37,34 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument("-cfg", "--config-file", dest="config_file", default=None, help="path to a YAML config file")
     ap.add_argument("-c", "--config-name", dest="config_name", help="config name (no .yaml)")
     ap.add_argument("-p", "--config-path", dest="config_path", default="configs", help="config directory")
+
+    # Convenience: allow passing a config file as the first positional argument, e.g.
+    #   tetris-train .\\configs\\ppo\\ppo_cnn.yaml
+    # If -cfg/--config-file is provided, this is ignored.
+    ap.add_argument("config_pos", nargs="?", default=None, help="optional config file path (equivalent to --config-file)")
     ap.add_argument("overrides", nargs=argparse.REMAINDER, help="Hydra overrides (after --)")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+
+    # Re-interpret the optional positional:
+    # - if config is already provided via flags, treat it as an override
+    # - else if it looks like a YAML/path, treat as --config-file
+    # - else treat as --config-name
+    if args.config_pos is not None:
+        cp = str(args.config_pos)
+        if args.config_file is not None or args.config_name is not None:
+            args.overrides = [cp, *list(args.overrides or [])]
+            args.config_pos = None
+        elif cp == "--":
+            args.overrides = [cp, *list(args.overrides or [])]
+            args.config_pos = None
+        elif _looks_like_path_or_yaml(cp):
+            args.config_file = cp
+            args.config_pos = None
+        else:
+            args.config_name = cp
+            args.config_pos = None
+
+    return args
 
 
 def _resolve_config_selection(args: argparse.Namespace) -> tuple[Path, str]:
