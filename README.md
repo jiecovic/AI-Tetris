@@ -6,6 +6,18 @@ Experimental playground for teaching AI to play Tetris.
 
 The project is a research and learning sandbox focused on planning policies, reinforcement learning, imitation, and representation learning. The codebase is YAML-driven (Hydra + Pydantic) to support fast experimentation.
 
+## Example Run (Included)
+
+This repo includes a small imitation checkpoint you can load directly:
+
+```bash
+# Watch (pygame)
+tetris-watch --run examples/runs/cnn_imitation_run_001 --which best --reload 0
+
+# Benchmark (no rendering)
+tetris-benchmark --run examples/runs/cnn_imitation_run_001 --which best --episodes 50 --progress
+```
+
 ---
 
 ## What is inside

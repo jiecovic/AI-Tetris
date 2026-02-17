@@ -1,0 +1,27 @@
+{
+  "latest": {
+    "path": "latest.zip",
+    "timesteps": 697500000,
+    "metric": null,
+    "value": null
+  },
+  "best_reward": {
+    "path": "best_reward.zip",
+    "timesteps": 279000000,
+    "metric": "reward",
+    "value": 0.3333632787955552
+  },
+  "best_lines": {
+    "path": "best_lines.zip",
+    "timesteps": 488250000,
+    "metric": "lines",
+    "value": 0.399956
+  },
+  "best_survival": {
+    "path": "best_survival.zip",
+    "timesteps": 488250000,
+    "metric": "survival",
+    "value": 1.0
+  },
+  "final": null
+}

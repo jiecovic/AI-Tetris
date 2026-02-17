@@ -1,0 +1,182 @@
+env_train:
+  type: macro
+  params:
+    action_mode: discrete
+    max_steps: null
+    invalid_action_policy: noop
+    feature_clear_mode: post
+  game:
+    piece_rule: uniform
+    warmup:
+      prob: 0.9
+      spec:
+        type: uniform_rows
+        params:
+          min_rows: 2
+          max_rows: 18
+          holes: 2
+  reward:
+    type: heuristic_delta
+    params:
+      invalid_penalty: 10.0
+      terminal_penalty: 0.0
+      w_lines: 0.760666
+      w_holes: -0.35663
+      w_bumpiness: -0.184483
+      w_agg_height: -0.510066
+      survival_bonus: 0.0
+env_eval:
+  type: macro
+  params:
+    action_mode: discrete
+    max_steps: null
+    invalid_action_policy: noop
+    feature_clear_mode: post
+  game:
+    piece_rule: uniform
+    warmup: null
+  reward:
+    type: heuristic_delta
+    params:
+      invalid_penalty: 10.0
+      terminal_penalty: 0.0
+      w_lines: 0.760666
+      w_holes: -0.35663
+      w_bumpiness: -0.184483
+      w_agg_height: -0.510066
+      survival_bonus: 0.0
+policy:
+  policy_kwargs:
+    net_arch:
+    - 512
+    activation_fn: relu
+  feature_extractor:
+    spatial_preprocessor:
+      type: binary
+      params: {}
+    stem:
+      type: cnn
+      params:
+        layers:
+        - out: 32
+          k: 3
+          s: 1
+          p: 1
+          act: relu
+        - out: 64
+          k: 3
+          s: 1
+          p: 1
+          act: relu
+        - out: 64
+          k: 3
+          s: 1
+          p: 1
+          act: relu
+        - out: 128
+          k:
+          - 4
+          - 1
+          s:
+          - 2
+          - 1
+          p:
+          - 1
+          - 0
+          act: relu
+        - out: 128
+          k:
+          - 4
+          - 1
+          s:
+          - 2
+          - 1
+          p:
+          - 1
+          - 0
+          act: relu
+        - out: 256
+          k:
+          - 5
+          - 1
+          s: 1
+          p: 0
+          act: relu
+        - out: 256
+          k:
+          - 1
+          - 3
+          s: 1
+          p:
+          - 0
+          - 1
+          act: relu
+        - out: 256
+          k:
+          - 1
+          - 3
+          s: 1
+          p:
+          - 0
+          - 1
+          act: relu
+        use_batchnorm: false
+        dropout: 0.0
+    encoder:
+      type: spatial
+      spatial_head:
+        type: attn_pool
+        params:
+          features_dim: auto
+          n_queries: 1
+          mlp_hidden: 0
+          activation: gelu
+          dropout: 0.0
+    feature_augmenter:
+      type: mlp_joint
+      params:
+        use_active: true
+        use_next: true
+        out_dim: 32
+        hidden_dims:
+        - 32
+        activation: relu
+        dropout: 0.0
+callbacks:
+  latest:
+    enabled: true
+    every: 500000
+  eval_checkpoint:
+    enabled: true
+    every: 69750000
+    episodes: 10
+    min_steps: 10000
+    max_steps_per_episode: 50000
+    deterministic: true
+    seed_offset: 10000
+    mode: workers
+    workers: 8
+learn:
+  dataset_dir: datasets/bc/codemy2_uniform_noise
+  epochs: 10
+  batch_size: 512
+  learning_rate: 0.0001
+  max_grad_norm: 1.0
+  shuffle: true
+  max_samples: 0
+  save_archive: true
+  archive_dir: checkpoints/imitation
+  resume: null
+algo:
+  type: imitation
+  params:
+    policy_backend: maskable_ppo
+log_level: info
+run:
+  name: cnn_imitation_run
+  seed: 0
+  out_root: runs
+  tensorboard: true
+  device: cuda
+  n_envs: 1
+  vec: dummy
