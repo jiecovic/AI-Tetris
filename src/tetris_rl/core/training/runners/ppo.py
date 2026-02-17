@@ -188,8 +188,8 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
         logger.info(f"[train] algo={algo_type or type(model).__name__} (skipping PPO param log)")
 
     log_policy_compact(model=model, logger=logger)
-    if str(exp_cfg.log_level).lower() in {"debug", "trace"}:
-        log_policy_full(model=model, logger=logger)
+    # Keep full layer dump visible (match imitation runner behavior).
+    log_policy_full(model=model, logger=logger)
 
     cb_verbose = 1  # keep existing behavior
 

@@ -180,7 +180,10 @@ def _effective_ppo_init_kwargs(model: PPO) -> dict[str, Any]:
     """
     Same trick as snake: best-effort dump of PPO fields that correspond to PPO.__init__ kwargs.
     """
-    sig = inspect.signature(PPO.__init__)
+    try:
+        sig = inspect.signature(model.__class__.__init__)
+    except Exception:
+        sig = inspect.signature(PPO.__init__)
     keys = [k for k in sig.parameters.keys() if k != "self"]
 
     out: dict[str, Any] = {}
@@ -196,15 +199,10 @@ def log_ppo_params(*, model: Any, logger, tb_log: Optional[Path] = None) -> None
     Log SB3 PPO effective params in a readable way (snake-style).
     Keeps policy_kwargs readable (multi-line pretty print), but not insane-width.
     """
-    if not isinstance(model, PPO):
-        # Still log whatever we can, but keep it safe.
-        logger.info("PPO effective params (SB3):")
-        logger.info("  <model is not stable_baselines3.PPO; skipping>")
-        return
-
     repo = Path.cwd()
 
     logger.info("PPO effective params (SB3):")
+    # Works for stable_baselines3.PPO and sb3_contrib.MaskablePPO (same init kwargs).
     eff = _effective_ppo_init_kwargs(model)
 
     # Force tensorboard_log to be shown nicely if we have it
