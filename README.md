@@ -1,6 +1,6 @@
 # RL-Tetris
 
-<img src="assets/demo_v5.gif" width="500" />
+<img src="assets/tetris_demo_cnn_imitation_run_001.gif" width="500" />
 
 Experimental playground for teaching AI to play Tetris.
 
