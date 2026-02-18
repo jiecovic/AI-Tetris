@@ -1,0 +1,62 @@
+# @package _group_
+policy_kwargs:
+  net_arch: [256]                             # options: [] | [512] | [256] | [256,256] | {pi:[...], vf:[...]}
+  activation_fn: relu                         # options: gelu | gelu_tanh | relu | silu | tanh | identity
+
+
+feature_extractor:
+
+  spatial_preprocessor:
+    type: binary                              # options: binary
+    params: {}                                # binary: no params
+
+  # Small CNN stem ablation (cheap local mixing before tokenization).
+  stem:
+    type: cnn                                 # options: cnn | conv3x3_32_32_64
+    params:
+      layers:                                  # options: list[{out,k,s,p,pre_pad,act,pool}]
+        - { out: 16, k: 3, s: 1, p: 1, act: relu }
+        - { out: 32, k: 3, s: 1, p: 1, act: relu }
+      use_batchnorm: false
+      dropout: 0.0
+
+  encoder:
+    type: token                               # token | spatial
+
+    tokenizer:
+      d_model: 128                            # smaller token width for ablation
+      add_active_token: true
+      add_next_token: true
+      share_kind_embedding: false
+
+      layout:
+        type: patch                           # sliding PxW windows over height
+        params:
+          patch_h: 4                          # P (>=4 recommended)
+          patch_w: 10                         # full board width W
+          stride_h: 2                         # overlap (keep some context)
+          stride_w: 10                        # exactly one patch across width
+          use_col_pos: auto                   # auto disables col-pos for full-width scans
+
+      board_embedding:
+        type: linear                          # patch mode supports linear|discrete_pattern
+        params: {}
+
+    mixer:
+      type: transformer
+      params:
+        features_dim: 128
+        n_layers: 2
+        n_heads: 2
+        mlp_ratio: 2.0
+        dropout: 0.0
+        attn_dropout: 0.0
+        resid_dropout: 0.0
+        use_cls: false
+        num_cls_tokens: 0
+        pool: meanmax                         # token pooling without CLS
+        pre_ln_input: true
+
+  feature_augmenter:
+    type: null                                # options: none | null | onehot_concat | mlp_joint | mlp_split
+
