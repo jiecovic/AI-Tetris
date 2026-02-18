@@ -13,16 +13,15 @@ feature_extractor:
   stem:
     type: cnn                                  # options: cnn | conv3x3_32_32_64
     params:
-      layers:                                  # options: list[{out,k,s,p,act,pool}]
-        - { out: 32, k: 3, s: 1, p: 1, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|gelu_tanh|relu|silu (+ aliases: gelu_none|gelu_approx|gelu_fast|swish)
-        - { out: 64, k: 3, s: 1, p: 1, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|gelu_tanh|relu|silu
-        - { out: 64, k: 3, s: 1, p: 1, act: relu }  # out>0 k>0 s>0 p>=0 act=gelu|gelu_tanh|relu|silu
+      layers:                                  # options: list[{out,k,s,p,pre_pad,act,pool}]
+        - { out: 32,  k: 3,      s: 1,      p: 1,      act: relu }
+        - { out: 64,  k: 3,      s: 1,      p: 1,      act: relu }
+        - { out: 64,  k: 3,      s: 1,      p: 1,      act: relu }
         - { out: 128, k: [4, 1], s: [2, 1], p: [1, 0], act: relu }  # H: 20->10, W: 10->10
         - { out: 128, k: [4, 1], s: [2, 1], p: [1, 0], act: relu }  # H: 10->5,  W: 10->10
-        - { out: 256, k: [5, 1], s: 1, p: 0, act: relu }            # H: 5->1,   W: 10->10
-        - { out: 256, k: [ 1, 3 ], s: 1, p: [ 0, 1 ], act: relu }
-        - { out: 256, k: [ 1, 3 ], s: 1, p: [ 0, 1 ], act: relu }
-#        - { out: 32, k: 1, s: 1, p: 0, act: relu, pool: { type: avg, k: 2, s: 2, p: 0 } }  # pool.type=avg|max; pool k/s>0 p>=0
+        - { out: 256, k: [5, 1], s: 1,      p: 0,      act: relu }  # H: 5->1,   W: 10->10
+        - { out: 256, k: [1, 3], s: 1,      p: [0, 1], act: relu }
+        - { out: 256, k: [1, 3], s: 1,      p: [0, 1], act: relu }
 
       # Global defaults applied to every conv layer.
       use_batchnorm: false                      # options: true | false

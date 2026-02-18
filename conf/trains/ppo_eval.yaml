@@ -23,10 +23,10 @@ learn:
 algo:
   type: maskable_ppo                  # ppo | maskable_ppo
   params:
-    learning_rate: 1.0e-4             # optimizer learning rate
+    learning_rate: 9.0e-5             # optimizer learning rate
     n_steps: 2048                     # rollout length per environment
     batch_size: 512                   # minibatch size for updates
-    n_epochs: 4                       # number of optimization epochs per rollout
+    n_epochs: 3                       # number of optimization epochs per rollout
     gamma: 0.999                      # discount factor
     ent_coef: 0.02                    # entropy regularization coefficient
 #    target_kl: 0.02                   # KL divergence target (optional)

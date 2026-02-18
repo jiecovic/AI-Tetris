@@ -1,7 +1,7 @@
 # @package _global_
 defaults:
   - /hydra: default
-  - /envs@env_train: empty
+  - /envs@env_train: warmup
   - /rewards@env_train.reward: lines_shape
   - /envs@env_eval: empty
   - /rewards@env_eval.reward: lines_shape
@@ -17,7 +17,7 @@ run:
   out_root: runs                     # output root directory
   tensorboard: true                  # enable TensorBoard logging
   device: cuda                       # cuda | cpu | auto
-  n_envs: 64                         # number of parallel envs
+  n_envs: 128                         # number of parallel envs
   vec: dummy                       # subproc | dummy
 
 
