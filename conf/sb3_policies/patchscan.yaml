@@ -1,0 +1,54 @@
+# @package _group_
+policy_kwargs:
+  net_arch: [512]                             # options: [] | [512] | [256,256] | {pi:[...], vf:[...]}
+  activation_fn: gelu_tanh                    # options: gelu | gelu_tanh | relu | silu | tanh | identity
+
+
+feature_extractor:
+
+  spatial_preprocessor:
+    type: binary                              # options: binary
+    params: {}                                # binary: no params
+
+  stem:
+    type: conv3x3_32_32_64                    # local 2D CNN before patch tokenization
+
+  encoder:
+    type: token                               # token | spatial
+
+    tokenizer:
+      d_model: 256                            # token width
+      add_active_token: true
+      add_next_token: true
+      share_kind_embedding: false
+
+      layout:
+        type: patch                           # sliding PxW windows over height
+        params:
+          patch_h: 4                          # P (>=4 recommended)
+          patch_w: 10                         # full board width W
+          stride_h: 2                         # overlap because stride_h < patch_h
+          stride_w: 10                        # exactly one patch across width
+          use_col_pos: auto                   # auto disables col-pos for full-width scans
+
+      board_embedding:
+        type: linear                          # patch mode supports linear|discrete_pattern
+        params: {}
+
+    mixer:
+      type: transformer
+      params:
+        features_dim: 256
+        n_layers: 4
+        n_heads: 4
+        mlp_ratio: 4.0
+        dropout: 0.0
+        attn_dropout: 0.0
+        resid_dropout: 0.0
+        use_cls: false
+        num_cls_tokens: 0
+        pool: meanmax                         # token pooling without CLS (often more stable for RL)
+        pre_ln_input: true
+
+  feature_augmenter:
+    type: null                                # options: none | null | onehot_concat | mlp_joint | mlp_split

@@ -130,9 +130,37 @@ class TetrisTokenizer(nn.Module):
         layout_kind = self.layout_cfg.type
         needs_row_pos = layout_kind in {"row", "row_column", "patch"}
         needs_col_pos = layout_kind in {"column", "row_column", "patch"}
+        row_pos_size = int(self.H)
+        col_pos_size = int(self.W)
+        self._patch_use_col_pos: bool = True
+        if layout_kind == "patch":
+            params = self.layout_cfg.params
+            if not isinstance(params, PatchLayoutParams):
+                raise TypeError(f"layout='patch' requires PatchLayoutParams, got {type(params).__name__}")
+            ph = int(params.patch_h)
+            pw = int(params.patch_w)
+            sh = int(params.stride_h) if params.stride_h is not None else int(params.patch_h)
+            sw = int(params.stride_w) if params.stride_w is not None else int(params.patch_w)
+            if ph <= 0 or pw <= 0:
+                raise ValueError("patch_h/patch_w must be > 0")
+            if sh <= 0 or sw <= 0:
+                raise ValueError("stride_h/stride_w must be > 0")
+            if ph > self.H or pw > self.W:
+                raise ValueError(
+                    f"patch ({ph},{pw}) cannot exceed grid ({self.H},{self.W})"
+                )
+            row_pos_size = int(((self.H - ph) // sh) + 1)
+            col_pos_size = int(((self.W - pw) // sw) + 1)
+            use_col_pos = getattr(params, "use_col_pos", "auto")
+            if str(use_col_pos).strip().lower() == "auto":
+                # Full-width vertical scan has only one column index; col-pos adds no signal.
+                self._patch_use_col_pos = not (pw == self.W and sw == self.W)
+            else:
+                self._patch_use_col_pos = bool(use_col_pos)
+            needs_col_pos = bool(self._patch_use_col_pos)
 
-        self._row_pos: Optional[nn.Embedding] = nn.Embedding(self.H, self.d_model) if needs_row_pos else None
-        self._col_pos: Optional[nn.Embedding] = nn.Embedding(self.W, self.d_model) if needs_col_pos else None
+        self._row_pos: Optional[nn.Embedding] = nn.Embedding(int(row_pos_size), self.d_model) if needs_row_pos else None
+        self._col_pos: Optional[nn.Embedding] = nn.Embedding(int(col_pos_size), self.d_model) if needs_col_pos else None
 
         # ------------------------------------------------------------------
         # Specials embeddings (shared or separate)
@@ -483,13 +511,18 @@ class TetrisTokenizer(nn.Module):
         else:
             raise ValueError(f"unknown board_embedding type: {emb_type!r}")
 
-        if self._row_pos is None or self._col_pos is None:
-            raise RuntimeError("patch layout requires both row and col positional embeddings")
+        if self._row_pos is None:
+            raise RuntimeError("patch layout requires row positional embeddings")
 
-        # add (row_pos[pos_h] + col_pos[pos_w]) per patch start location
-        row_tab = self._row_pos(torch.arange(self.H, device=emb.device, dtype=torch.int64))  # (H,D)
-        col_tab = self._col_pos(torch.arange(self.W, device=emb.device, dtype=torch.int64))  # (W,D)
-        emb = emb + (row_tab[pos_h] + col_tab[pos_w]).unsqueeze(0)  # (B,T,D)
+        # add token-grid positional embeddings per patch index
+        row_pos_n = int(self._row_pos.num_embeddings)
+        row_tab = self._row_pos(torch.arange(row_pos_n, device=emb.device, dtype=torch.int64))  # (T_h,D)
+        pos = row_tab[pos_h]
+        if self._col_pos is not None:
+            col_pos_n = int(self._col_pos.num_embeddings)
+            col_tab = self._col_pos(torch.arange(col_pos_n, device=emb.device, dtype=torch.int64))  # (T_w,D)
+            pos = pos + col_tab[pos_w]
+        emb = emb + pos.unsqueeze(0)  # (B,T,D)
         return emb
 
     # ------------------------------------------------------------------

@@ -10,8 +10,8 @@ PatchTokenizer: general 2D patches with (patch_h, patch_w) and (stride_h, stride
 
 Return:
   tokens: (B,T, patch_h*patch_w*C)
-  pos_h:  (T,) start row indices
-  pos_w:  (T,) start col indices
+  pos_h:  (T,) token-grid row indices (0..T_h-1)
+  pos_w:  (T,) token-grid col indices (0..T_w-1)
 """
 
 from __future__ import annotations
@@ -79,8 +79,8 @@ class PatchTokenizer:
 
         tokens = patches.reshape(B, T, ph * pw * C)
 
-        rows = torch.arange(0, T_h * sh, step=sh, device=x.device, dtype=torch.int64)
-        cols = torch.arange(0, T_w * sw, step=sw, device=x.device, dtype=torch.int64)
+        rows = torch.arange(0, T_h, step=1, device=x.device, dtype=torch.int64)
+        cols = torch.arange(0, T_w, step=1, device=x.device, dtype=torch.int64)
         grid_h, grid_w = torch.meshgrid(rows, cols, indexing="ij")
         pos_h = grid_h.reshape(T)
         pos_w = grid_w.reshape(T)

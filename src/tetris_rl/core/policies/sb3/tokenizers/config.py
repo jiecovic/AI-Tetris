@@ -32,6 +32,7 @@ class PatchLayoutParams(ConfigBase):
     patch_w: int = 1
     stride_h: int | None = None
     stride_w: int | None = None
+    use_col_pos: bool | Literal["auto"] = "auto"
 
 
 # ---------------------------------------------------------------------
