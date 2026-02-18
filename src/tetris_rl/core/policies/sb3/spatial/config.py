@@ -44,6 +44,7 @@ class SpatialPreprocessorConfig(ConfigBase):
 
 PoolType = PoolAvgMaxName
 IntOrPair = int | tuple[int, int]
+IntOrPairOrQuad = int | tuple[int, int] | tuple[int, int, int, int]
 
 
 def _normalize_int_or_pair(value: object, *, field: str, allow_none: bool = False) -> object:
@@ -77,6 +78,71 @@ def _normalize_int_or_pair(value: object, *, field: str, allow_none: bool = Fals
     raise ValueError(f"{field} must be an int or pair, got {value!r}")
 
 
+def _normalize_int_or_pair_or_quad(value: object, *, field: str, allow_none: bool = False) -> object:
+    if value is None:
+        if allow_none:
+            return None
+        raise ValueError(f"{field} must be an int, pair, or quad")
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an int, pair, or quad (bool is not allowed)")
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, (list, tuple)):
+        if len(value) == 2:
+            a, b = value
+            if isinstance(a, bool) or isinstance(b, bool):
+                raise ValueError(f"{field} pair values must be ints (bool is not allowed)")
+            return (int(a), int(b))
+        if len(value) == 4:
+            left, right, top, bottom = value
+            if any(isinstance(x, bool) for x in (left, right, top, bottom)):
+                raise ValueError(f"{field} quad values must be ints (bool is not allowed)")
+            return (int(left), int(right), int(top), int(bottom))
+        raise ValueError(f"{field} must have 2 or 4 values, got {len(value)}")
+    if isinstance(value, str):
+        s = value.strip()
+        if s.startswith("(") and s.endswith(")"):
+            s = s[1:-1].strip()
+        elif s.startswith("[") and s.endswith("]"):
+            s = s[1:-1].strip()
+        if "," in s:
+            parts = [p.strip() for p in s.split(",")]
+            if len(parts) == 2:
+                return (int(parts[0]), int(parts[1]))
+            if len(parts) == 4:
+                return (int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3]))
+            raise ValueError(f"{field} must have exactly 2 or 4 comma-separated values")
+        return int(s)
+    raise ValueError(f"{field} must be an int, pair, or quad, got {value!r}")
+
+
+class CNNStemPrePadSpec(ConfigBase):
+    """
+    Optional explicit pad inserted before a conv layer.
+
+    p supports:
+      - int: same pad on all sides
+      - pair (h, w): (top=bottom=h, left=right=w)
+      - quad (left, right, top, bottom)
+
+    Values:
+      - value: default constant for all sides
+      - *_value overrides side-specific constants when provided
+    """
+
+    p: IntOrPairOrQuad = 0
+    value: float = 0.0
+    left_value: Optional[float] = None
+    right_value: Optional[float] = None
+    top_value: Optional[float] = None
+    bottom_value: Optional[float] = None
+
+    @field_validator("p", mode="before")
+    @classmethod
+    def _normalize_p(cls, v: object) -> object:
+        return _normalize_int_or_pair_or_quad(v, field="pre_pad.p")
+
+
 class CNNStemPoolSpec(ConfigBase):
     """
     Optional pooling op inserted after a conv layer.
@@ -108,6 +174,7 @@ class CNNStemLayerSpec(ConfigBase):
     k: IntOrPair
     s: IntOrPair = 1
     p: Optional[IntOrPair] = None
+    pre_pad: Optional[CNNStemPrePadSpec] = None
     act: Optional[Activation] = None
     pool: Optional[CNNStemPoolSpec] = None
 
@@ -253,6 +320,7 @@ class StemConfig(ConfigBase):
 __all__ = [
     "Activation",
     "PoolType",
+    "CNNStemPrePadSpec",
     "CNNStemPoolSpec",
     "CNNStemLayerSpec",
     "SpatialPreprocessorType",
