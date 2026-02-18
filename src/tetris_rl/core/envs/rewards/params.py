@@ -62,10 +62,58 @@ class LinesShapeRewardParams(InvalidPenaltyParams):
     terminal_penalty: float = 10.0
     survival_bonus: float = 0.0
     line_cleared_bonus: float = 1.0
-    hole_added_penalty: float = 1.0
-    no_new_holes_bonus: float = 0.1
-    hole_removed_bonus: float = 1.0
+    holes_increase_reward: float = -1.0
+    holes_same_reward: float = 0.1
+    holes_decrease_reward: float = 1.1
+    bumpiness_increase_reward: float = 0.0
+    bumpiness_same_reward: float = 0.0
+    bumpiness_decrease_reward: float = 0.0
+    max_height_increase_reward: float = 0.0
+    max_height_same_reward: float = 0.0
+    max_height_decrease_reward: float = 0.0
+    agg_height_increase_reward: float = 0.0
+    agg_height_same_reward: float = 0.0
+    agg_height_decrease_reward: float = 0.0
     tetris_bonus: float = 1.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_hole_keys(cls, data: object) -> object:
+        """
+        Back-compat for older lines_shape configs:
+          - hole_added_penalty
+          - no_new_holes_bonus
+          - hole_removed_bonus
+        """
+        if not isinstance(data, dict):
+            return data
+
+        out = dict(data)
+        old_inc_pen = out.pop("hole_added_penalty", None)
+        old_same_bonus = out.pop("no_new_holes_bonus", None)
+        old_dec_extra = out.pop("hole_removed_bonus", None)
+
+        if old_inc_pen is None and old_same_bonus is None and old_dec_extra is None:
+            return data
+
+        def _set_or_check(name: str, value: float) -> None:
+            if name not in out:
+                out[name] = float(value)
+                return
+            if float(out[name]) != float(value):
+                raise ValueError(
+                    f"legacy hole key conflicts with {name}; use {name} only"
+                )
+
+        if old_inc_pen is not None:
+            _set_or_check("holes_increase_reward", -float(old_inc_pen))
+        if old_same_bonus is not None:
+            _set_or_check("holes_same_reward", float(old_same_bonus))
+        if old_dec_extra is not None:
+            base_same = float(old_same_bonus) if old_same_bonus is not None else 0.0
+            _set_or_check("holes_decrease_reward", base_same + float(old_dec_extra))
+
+        return out
 
 
 RewardParams = (

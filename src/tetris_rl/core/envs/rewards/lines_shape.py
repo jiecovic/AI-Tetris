@@ -13,9 +13,10 @@ class LinesShapeReward(RewardFn):
 
     Rules (params control magnitudes):
       - +line_cleared_bonus * cleared_lines (per-line scaling).
-      - -hole_added_penalty if delta_holes > 0.
-      - +no_new_holes_bonus if delta_holes <= 0.
-      - +hole_removed_bonus if delta_holes < 0.
+      - +<metric>_increase_reward if delta_metric > 0.
+      - +<metric>_same_reward if delta_metric == 0.
+      - +<metric>_decrease_reward if delta_metric < 0.
+        metrics: holes, bumpiness, max_height, agg_height
       - +tetris_bonus if cleared_lines == 4.
     """
 
@@ -24,10 +25,33 @@ class LinesShapeReward(RewardFn):
         self.terminal_penalty = float(spec.terminal_penalty)
         self.survival_bonus = float(spec.survival_bonus)
         self.line_cleared_bonus = float(spec.line_cleared_bonus)
-        self.hole_added_penalty = float(spec.hole_added_penalty)
-        self.no_new_holes_bonus = float(spec.no_new_holes_bonus)
-        self.hole_removed_bonus = float(spec.hole_removed_bonus)
+        self.holes_increase_reward = float(spec.holes_increase_reward)
+        self.holes_same_reward = float(spec.holes_same_reward)
+        self.holes_decrease_reward = float(spec.holes_decrease_reward)
+        self.bumpiness_increase_reward = float(spec.bumpiness_increase_reward)
+        self.bumpiness_same_reward = float(spec.bumpiness_same_reward)
+        self.bumpiness_decrease_reward = float(spec.bumpiness_decrease_reward)
+        self.max_height_increase_reward = float(spec.max_height_increase_reward)
+        self.max_height_same_reward = float(spec.max_height_same_reward)
+        self.max_height_decrease_reward = float(spec.max_height_decrease_reward)
+        self.agg_height_increase_reward = float(spec.agg_height_increase_reward)
+        self.agg_height_same_reward = float(spec.agg_height_same_reward)
+        self.agg_height_decrease_reward = float(spec.agg_height_decrease_reward)
         self.tetris_bonus = float(spec.tetris_bonus)
+
+    @staticmethod
+    def _delta_triplet_reward(
+        *,
+        delta: float,
+        increase_reward: float,
+        same_reward: float,
+        decrease_reward: float,
+    ) -> float:
+        if float(delta) > 0.0:
+            return float(increase_reward)
+        if float(delta) < 0.0:
+            return float(decrease_reward)
+        return float(same_reward)
 
     def __call__(
         self,
@@ -50,6 +74,9 @@ class LinesShapeReward(RewardFn):
             return float(r)
 
         d_holes = float(getattr(features, "delta_holes", 0) or 0)
+        d_bumpiness = float(getattr(features, "delta_bumpiness", 0) or 0)
+        d_max_height = float(getattr(features, "delta_max_height", 0) or 0)
+        d_agg_height = float(getattr(features, "delta_agg_height", 0) or 0)
 
         cleared = int(getattr(features, "cleared_lines", 0) or 0)
         cleared = max(0, min(cleared, 4))
@@ -57,12 +84,30 @@ class LinesShapeReward(RewardFn):
         if cleared > 0:
             r += float(self.line_cleared_bonus) * float(cleared)
 
-        if d_holes > 0:
-            r -= float(self.hole_added_penalty)
-        else:
-            r += float(self.no_new_holes_bonus)
-            if d_holes < 0:
-                r += float(self.hole_removed_bonus)
+        r += self._delta_triplet_reward(
+            delta=d_holes,
+            increase_reward=self.holes_increase_reward,
+            same_reward=self.holes_same_reward,
+            decrease_reward=self.holes_decrease_reward,
+        )
+        r += self._delta_triplet_reward(
+            delta=d_bumpiness,
+            increase_reward=self.bumpiness_increase_reward,
+            same_reward=self.bumpiness_same_reward,
+            decrease_reward=self.bumpiness_decrease_reward,
+        )
+        r += self._delta_triplet_reward(
+            delta=d_max_height,
+            increase_reward=self.max_height_increase_reward,
+            same_reward=self.max_height_same_reward,
+            decrease_reward=self.max_height_decrease_reward,
+        )
+        r += self._delta_triplet_reward(
+            delta=d_agg_height,
+            increase_reward=self.agg_height_increase_reward,
+            same_reward=self.agg_height_same_reward,
+            decrease_reward=self.agg_height_decrease_reward,
+        )
 
         if cleared == 4:
             r += float(self.tetris_bonus)
