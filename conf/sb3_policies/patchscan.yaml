@@ -25,7 +25,7 @@ feature_extractor:
       layout:
         type: patch                           # sliding PxW windows over height
         params:
-          patch_h: 4                          # P (>=4 recommended)
+          patch_h: 6                          # P (>=4 recommended)
           patch_w: 10                         # full board width W
           stride_h: 2                         # overlap because stride_h < patch_h
           stride_w: 10                        # exactly one patch across width
