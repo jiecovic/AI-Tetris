@@ -187,8 +187,15 @@ class TetrisTokenizer(nn.Module):
                 raise ValueError(
                     f"patch ({ph},{pw}) cannot exceed grid ({self.H},{self.W})"
                 )
-            n_h = int(((self.H - ph) // sh) + 1)
-            n_w = int(((self.W - pw) // sw) + 1)
+            n_h, n_w = self._patch_grid_shape(
+                H=self.H,
+                W=self.W,
+                patch_h=ph,
+                patch_w=pw,
+                stride_h=sh,
+                stride_w=sw,
+                padding=str(getattr(params, "padding", "valid")),
+            )
             row_pos_size = n_h
             col_pos_size = n_w
             self._patch_use_row_pos = _resolve_switch(
@@ -250,6 +257,7 @@ class TetrisTokenizer(nn.Module):
                 patch_w=params.patch_w,
                 stride_h=params.stride_h,
                 stride_w=params.stride_w,
+                padding=str(getattr(params, "padding", "valid")),
             )
 
         # --- linear projections (deterministic from SpatialSpec + layout params) ---
@@ -408,14 +416,22 @@ class TetrisTokenizer(nn.Module):
             pw = int(params.patch_w)
             sh = int(params.stride_h) if params.stride_h is not None else ph
             sw = int(params.stride_w) if params.stride_w is not None else pw
+            padding = str(getattr(params, "padding", "valid"))
             if ph <= 0 or pw <= 0:
                 raise ValueError("patch_h/patch_w must be > 0")
             if sh <= 0 or sw <= 0:
                 raise ValueError("stride_h/stride_w must be > 0")
-            if ph > H or pw > W:
+            if padding == "valid" and (ph > H or pw > W):
                 return 0
-            n_h = ((H - ph) // sh) + 1
-            n_w = ((W - pw) // sw) + 1
+            n_h, n_w = self._patch_grid_shape(
+                H=H,
+                W=W,
+                patch_h=ph,
+                patch_w=pw,
+                stride_h=sh,
+                stride_w=sw,
+                padding=padding,
+            )
             return int(n_h * n_w)
 
         raise ValueError(f"unknown layout: {layout!r}")
@@ -636,6 +652,24 @@ class TetrisTokenizer(nn.Module):
         if t.dim() != 1 or int(t.shape[0]) != B:
             raise ValueError(f"expected kind tensor shape scalar/(B,)/(B,K), got {tuple(t.shape)} with B={B}")
         return t.to(dtype=torch.int64)
+
+    @staticmethod
+    def _patch_grid_shape(
+            *,
+            H: int,
+            W: int,
+            patch_h: int,
+            patch_w: int,
+            stride_h: int,
+            stride_w: int,
+            padding: str,
+    ) -> tuple[int, int]:
+        pad_mode = str(padding).strip().lower()
+        if pad_mode == "valid":
+            return int(((H - patch_h) // stride_h) + 1), int(((W - patch_w) // stride_w) + 1)
+        if pad_mode in {"same", "tetris"}:
+            return int((H + stride_h - 1) // stride_h), int((W + stride_w - 1) // stride_w)
+        raise ValueError(f"patch layout padding must be valid|same|tetris, got {padding!r}")
 
 
 __all__ = ["TetrisTokenizer"]

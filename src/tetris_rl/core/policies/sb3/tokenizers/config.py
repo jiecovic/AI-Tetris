@@ -12,6 +12,7 @@ from tetris_rl.core.policies.sb3.types import LayerActivationName
 TokenizerLayout = Literal["row", "column", "patch", "row_column"]
 BoardEmbedType = Literal["linear", "conv1d", "discrete_pattern"]
 PaddingMode = Literal["valid", "same", "tetris"]
+PatchPaddingMode = Literal["valid", "same", "tetris"]
 PosEncSwitch = bool | Literal["auto"]
 
 
@@ -38,6 +39,7 @@ class PatchLayoutParams(ConfigBase):
     patch_w: int = 1
     stride_h: int | None = None
     stride_w: int | None = None
+    padding: PatchPaddingMode = "valid"
     use_row_pos: PosEncSwitch = "auto"
     use_col_pos: PosEncSwitch = "auto"
 
