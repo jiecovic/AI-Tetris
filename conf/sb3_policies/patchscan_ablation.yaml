@@ -32,10 +32,11 @@ feature_extractor:
       layout:
         type: patch                           # sliding PxW windows over height
         params:
-          patch_h: 4                          # P (>=4 recommended)
+          patch_h: 5                          # P (>=4 recommended)
           patch_w: 10                         # full board width W
-          stride_h: 4                         # overlap (keep some context)
+          stride_h: 3                         # overlap (keep some context)
           stride_w: 10                        # exactly one patch across width
+          padding: tetris                      # valid|same|tetris (tetris: top=0, left/right/bottom=1)
           use_row_pos: auto                   # auto|true|false (auto keeps row-pos when >1 patch row)
           use_col_pos: false                  # auto|true|false
 
@@ -47,9 +48,9 @@ feature_extractor:
       type: transformer
       params:
         features_dim: 512
-        n_layers: 4
+        n_layers: 3
         n_heads: 2
-        mlp_ratio: 2.0
+        mlp_ratio: 4.0
         dropout: 0.0
         attn_dropout: 0.0
         resid_dropout: 0.0

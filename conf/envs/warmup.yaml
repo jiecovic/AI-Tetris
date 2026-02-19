@@ -9,10 +9,10 @@ params:
 game:
   piece_rule: uniform            # uniform | bag7
   warmup:
-    prob: 0.95                    # apply warmup on reset with this probability
+    prob: 1.0                    # apply warmup on reset with this probability
     spec:
       type: uniform_rows
       params:
-        min_rows: 13              # lower bound of initialized rows
+        min_rows: 0              # lower bound of initialized rows
         max_rows: 15             # upper bound (engine will clamp to spawn-safe max)
         holes: 2                 # fixed holes per row (current rust support)

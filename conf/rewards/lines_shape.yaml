@@ -3,18 +3,18 @@ type: lines_shape
 params:
   invalid_penalty: 10.0  # penalty for invalid action
   terminal_penalty: 10.0  # penalty on game over
-  survival_bonus: 0.01  # per-step bonus if still alive
+  survival_bonus: 0.005  # per-step bonus if still alive
   line_cleared_bonus: 1.0  # per-line bonus (scaled by cleared_lines)
-  holes_increase_reward: -0.05  # delta_holes > 0
-  holes_same_reward: 0.01  # delta_holes == 0
+  holes_increase_reward: -0.1  # delta_holes > 0
+  holes_same_reward: 0.02  # delta_holes == 0
   holes_decrease_reward: 0.05  # delta_holes < 0
   bumpiness_increase_reward: -0.05  # delta_bumpiness > 0
   bumpiness_same_reward: 0.0  # delta_bumpiness == 0
   bumpiness_decrease_reward: 0.05  # delta_bumpiness < 0
-  max_height_increase_reward: -0.05  # delta_max_height > 0
+  max_height_increase_reward: -0.1  # delta_max_height > 0
   max_height_same_reward: 0.0  # delta_max_height == 0
-  max_height_decrease_reward: 0.05  # delta_max_height < 0
+  max_height_decrease_reward: 0.025  # delta_max_height < 0
   agg_height_increase_reward: 0.0  # delta_agg_height > 0
   agg_height_same_reward: 0.0  # delta_agg_height == 0
-  agg_height_decrease_reward: 0.0  # delta_agg_height < 0
-  tetris_bonus: 0.0  # extra bonus for clearing 4 lines
+  agg_height_decrease_reward: 0.025  # delta_agg_height < 0
+  tetris_bonus: 0.1  # extra bonus for clearing 4 lines
