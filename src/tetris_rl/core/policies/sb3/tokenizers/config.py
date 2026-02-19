@@ -12,6 +12,7 @@ from tetris_rl.core.policies.sb3.types import LayerActivationName
 TokenizerLayout = Literal["row", "column", "patch", "row_column"]
 BoardEmbedType = Literal["linear", "conv1d", "discrete_pattern"]
 PaddingMode = Literal["valid", "same", "tetris"]
+PosEncSwitch = bool | Literal["auto"]
 
 
 # ---------------------------------------------------------------------
@@ -20,11 +21,16 @@ PaddingMode = Literal["valid", "same", "tetris"]
 
 
 class RowLayoutParams(ConfigBase):
-    pass
+    use_row_pos: PosEncSwitch = "auto"
 
 
 class ColumnLayoutParams(ConfigBase):
-    pass
+    use_col_pos: PosEncSwitch = "auto"
+
+
+class RowColumnLayoutParams(ConfigBase):
+    use_row_pos: PosEncSwitch = "auto"
+    use_col_pos: PosEncSwitch = "auto"
 
 
 class PatchLayoutParams(ConfigBase):
@@ -32,7 +38,8 @@ class PatchLayoutParams(ConfigBase):
     patch_w: int = 1
     stride_h: int | None = None
     stride_w: int | None = None
-    use_col_pos: bool | Literal["auto"] = "auto"
+    use_row_pos: PosEncSwitch = "auto"
+    use_col_pos: PosEncSwitch = "auto"
 
 
 # ---------------------------------------------------------------------
@@ -76,7 +83,7 @@ TOKENIZER_LAYOUT_PARAMS_REGISTRY = {
     "row": RowLayoutParams,
     "column": ColumnLayoutParams,
     "patch": PatchLayoutParams,
-    "row_column": RowLayoutParams,  # shares the same params container for now
+    "row_column": RowColumnLayoutParams,
 }
 
 TOKENIZER_BOARD_EMBED_PARAMS_REGISTRY = {
@@ -88,7 +95,7 @@ TOKENIZER_BOARD_EMBED_PARAMS_REGISTRY = {
 
 class LayoutConfig(ConfigBase):
     type: TokenizerLayout
-    params: RowLayoutParams | ColumnLayoutParams | PatchLayoutParams
+    params: RowLayoutParams | ColumnLayoutParams | RowColumnLayoutParams | PatchLayoutParams
 
     @model_validator(mode="before")
     @classmethod
@@ -147,6 +154,7 @@ __all__ = [
     "BoardEmbedType",
     "RowLayoutParams",
     "ColumnLayoutParams",
+    "RowColumnLayoutParams",
     "PatchLayoutParams",
     "LinearEmbedParams",
     "DiscretePatternEmbedParams",

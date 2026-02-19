@@ -29,6 +29,7 @@ feature_extractor:
           patch_w: 10                         # full board width W
           stride_h: 2                         # overlap because stride_h < patch_h
           stride_w: 10                        # exactly one patch across width
+          use_row_pos: auto                   # auto|true|false (auto keeps row-pos when >1 patch row)
           use_col_pos: auto                   # auto disables col-pos for full-width scans
 
       board_embedding:

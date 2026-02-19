@@ -35,9 +35,12 @@ from tetris_rl.core.policies.sb3.layers.token_type import TokenType
 from tetris_rl.core.policies.sb3.tokenizers.config import (
     BoardEmbeddingConfig,
     BoardEmbedType,
+    ColumnLayoutParams,
     Conv1DEmbedParams,
     LayoutConfig,
     PatchLayoutParams,
+    RowColumnLayoutParams,
+    RowLayoutParams,
 )
 from tetris_rl.core.policies.sb3.tokenizers.embeddings.conv1d import Conv1DEmbedder
 from tetris_rl.core.policies.sb3.tokenizers.layout.patch import PatchTokenizer
@@ -128,11 +131,46 @@ class TetrisTokenizer(nn.Module):
         # Positional embeddings (ONLY allocate what we might use)
         # ------------------------------------------------------------------
         layout_kind = self.layout_cfg.type
-        needs_row_pos = layout_kind in {"row", "row_column", "patch"}
-        needs_col_pos = layout_kind in {"column", "row_column", "patch"}
+        needs_row_pos = False
+        needs_col_pos = False
         row_pos_size = int(self.H)
         col_pos_size = int(self.W)
-        self._patch_use_col_pos: bool = True
+        self._patch_use_row_pos: bool = False
+        self._patch_use_col_pos: bool = False
+
+        def _resolve_switch(v: object, *, auto_default: bool) -> bool:
+            if isinstance(v, str):
+                s = v.strip().lower()
+                if s == "auto":
+                    return bool(auto_default)
+                if s in {"true", "1", "yes", "on"}:
+                    return True
+                if s in {"false", "0", "no", "off"}:
+                    return False
+                raise ValueError(f"invalid positional switch value: {v!r}")
+            return bool(v)
+
+        if layout_kind == "row":
+            params = self.layout_cfg.params
+            if not isinstance(params, RowLayoutParams):
+                raise TypeError(f"layout='row' requires RowLayoutParams, got {type(params).__name__}")
+            needs_row_pos = _resolve_switch(getattr(params, "use_row_pos", "auto"), auto_default=True)
+            needs_col_pos = False
+
+        elif layout_kind == "column":
+            params = self.layout_cfg.params
+            if not isinstance(params, ColumnLayoutParams):
+                raise TypeError(f"layout='column' requires ColumnLayoutParams, got {type(params).__name__}")
+            needs_row_pos = False
+            needs_col_pos = _resolve_switch(getattr(params, "use_col_pos", "auto"), auto_default=True)
+
+        elif layout_kind == "row_column":
+            params = self.layout_cfg.params
+            if not isinstance(params, RowColumnLayoutParams):
+                raise TypeError(f"layout='row_column' requires RowColumnLayoutParams, got {type(params).__name__}")
+            needs_row_pos = _resolve_switch(getattr(params, "use_row_pos", "auto"), auto_default=True)
+            needs_col_pos = _resolve_switch(getattr(params, "use_col_pos", "auto"), auto_default=True)
+
         if layout_kind == "patch":
             params = self.layout_cfg.params
             if not isinstance(params, PatchLayoutParams):
@@ -149,14 +187,19 @@ class TetrisTokenizer(nn.Module):
                 raise ValueError(
                     f"patch ({ph},{pw}) cannot exceed grid ({self.H},{self.W})"
                 )
-            row_pos_size = int(((self.H - ph) // sh) + 1)
-            col_pos_size = int(((self.W - pw) // sw) + 1)
-            use_col_pos = getattr(params, "use_col_pos", "auto")
-            if str(use_col_pos).strip().lower() == "auto":
-                # Full-width vertical scan has only one column index; col-pos adds no signal.
-                self._patch_use_col_pos = not (pw == self.W and sw == self.W)
-            else:
-                self._patch_use_col_pos = bool(use_col_pos)
+            n_h = int(((self.H - ph) // sh) + 1)
+            n_w = int(((self.W - pw) // sw) + 1)
+            row_pos_size = n_h
+            col_pos_size = n_w
+            self._patch_use_row_pos = _resolve_switch(
+                getattr(params, "use_row_pos", "auto"),
+                auto_default=(n_h > 1),
+            )
+            self._patch_use_col_pos = _resolve_switch(
+                getattr(params, "use_col_pos", "auto"),
+                auto_default=(n_w > 1),
+            )
+            needs_row_pos = bool(self._patch_use_row_pos)
             needs_col_pos = bool(self._patch_use_col_pos)
 
         self._row_pos: Optional[nn.Embedding] = nn.Embedding(int(row_pos_size), self.d_model) if needs_row_pos else None
@@ -447,7 +490,7 @@ class TetrisTokenizer(nn.Module):
             raise ValueError(f"unknown board_embedding type: {emb_type!r}")
 
         if self._row_pos is None:
-            raise RuntimeError("row positional embedding is None but layout requires row positions")
+            return emb
         pos = self._row_pos(torch.arange(H, device=x.device, dtype=torch.int64))  # (H,D)
         return emb + pos.unsqueeze(0)
 
@@ -478,7 +521,7 @@ class TetrisTokenizer(nn.Module):
             raise ValueError(f"unknown board_embedding type: {emb_type!r}")
 
         if self._col_pos is None:
-            raise RuntimeError("col positional embedding is None but layout requires col positions")
+            return emb
         pos = self._col_pos(torch.arange(W, device=x.device, dtype=torch.int64))  # (W,D)
         return emb + pos.unsqueeze(0)
 
@@ -511,18 +554,18 @@ class TetrisTokenizer(nn.Module):
         else:
             raise ValueError(f"unknown board_embedding type: {emb_type!r}")
 
-        if self._row_pos is None:
-            raise RuntimeError("patch layout requires row positional embeddings")
-
-        # add token-grid positional embeddings per patch index
-        row_pos_n = int(self._row_pos.num_embeddings)
-        row_tab = self._row_pos(torch.arange(row_pos_n, device=emb.device, dtype=torch.int64))  # (T_h,D)
-        pos = row_tab[pos_h]
+        # add token-grid positional embeddings per patch index (when enabled)
+        pos: Optional[torch.Tensor] = None
+        if self._row_pos is not None:
+            row_pos_n = int(self._row_pos.num_embeddings)
+            row_tab = self._row_pos(torch.arange(row_pos_n, device=emb.device, dtype=torch.int64))  # (T_h,D)
+            pos = row_tab[pos_h]
         if self._col_pos is not None:
             col_pos_n = int(self._col_pos.num_embeddings)
             col_tab = self._col_pos(torch.arange(col_pos_n, device=emb.device, dtype=torch.int64))  # (T_w,D)
-            pos = pos + col_tab[pos_w]
-        emb = emb + pos.unsqueeze(0)  # (B,T,D)
+            pos = col_tab[pos_w] if pos is None else (pos + col_tab[pos_w])
+        if pos is not None:
+            emb = emb + pos.unsqueeze(0)  # (B,T,D)
         return emb
 
     # ------------------------------------------------------------------

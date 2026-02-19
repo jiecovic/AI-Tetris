@@ -111,6 +111,7 @@ class TransformerMixer(nn.Module):
 
         pooled_width = pooled_dim(kind=spec.pool, T=T, D=D, num_cls_tokens=k)
         F = int(spec.features_dim)
+        self.out_dim = int(F)
         self.out_proj = nn.Identity() if pooled_width == F else nn.Linear(pooled_width, F, bias=True)
 
         self._cls_type_id = cls_type_id

@@ -1,0 +1,22 @@
+# @package _global_
+defaults:
+  - /hydra: default
+  - /envs@env_train: warmup
+  - /rewards@env_train.reward: codemy_heuristic_delta
+  - /envs@env_eval: empty
+  - /rewards@env_eval.reward: codemy_heuristic_delta
+  - /sb3_policies@policy: patchscan_ablation
+  - /trains@_global_: imitation
+  - _self_
+
+log_level: info
+
+run:
+  name: patchscan_ablation_imitation_run
+  seed: 0
+  out_root: runs
+  tensorboard: true
+  device: cuda
+  n_envs: 128
+  vec: dummy
+
