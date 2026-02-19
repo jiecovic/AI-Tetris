@@ -19,4 +19,3 @@ run:
   device: cuda                       # cuda | cpu | auto
   n_envs: 64                         # fewer envs for faster iteration
   vec: dummy                         # subproc | dummy
-
