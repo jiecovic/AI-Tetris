@@ -394,7 +394,8 @@ def _summarize_eval_states(
         out["eval/max_steps_per_episode"] = int(max_steps_per_episode)
     out["eval/deterministic"] = bool(deterministic)
     out["eval/seed_base"] = int(seed_base)
-    out["eval/num_envs"] = int(num_envs)
+    out["eval/n_envs"] = int(num_envs)
+    out["eval/num_envs"] = int(num_envs)  # legacy key (back-compat)
     out["eval/algo_type"] = str(algo_type)
 
     out["episode/completed_episodes"] = int(completed_episodes)

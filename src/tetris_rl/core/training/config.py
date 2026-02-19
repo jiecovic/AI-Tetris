@@ -24,20 +24,41 @@ class EvalCheckpointCallbackConfig(ConfigBase):
 
     deterministic: bool = True
     seed_offset: int = 10_000
-    num_envs: int = Field(default=1, ge=1)
+    n_envs: int = Field(default=1, ge=1)
+    # Back-compat alias for older run configs persisted to disk.
+    # Prefer n_envs everywhere; this field exists only so Pydantic won't reject old configs.
+    num_envs: Optional[int] = Field(default=None, ge=1)
     workers: int = Field(default=1, ge=1)
     mode: Literal["vectorized", "workers"] = "vectorized"
 
     @model_validator(mode="before")
     @classmethod
-    def _coerce_steps_to_min_steps(cls, data: object) -> object:
+    def _normalize_legacy_fields(cls, data: object) -> object:
         if not isinstance(data, dict):
             return data
-        if "min_steps" not in data and "steps" in data:
-            out = dict(data)
-            out["min_steps"] = data.get("steps")
-            return out
-        return data
+
+        out = dict(data)
+
+        # Back-compat: steps -> min_steps
+        if "min_steps" not in out and "steps" in out:
+            out["min_steps"] = out.get("steps")
+
+        # Naming consistency: num_envs -> n_envs
+        if "num_envs" in out:
+            if "n_envs" not in out:
+                out["n_envs"] = out.get("num_envs")
+            else:
+                try:
+                    n = out.get("n_envs")
+                    legacy = out.get("num_envs")
+                    if n is None or legacy is None:
+                        raise ValueError
+                    if int(n) != int(legacy):
+                        raise ValueError("eval_checkpoint.num_envs and eval_checkpoint.n_envs disagree; use n_envs only")
+                except Exception:
+                    raise ValueError("eval_checkpoint.num_envs and eval_checkpoint.n_envs disagree; use n_envs only")
+
+        return out
 
 class LatestCallbackConfig(ConfigBase):
     enabled: bool = True

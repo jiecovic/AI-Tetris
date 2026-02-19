@@ -249,7 +249,7 @@ class ImitationTrainer:
                     max_steps_per_episode=self.callbacks_cfg.eval_checkpoint.max_steps_per_episode,
                     deterministic=bool(self.callbacks_cfg.eval_checkpoint.deterministic),
                     seed_base=int(eval_seed_base),
-                    num_envs=int(self.callbacks_cfg.eval_checkpoint.num_envs),
+                    num_envs=int(self.callbacks_cfg.eval_checkpoint.n_envs),
                     on_episode=on_episode,
                     on_step=on_step,
                 )

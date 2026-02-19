@@ -102,7 +102,9 @@ class EvalCheckpointCore:
                         float(self.spec.eval.max_steps_per_episode),
                         step,
                     )
-                self.log_scalar("eval/num_envs", float(self.spec.eval.num_envs), step)
+                # Naming consistency: n_envs (keep legacy key for old dashboards)
+                self.log_scalar("eval/n_envs", float(self.spec.eval.n_envs), step)
+                self.log_scalar("eval/num_envs", float(self.spec.eval.n_envs), step)
                 self.log_scalar("eval/workers", float(self.spec.eval.workers), step)
                 mode = str(self.spec.eval.mode).strip().lower()
                 self.log_scalar("eval/mode_vectorized", 1.0 if mode == "vectorized" else 0.0, step)
@@ -117,7 +119,7 @@ class EvalCheckpointCore:
         min_steps = int(self.spec.eval.min_steps)
         max_steps_per_episode = self.spec.eval.max_steps_per_episode
         deterministic = bool(self.spec.eval.deterministic)
-        num_envs = max(1, int(self.spec.eval.num_envs))
+        num_envs = max(1, int(self.spec.eval.n_envs))
         mode = str(self.spec.eval.mode).strip().lower()
         workers = max(1, int(self.spec.eval.workers))
 

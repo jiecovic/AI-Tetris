@@ -12,7 +12,7 @@ callbacks:
     deterministic: true               # imitation eval uses deterministic actions
     seed_offset: 10_000               # offset from run.seed for eval seeds
     mode: workers                  # vectorized | workers
-#    num_envs: 1                       # eval env count (vectorized mode)
+#    n_envs: 1                        # eval env count (vectorized mode)
     workers: 8                        # parallel workers (workers mode)
 
 learn:
