@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Dict, Literal, Optional, Union
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from tetris_rl.core.config.base import ConfigBase
 from tetris_rl.core.policies.sb3.feature_augmenters.config import FeatureAugmenterConfig
@@ -36,6 +36,35 @@ class FeatureExtractorConfig(ConfigBase):
     stem: Optional[StemConfig] = None
     encoder: EncoderConfig
     feature_augmenter: Optional[FeatureAugmenterConfig] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_optional_stem(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+
+        out = dict(data)
+        stem = out.get("stem", None)
+        if stem is None:
+            return out
+
+        null_tags = {"", "none", "null", "off", "disabled"}
+
+        if isinstance(stem, str):
+            if str(stem).strip().lower() in null_tags:
+                out["stem"] = None
+            return out
+
+        if isinstance(stem, dict):
+            t = stem.get("type", None)
+            if t is None:
+                out["stem"] = None
+                return out
+            if str(t).strip().lower() in null_tags:
+                out["stem"] = None
+                return out
+
+        return out
 
 
 class SB3PolicyConfig(ConfigBase):
