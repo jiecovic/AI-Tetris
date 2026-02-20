@@ -136,9 +136,13 @@ This is not a polished framework. It is a personal playground to:
 
 ## Best results so far (informal)
 
-- Planning: Codemy-style heuristic with plies=3 and 3rd-ply expectimax.
-- Distill: behavior cloning from the planner into a reactive policy.
-- Models: ViT with column tokens learns faster; CNN reaches similar quality and is faster at inference.
+- Current best (Feb 2026): PPO + PatchScan transformer policy (CNN stem -> sliding-window patch tokens -> transformer mixer).
+  - Configs: `configs/ppo/ppo_patchscan_ablation.yaml` + `conf/sb3_policies/patchscan_ablation.yaml`.
+  - PatchScan uses full-width board patches as tokens (slide over height with overlap), pools token features (mean+max), and adds tokens for active/next piece.
+  - Pretrained selection: `conf/sb3_policies/pretrained.yaml` currently points at `runs/ppo_patchscan_ablation_run_008`.
+- Planning baseline: Codemy-style heuristic with plies=3 and 3rd-ply expectimax.
+- Distill baseline: behavior cloning from the planner into a reactive policy.
+- Prior models: ViT with column tokens learns faster; CNN reaches similar quality and is faster at inference.
 - Outcome: fast, reactive inference with near-planning performance (no search at runtime).
 - Demo: the GIF above shows a CNN reactive policy distilled from Codemy plies=3 expectimax; weights will be shared after refinement.
 
