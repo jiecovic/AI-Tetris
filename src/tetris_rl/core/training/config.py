@@ -70,6 +70,33 @@ class CallbacksConfig(ConfigBase):
     eval_checkpoint: EvalCheckpointCallbackConfig = EvalCheckpointCallbackConfig()
 
 
+class PolicySourceConfig(ConfigBase):
+    """
+    Policy source selector.
+
+    source supports:
+      - run dir path (loads policy config + checkpoint by `which`)
+      - run config path (.yaml) (loads policy config only)
+      - policy config path (.yaml) (loads policy config only)
+    """
+
+    source: str
+    which: Literal["latest", "reward", "lines", "survival", "final"] = "latest"
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _source_nonempty(cls, v: object) -> str:
+        s = str(v).strip()
+        if not s:
+            raise ValueError("policy.source must be a non-empty path")
+        return s
+
+    @field_validator("which", mode="before")
+    @classmethod
+    def _which_lower(cls, v: object) -> str:
+        return str(v).strip().lower()
+
+
 class ImitationLearnConfig(ConfigBase):
     # offline dataset (required)
     dataset_dir: str
@@ -87,17 +114,6 @@ class ImitationLearnConfig(ConfigBase):
     # archive (copy of latest.zip)
     save_archive: bool = True
     archive_dir: str = "checkpoints/imitation"
-
-    # optional: initialize from another run/checkpoint
-    resume: Optional[str] = None
-
-    @field_validator("resume", mode="before")
-    @classmethod
-    def _resume_empty_to_none(cls, v: object) -> Optional[str]:
-        if v is None:
-            return None
-        s = str(v).strip()
-        return s if s else None
 
 
 class ImitationAlgoParams(ConfigBase):
@@ -119,17 +135,6 @@ class LearnConfig(ConfigBase):
     total_timesteps: int = Field(default=200_000, ge=0)
     max_steps_per_episode: Optional[int] = Field(default=None, ge=1)
 
-    # Resume training from a previous run folder.
-    resume: Optional[str] = None
-
-    @field_validator("resume", mode="before")
-    @classmethod
-    def _resume_empty_to_none(cls, v: object) -> Optional[str]:
-        if v is None:
-            return None
-        s = str(v).strip()
-        return s if s else None
-
 
 class ImitationAlgoConfig(ConfigBase):
     type: Literal["imitation"] = "imitation"
@@ -144,5 +149,6 @@ __all__ = [
     "ImitationLearnConfig",
     "ImitationAlgoParams",
     "LatestCallbackConfig",
+    "PolicySourceConfig",
     "LearnConfig",
 ]

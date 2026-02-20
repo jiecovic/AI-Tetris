@@ -25,7 +25,6 @@ learn:
   max_samples: 0                      # max samples to use (0 = all)
   save_archive: true                  # archive final imitation checkpoint
   archive_dir: checkpoints/imitation  # directory for BC archives
-  resume: null                        # optional: run dir or checkpoint path
 
 algo:
   type: imitation                     # imitation

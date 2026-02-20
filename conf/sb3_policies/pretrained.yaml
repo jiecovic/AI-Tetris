@@ -1,0 +1,3 @@
+# @package _group_
+source: runs/ppo_patchscan_run_008          # run dir OR policy yaml path
+which: survival                               # latest | reward | lines | survival | final (run dir only)

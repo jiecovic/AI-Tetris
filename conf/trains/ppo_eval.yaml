@@ -18,7 +18,6 @@ callbacks:
 learn:
   total_timesteps: 800_000_000        # total env steps for RL training
   max_steps_per_episode: 5_000          # cap per training episode (env truncation)
-#  resume: runs/cnn_run_013
 
 algo:
   type: maskable_ppo                  # ppo | maskable_ppo

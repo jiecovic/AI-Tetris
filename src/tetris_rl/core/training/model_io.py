@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Optional
 
 from tetris_rl.core.training.config import AlgoConfig
 
@@ -194,8 +194,58 @@ def try_load_policy_checkpoint(path: str | Path, *, device: str = "cpu") -> Any 
         return None
 
 
+def load_policy_state_dict_from_checkpoint(
+    *,
+    checkpoint: str | Path,
+    device: str = "cpu",
+    preferred_algo: Optional[str] = None,
+) -> tuple[dict[str, Any], str]:
+    """
+    Load a policy state_dict from either:
+      - policy-only archive (ActorCriticPolicy / MaskableActorCriticPolicy), or
+      - full SB3 model checkpoint.
+
+    Returns:
+      (state_dict, loader_tag)
+    """
+    ckpt = Path(checkpoint)
+    if not ckpt.is_file():
+        raise FileNotFoundError(f"policy checkpoint not found: {ckpt}")
+
+    loaded_policy = try_load_policy_checkpoint(ckpt, device=str(device))
+    if loaded_policy is not None:
+        return loaded_policy.state_dict(), "policy_archive"
+
+    candidates: list[str] = []
+    if preferred_algo is not None:
+        candidates.append(str(preferred_algo).strip().lower())
+    candidates.extend(["maskable_ppo", "ppo"])
+
+    seen: set[str] = set()
+    last_error: Exception | None = None
+    for algo_type in candidates:
+        if algo_type in seen or algo_type not in {"ppo", "maskable_ppo"}:
+            continue
+        seen.add(algo_type)
+        algo_lit: Literal["ppo", "maskable_ppo"] = "ppo" if algo_type == "ppo" else "maskable_ppo"
+        try:
+            loaded = load_model_from_algo_config(
+                algo_cfg=AlgoConfig(type=algo_lit),
+                ckpt=ckpt,
+                device=str(device),
+            )
+            return loaded.model.policy.state_dict(), loaded.algo_type
+        except Exception as e:  # pragma: no cover - exercised via runtime loading paths
+            last_error = e
+            continue
+
+    detail = f"{type(last_error).__name__}: {last_error}" if last_error is not None else "unknown error"
+    raise RuntimeError(f"failed to load policy weights from {ckpt}: {detail}")
+
+
 __all__ = [
     "LoadedModel",
+    "load_policy_state_dict_from_checkpoint",
     "load_model_from_algo_config",
     "try_load_policy_checkpoint",
     "warn_if_maskable_with_multidiscrete",

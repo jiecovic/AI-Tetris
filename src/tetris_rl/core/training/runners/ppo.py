@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from typing import Optional
 
 from omegaconf import DictConfig
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
@@ -15,16 +16,18 @@ from tetris_rl.core.callbacks import EvalCallback, InfoLoggerCallback, LatestCal
 from tetris_rl.core.config.io import to_plain_dict
 from tetris_rl.core.config.root import ExperimentConfig
 from tetris_rl.core.envs.factory import make_env_from_cfg
+from tetris_rl.core.policies.sb3.config import SB3PolicyConfig
 from tetris_rl.core.runs.checkpoints.checkpoint_manifest import (
     CheckpointEntry,
     update_checkpoint_manifest,
 )
-from tetris_rl.core.runs.run_resolver import resolve_resume_checkpoint
+from tetris_rl.core.runs.run_resolver import PolicyBootstrap, resolve_policy_bootstrap
+from tetris_rl.core.training.config import PolicySourceConfig
 from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.core.training.evaluation.eval_checkpoint_core import EvalCheckpointCoreSpec
 from tetris_rl.core.training.evaluation.latest_checkpoint_core import LatestCheckpointCoreSpec
 from tetris_rl.core.training.model_factory import make_model_from_cfg
-from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
+from tetris_rl.core.training.model_io import load_policy_state_dict_from_checkpoint
 from tetris_rl.core.training.reporting import (
     log_env_reward_summary,
     log_policy_compact,
@@ -52,7 +55,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
     eval_cfg = callbacks_cfg.eval_checkpoint
     env_train_cfg = exp_cfg.env_train
     env_eval_cfg = exp_cfg.env_eval
-    policy_cfg = exp_cfg.policy
+    policy_spec = exp_cfg.policy
     seed_all(int(run_cfg.seed))
     max_steps_per_episode = getattr(learn_cfg, "max_steps_per_episode", None)
 
@@ -85,66 +88,51 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
     logger.info(f"[timing] vec env built: {time.perf_counter() - t0:.2f}s")
 
     # ==============================================================
-    # Model (fresh or resume)
+    # Model (policy source selector)
     # ==============================================================
     t0 = time.perf_counter()
-    resume_target = getattr(learn_cfg, "resume", None)
-    is_resume = bool(resume_target and str(resume_target).strip())
-    imitation_resume = False
-
-    if is_resume:
-        resume_ckpt = resolve_resume_checkpoint(str(resume_target).strip())
-        logger.info(f"[resume] target={resume_target!r}")
-        logger.info(f"[resume] ckpt={resume_ckpt.resolve() if resume_ckpt.exists() else resume_ckpt}")
-
-        if not resume_ckpt.exists():
-            raise FileNotFoundError(
-                f"resume checkpoint not found: {resume_ckpt} "
-                f"(from learn.resume={resume_target!r})"
-            )
-
-        algo_type = str(algo_cfg.type).strip().lower()
-        device = str(run_cfg.device).strip() or "auto"
-
-        loaded_policy = try_load_policy_checkpoint(str(resume_ckpt), device=str(device))
-        if loaded_policy is not None:
-            imitation_resume = True
-            logger.info("[timing] building model for imitation resume...")
-            model = make_model_from_cfg(
-                cfg=policy_cfg,
-                algo_cfg=algo_cfg,
-                run_cfg=run_cfg,
-                vec_env=built.vec_env,
-                tensorboard_log=paths.tb_dir,
-            )
-            try:
-                model.policy.load_state_dict(loaded_policy.state_dict(), strict=True)
-            except Exception as e:
-                raise RuntimeError(f"failed to load imitation weights from {resume_ckpt}") from e
-            setattr(model, "_tetris_algo_type", algo_type)
-            logger.info("[resume] loaded imitation weights (timesteps reset)")
-            logger.info(f"[timing] model initialized: {time.perf_counter() - t0:.2f}s")
-        else:
-            logger.info("[timing] loading model from checkpoint...")
-            loaded = load_model_from_algo_config(
-                algo_cfg=algo_cfg,
-                ckpt=resume_ckpt,
-                device=device,
-                env=built.vec_env,
-            )
-            model = loaded.model
-            setattr(model, "_tetris_algo_type", str(loaded.algo_type))
-            logger.info(f"[timing] model loaded: {time.perf_counter() - t0:.2f}s")
+    bootstrap: Optional[PolicyBootstrap] = None
+    if isinstance(policy_spec, SB3PolicyConfig):
+        policy_cfg_for_build = policy_spec
     else:
-        logger.info("[timing] building model...")
-        model = make_model_from_cfg(
-            cfg=policy_cfg,
-            algo_cfg=algo_cfg,
-            run_cfg=run_cfg,
-            vec_env=built.vec_env,
-            tensorboard_log=paths.tb_dir,
+        policy_src = policy_spec
+        if not isinstance(policy_src, PolicySourceConfig):
+            raise TypeError(f"unsupported policy spec type: {type(policy_spec)!r}")
+        bootstrap = resolve_policy_bootstrap(
+            source=str(policy_src.source),
+            which=str(policy_src.which),
         )
-        logger.info(f"[timing] model built: {time.perf_counter() - t0:.2f}s")
+        policy_cfg_for_build = bootstrap.policy_cfg
+
+    if bootstrap is not None:
+        logger.info(f"[policy] source={bootstrap.source}")
+        logger.info(f"[policy] mode={bootstrap.note}")
+        logger.info("[policy] using config from source")
+
+    logger.info("[timing] building model...")
+    model = make_model_from_cfg(
+        cfg=policy_cfg_for_build,
+        algo_cfg=algo_cfg,
+        run_cfg=run_cfg,
+        vec_env=built.vec_env,
+        tensorboard_log=paths.tb_dir,
+    )
+
+    if bootstrap is not None and bootstrap.checkpoint is not None:
+        state_dict, loader_tag = load_policy_state_dict_from_checkpoint(
+            checkpoint=bootstrap.checkpoint,
+            device=str(run_cfg.device).strip() or "auto",
+            preferred_algo=bootstrap.preferred_algo,
+        )
+        try:
+            model.policy.load_state_dict(state_dict, strict=True)
+        except Exception as e:
+            raise RuntimeError(
+                f"policy checkpoint is incompatible with current training model: {bootstrap.checkpoint}"
+            ) from e
+        logger.info(f"[policy] loaded weights from {bootstrap.checkpoint} (loader={loader_tag})")
+
+    logger.info(f"[timing] model built: {time.perf_counter() - t0:.2f}s")
 
     logger.info(f"[train] run_dir={paths.run_dir.resolve()}")
     logger.info(f"[train] tb_dir={(paths.tb_dir.resolve() if paths.tb_dir is not None else None)}")
@@ -178,7 +166,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
 
     log_runtime_info(logger=logger)
 
-    # algo tag set by model_factory (or by resume loader above)
+    # algo tag set by model_factory
     algo_type = str(getattr(model, "_tetris_algo_type", "")).strip().lower()
 
     # Only PPO-like algos have PPO params to log
@@ -283,7 +271,7 @@ def run_ppo_experiment(cfg: DictConfig) -> int:
             total_timesteps=int(learn_cfg.total_timesteps),
             callback=cb_list,
             progress_bar=True,
-            reset_num_timesteps=(not is_resume) or imitation_resume,
+            reset_num_timesteps=True,
         )
         final_path = paths.ckpt_dir / "final.zip"
         model.save(str(final_path))

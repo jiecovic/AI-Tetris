@@ -13,9 +13,11 @@ from tetris_rl.core.config.io import (
     to_plain_dict,
 )
 from tetris_rl.core.policies.planning_policies.heuristic_policy import HeuristicPlanningPolicy
+from tetris_rl.core.policies.sb3.config import SB3PolicyConfig
 from tetris_rl.core.policies.spec import HeuristicSearch
 from tetris_rl.core.runs.checkpoints.checkpoint_manifest import resolve_checkpoint_from_manifest
 from tetris_rl.core.runs.run_io import choose_config_path
+from tetris_rl.core.training.config import PolicySourceConfig
 from tetris_rl.core.utils.paths import repo_root, resolve_run_dir
 
 
@@ -39,6 +41,15 @@ class InferenceArtifact:
     kind: Literal["sb3_ckpt", "ga_policy", "ga_zip", "imitation_ckpt", "td_ckpt"]
     path: Path
     note: str | None = None
+
+
+@dataclass(frozen=True)
+class PolicyBootstrap:
+    source: Path
+    policy_cfg: SB3PolicyConfig
+    checkpoint: Path | None
+    preferred_algo: str | None
+    note: str
 
 
 def load_run_spec(run_name: str | Path) -> RunSpec:
@@ -142,6 +153,94 @@ def expected_checkpoint_path(*, run_dir: Path, which: str) -> Path:
     return ckpt_dir / name
 
 
+def _resolve_policy_cfg_from_exp_policy(*, policy_obj: Any) -> SB3PolicyConfig:
+    if isinstance(policy_obj, SB3PolicyConfig):
+        return policy_obj
+    if isinstance(policy_obj, PolicySourceConfig):
+        nested = resolve_policy_bootstrap(
+            source=str(policy_obj.source),
+            which=str(policy_obj.which),
+        )
+        return nested.policy_cfg
+    raise TypeError(f"unsupported policy object in source run: {type(policy_obj)!r}")
+
+
+def resolve_policy_bootstrap(*, source: str, which: str = "latest") -> PolicyBootstrap:
+    """
+    Resolve a policy bootstrap source into:
+      - policy config (required)
+      - optional checkpoint path
+      - optional preferred loader algo
+
+    Supported source kinds:
+      - run dir path/name
+      - YAML path (full config with `policy` or bare policy config)
+    """
+    src_raw = str(source).strip()
+    if not src_raw:
+        raise ValueError("policy.source must be non-empty")
+
+    repo = repo_root()
+    src = Path(src_raw).expanduser()
+    if src.is_absolute():
+        src_path = src.resolve()
+    else:
+        src_path = (repo / src).resolve()
+
+    spec: RunSpec | None = None
+    try:
+        spec = load_run_spec(src_raw)
+    except Exception:
+        spec = None
+
+    if spec is not None:
+        if spec.algo_type in {"ga", "td"}:
+            raise ValueError(f"policy.source does not support planning runs (algo={spec.algo_type!r}): {spec.run_dir}")
+        if spec.exp_cfg is None:
+            raise ValueError(f"run config has no typed experiment config: {spec.run_dir}")
+        policy_obj = getattr(spec.exp_cfg, "policy", None)
+        if policy_obj is None:
+            raise ValueError(f"source run has no top-level policy config: {spec.run_dir}")
+        policy_cfg = _resolve_policy_cfg_from_exp_policy(policy_obj=policy_obj)
+
+        try:
+            ckpt = resolve_checkpoint_from_manifest(run_dir=spec.run_dir, which=str(which))
+        except Exception:
+            ckpt = expected_checkpoint_path(run_dir=spec.run_dir, which=str(which))
+        if not ckpt.is_file():
+            raise FileNotFoundError(
+                f"policy checkpoint not found: {ckpt} (run={spec.run_dir}, which={which!r})"
+            )
+        preferred_algo = "maskable_ppo" if spec.algo_type == "imitation" else spec.algo_type
+        return PolicyBootstrap(
+            source=spec.run_dir,
+            policy_cfg=policy_cfg,
+            checkpoint=ckpt,
+            preferred_algo=preferred_algo,
+            note=f"run:{spec.run_dir.name} which={str(which).strip().lower()}",
+        )
+
+    if not src_path.is_file():
+        raise FileNotFoundError(f"policy source not found: {src_path}")
+
+    if src_path.suffix.lower() not in {".yaml", ".yml"}:
+        raise ValueError(
+            "policy.source must be a run dir or YAML path (full config or policy config): "
+            f"{src_path}"
+        )
+
+    raw = load_yaml(src_path)
+    policy_raw = raw.get("policy") if isinstance(raw.get("policy"), dict) else raw
+    policy_cfg = SB3PolicyConfig.model_validate(policy_raw)
+    return PolicyBootstrap(
+        source=src_path,
+        policy_cfg=policy_cfg,
+        checkpoint=None,
+        preferred_algo=None,
+        note=f"config:{src_path.name}",
+    )
+
+
 def resolve_inference_artifact(*, spec: RunSpec, which: str) -> InferenceArtifact:
     if spec.algo_type == "imitation":
         path = resolve_checkpoint_from_manifest(run_dir=spec.run_dir, which=str(which))
@@ -193,20 +292,14 @@ def load_ga_policy_from_artifact(
     return algo.policy
 
 
-def resolve_resume_checkpoint(target: str | Path) -> Path:
-    p = Path(str(target)).expanduser()
-    if p.is_file():
-        return p
-    return p / "checkpoints" / "latest.zip"
-
-
 __all__ = [
     "expected_checkpoint_path",
     "InferenceArtifact",
+    "PolicyBootstrap",
     "RunSpec",
     "load_ga_policy_from_artifact",
     "load_run_spec",
+    "resolve_policy_bootstrap",
     "resolve_env_cfg",
     "resolve_inference_artifact",
-    "resolve_resume_checkpoint",
 ]

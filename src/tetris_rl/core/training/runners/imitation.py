@@ -2,20 +2,21 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
-from typing import Literal, cast
+from typing import Optional
 
 from omegaconf import DictConfig
 
 from tetris_rl.core.config.io import to_plain_dict
 from tetris_rl.core.config.root import ImitationExperimentConfig
 from tetris_rl.core.envs.factory import make_env_from_cfg
+from tetris_rl.core.policies.sb3.config import SB3PolicyConfig
 from tetris_rl.core.runs.checkpoints.checkpoint_manifest import CheckpointEntry, update_checkpoint_manifest
-from tetris_rl.core.training.config import AlgoConfig
+from tetris_rl.core.runs.run_resolver import PolicyBootstrap, resolve_policy_bootstrap
+from tetris_rl.core.training.config import PolicySourceConfig
 from tetris_rl.core.training.env_factory import make_vec_env_from_cfg
 from tetris_rl.core.training.imitation.algorithm import ImitationAlgorithm
 from tetris_rl.core.training.model_factory import build_policy_from_cfg
-from tetris_rl.core.training.model_io import load_model_from_algo_config, try_load_policy_checkpoint
+from tetris_rl.core.training.model_io import load_policy_state_dict_from_checkpoint
 from tetris_rl.core.training.reporting import (
     log_env_reward_summary,
     log_policy_compact,
@@ -40,7 +41,7 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     run_cfg = exp_cfg.run
     env_train_cfg = exp_cfg.env_train
     env_eval_cfg = exp_cfg.env_eval
-    policy_cfg = exp_cfg.policy
+    policy_spec = exp_cfg.policy
     algo_cfg = exp_cfg.algo
     callbacks_cfg = exp_cfg.callbacks
     learn_cfg = exp_cfg.learn
@@ -77,9 +78,27 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
     policy_backend = str(imitation_params.policy_backend).strip().lower()
     if policy_backend not in {"ppo", "maskable_ppo"}:
         raise ValueError(f"imitation policy_backend must be 'ppo' or 'maskable_ppo' (got {policy_backend!r})")
+
+    bootstrap: Optional[PolicyBootstrap] = None
+    if isinstance(policy_spec, SB3PolicyConfig):
+        policy_cfg_for_build = policy_spec
+    else:
+        policy_src = policy_spec
+        if not isinstance(policy_src, PolicySourceConfig):
+            raise TypeError(f"unsupported policy spec type: {type(policy_spec)!r}")
+        bootstrap = resolve_policy_bootstrap(
+            source=str(policy_src.source),
+            which=str(policy_src.which),
+        )
+        policy_cfg_for_build = bootstrap.policy_cfg
+    if bootstrap is not None:
+        logger.info(f"[policy] source={bootstrap.source}")
+        logger.info(f"[policy] mode={bootstrap.note}")
+        logger.info("[policy] using config from source")
+
     logger.info("[timing] building policy (%s)...", policy_backend)
     policy = build_policy_from_cfg(
-        policy_cfg=policy_cfg,
+        policy_cfg=policy_cfg_for_build,
         policy_backend=policy_backend,
         observation_space=built.vec_env.observation_space,
         action_space=built.vec_env.action_space,
@@ -90,34 +109,22 @@ def run_imitation_experiment(cfg: DictConfig) -> int:
         env=built.vec_env,
         params=imitation_params,
     )
-    logger.info(f"[timing] policy built: {time.perf_counter() - t0:.2f}s")
 
-    resume_target = getattr(learn_cfg, "resume", None)
-    if resume_target:
-        resume_path = Path(str(resume_target)).expanduser()
-        if resume_path.is_dir():
-            resume_path = resume_path / "checkpoints" / "latest.zip"
-        if not resume_path.exists():
-            raise FileNotFoundError(f"imitation resume checkpoint not found: {resume_path}")
-        loaded_policy = try_load_policy_checkpoint(resume_path, device=str(run_cfg.device))
-        if loaded_policy is not None:
-            try:
-                model.policy.load_state_dict(loaded_policy.state_dict(), strict=True)
-                logger.info(f"[resume] loaded imitation weights: {resume_path}")
-            except Exception as e:
-                raise RuntimeError(f"failed to load imitation weights from {resume_path}") from e
-        else:
-            algo_type = cast(Literal["ppo", "maskable_ppo"], policy_backend)
-            loaded = load_model_from_algo_config(
-                algo_cfg=AlgoConfig(type=algo_type),
-                ckpt=resume_path,
-                device=str(run_cfg.device),
-            )
-            try:
-                model.policy.load_state_dict(loaded.model.policy.state_dict(), strict=True)
-                logger.info(f"[resume] loaded sb3 weights: {resume_path}")
-            except Exception as e:
-                raise RuntimeError(f"failed to load sb3 weights from {resume_path}") from e
+    if bootstrap is not None and bootstrap.checkpoint is not None:
+        state_dict, loader_tag = load_policy_state_dict_from_checkpoint(
+            checkpoint=bootstrap.checkpoint,
+            device=str(run_cfg.device),
+            preferred_algo=bootstrap.preferred_algo or policy_backend,
+        )
+        try:
+            model.policy.load_state_dict(state_dict, strict=True)
+        except Exception as e:
+            raise RuntimeError(
+                f"policy checkpoint is incompatible with current imitation policy: {bootstrap.checkpoint}"
+            ) from e
+        logger.info(f"[policy] loaded weights from {bootstrap.checkpoint} (loader={loader_tag})")
+
+    logger.info(f"[timing] policy built: {time.perf_counter() - t0:.2f}s")
 
     logger.info(f"[train] run_dir={paths.run_dir.resolve()}")
     logger.info(f"[train] tb_dir={(paths.tb_dir.resolve() if paths.tb_dir is not None else None)}")
