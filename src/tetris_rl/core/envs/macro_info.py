@@ -10,9 +10,12 @@ from tetris_rl.core.envs.api import TransitionFeatures
 # Env-side HUD rows (right column of sidebar STATS panel).
 ENV_SIDEBAR_ROWS_ORDER = (
     "Invalid",
+    "ΔLines",
     "ΔHoles",
     "ΔMaxH",
+    "ΔAggH",
     "ΔBump",
+    "AggH",
     "Bumpy",
 )
 
@@ -381,9 +384,12 @@ def build_step_payload_for_env(
 
     sidebar_env = sidebar_env_rows(
         invalid_action=bool(invalid_action),
+        delta_lines=int(cleared),
         delta_holes=post_block.delta_holes,
         delta_max_height=post_block.delta_max_height,
+        delta_agg_height=post_block.delta_agg_height,
         delta_bumpiness=post_block.delta_bumpiness,
+        agg_height=post_block.agg_height,
         bumpiness=post_block.bumpiness,
     )
 
@@ -435,16 +441,22 @@ def _get_field(obj: Any, key: str, default: Any = None) -> Any:
 def sidebar_env_rows(
     *,
     invalid_action: bool,
+    delta_lines: int,
     delta_holes: Optional[int],
     delta_max_height: Optional[int],
+    delta_agg_height: Optional[int],
     delta_bumpiness: Optional[int],
+    agg_height: Optional[int],
     bumpiness: Optional[int],
 ) -> list[tuple[str, Any]]:
     rows_map: Dict[str, Any] = {
         "Invalid": bool(invalid_action),
+        "ΔLines": int(delta_lines),
         "ΔHoles": delta_holes,
         "ΔMaxH": delta_max_height,
+        "ΔAggH": delta_agg_height,
         "ΔBump": delta_bumpiness,
+        "AggH": agg_height,
         "Bumpy": bumpiness,
     }
     return [(k, rows_map[k]) for k in ENV_SIDEBAR_ROWS_ORDER if k in rows_map]

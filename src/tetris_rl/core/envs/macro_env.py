@@ -163,6 +163,24 @@ class MacroTetrisEnv(gym.Env):
             self.game.step_features(prev=self._prev_feat, after_clear=self._after_clear_features()),
         )
 
+    @staticmethod
+    def _prev_feat_from_step_features(sf: Dict[str, Any]) -> Optional[Tuple[int, int, int, int]]:
+        cur = sf.get("cur") if isinstance(sf, dict) else None
+        if not isinstance(cur, dict):
+            return None
+        max_h = cur.get("max_h")
+        agg_h = cur.get("agg_h")
+        holes = cur.get("holes")
+        bump = cur.get("bump")
+        if max_h is None or agg_h is None or holes is None or bump is None:
+            return None
+        if isinstance(max_h, bool) or isinstance(agg_h, bool) or isinstance(holes, bool) or isinstance(bump, bool):
+            return None
+        try:
+            return (int(max_h), int(agg_h), int(holes), int(bump))
+        except (TypeError, ValueError):
+            return None
+
     # ---------------------------------------------------------------------
     # sb3-contrib MaskablePPO hook
     # ---------------------------------------------------------------------
@@ -185,6 +203,9 @@ class MacroTetrisEnv(gym.Env):
 
         st = self._snapshot()
         self._last_state = st
+
+        # Seed feature deltas from the reset board so the first action can report real deltas.
+        self._prev_feat = self._prev_feat_from_step_features(self._step_features())
 
         obs = self._obs_from_state(st)
 

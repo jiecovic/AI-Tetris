@@ -14,6 +14,7 @@ from tetris_rl.core.runs.checkpoints.planning_poll import PlanningCheckpointPoll
 from tetris_rl.core.runs.run_resolver import (
     InferenceArtifact,
     RunSpec,
+    expected_checkpoint_path,
     load_run_spec,
     resolve_env_cfg,
     resolve_inference_artifact,
@@ -103,9 +104,24 @@ def build_run_context(
     use_expert: bool,
     random_action: bool,
     expert_args: Any,
+    allow_missing_checkpoint: bool = False,
 ) -> RunContext:
     spec = load_run_spec(run)
-    artifact = resolve_inference_artifact(spec=spec, which=str(which))
+    try:
+        artifact = resolve_inference_artifact(spec=spec, which=str(which))
+    except FileNotFoundError:
+        if (not bool(allow_missing_checkpoint)) or (spec.algo_type in {"ga", "td"}):
+            raise
+        fallback = expected_checkpoint_path(run_dir=spec.run_dir, which=str(which))
+        kind = "imitation_ckpt" if spec.algo_type == "imitation" else "sb3_ckpt"
+        artifact = InferenceArtifact(
+            kind=cast(
+                Literal["sb3_ckpt", "imitation_ckpt", "ga_policy", "ga_zip", "td_ckpt"],
+                kind,
+            ),
+            path=fallback,
+            note=f"waiting for checkpoint: {fallback.name}",
+        )
 
     env_cfg = resolve_env_cfg(spec=spec, which_env=str(which_env))
     cfg_ctx = _with_env_cfg(cfg=spec.cfg_plain, env_cfg=env_cfg)
@@ -172,27 +188,33 @@ def build_run_context(
         if spec.algo_type == "imitation":
             if spec.exp_cfg is None:
                 raise RuntimeError("imitation run missing exp_cfg")
-            model = ImitationAlgorithm.load(
-                ckpt,
-                env=env,
-                params=spec.exp_cfg.algo.params,
-                device=str(device),
-            )
-            algo_type = getattr(model, "_tetris_algo_type", "ppo")
+            if Path(ckpt).is_file():
+                model = ImitationAlgorithm.load(
+                    ckpt,
+                    env=env,
+                    params=spec.exp_cfg.algo.params,
+                    device=str(device),
+                )
+                algo_type = getattr(model, "_tetris_algo_type", "ppo")
+            elif not bool(allow_missing_checkpoint):
+                raise FileNotFoundError(f"checkpoint not found: {ckpt}")
         elif spec.algo_type not in {"ga", "td"}:
             if spec.algo_cfg is None:
                 raise RuntimeError("run spec missing algo_cfg for non-planning runs")
-            loaded = load_model_from_algo_config(
-                algo_cfg=spec.algo_cfg,
-                ckpt=ckpt,
-                device=str(device),
-                env=env,
-            )
-            model = loaded.model
-            algo_type = loaded.algo_type
-            ckpt = loaded.ckpt
-            if algo_type == "maskable_ppo":
-                warn_if_maskable_with_multidiscrete(algo_cfg=spec.algo_cfg, env=env)
+            if Path(ckpt).is_file():
+                loaded = load_model_from_algo_config(
+                    algo_cfg=spec.algo_cfg,
+                    ckpt=ckpt,
+                    device=str(device),
+                    env=env,
+                )
+                model = loaded.model
+                algo_type = loaded.algo_type
+                ckpt = loaded.ckpt
+                if algo_type == "maskable_ppo":
+                    warn_if_maskable_with_multidiscrete(algo_cfg=spec.algo_cfg, env=env)
+            elif not bool(allow_missing_checkpoint):
+                raise FileNotFoundError(f"checkpoint not found: {ckpt}")
 
     poller = None
     reload_algo_cfg: AlgoConfig | None = None
@@ -219,7 +241,6 @@ def build_run_context(
 
     if (
         spec.algo_type not in {"ga", "td"}
-        and model is not None
         and float(reload_every_s) > 0.0
         and reload_algo_cfg is not None
     ):
@@ -231,7 +252,8 @@ def build_run_context(
             reload_every_s=float(reload_every_s),
             loader=checkpoint_loader,
         )
-        poller.set_current(ckpt=ckpt, model=model, algo_type=str(algo_type))
+        if model is not None:
+            poller.set_current(ckpt=ckpt, model=model, algo_type=str(algo_type))
 
     return RunContext(
         spec=spec,

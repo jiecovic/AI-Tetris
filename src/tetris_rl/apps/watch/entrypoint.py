@@ -84,6 +84,7 @@ def run_watch(args: argparse.Namespace) -> int:
         use_expert=bool(args.heuristic_agent),
         random_action=bool(args.random_action),
         expert_args=args,
+        allow_missing_checkpoint=True,
     )
 
     logger = setup_logger(name="tetris_rl.apps.watch", use_rich=True, level="info")

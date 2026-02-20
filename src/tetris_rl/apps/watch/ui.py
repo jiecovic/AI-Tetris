@@ -114,10 +114,13 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
     # cap sim steps per frame so input stays responsive in uncapped mode
     MAX_STEPS_PER_FRAME = 500
 
+    def _model_required() -> bool:
+        return (not bool(args.random_action)) and (not bool(args.heuristic_agent)) and (planning_policy is None)
+
     def _maybe_reload() -> None:
         nonlocal model, ckpt, algo_type, last_reload_at_s, planning_policy
         now_s = time.time()
-        if poller is not None and model is not None:
+        if poller is not None:
             maybe = poller.maybe_reload(now_s=now_s)
             if maybe is not None:
                 model, ckpt, algo_type = maybe
@@ -296,6 +299,8 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
                     # Restart the displayed episode counter with the stats reset.
                     episode_idx_offset = int(hud_from_info(info).episode_idx) - 1
                     state = game.snapshot(include_grid=True, visible=False)
+                    if isinstance(state, dict):
+                        cursor.sync_from_snapshot(state)
                     acc_s = 0.0
                     sps_meter.trim_to_last(2)
                     fps_meter.trim_to_last(2)
@@ -303,6 +308,8 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
 
                 if event.key == pygame.K_n:
                     _maybe_reload()
+                    if _model_required() and model is None:
+                        continue
                     _advance_one()
                     continue
 
@@ -320,6 +327,25 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
                         a = cursor.action_for_commit()
                         obs2, r, terminated, truncated, info2 = env.step(a)
                         obs, info = obs2, info2
+
+                        h2 = hud_from_info(info2)
+                        window.push(
+                            step_reward=float(r),
+                            cleared_lines=int(h2.cleared_lines),
+                            invalid=int(h2.invalid_action),
+                            masked=int(h2.masked_action),
+                            score_delta=float(h2.delta_score),
+                            action_id=h2.action_id,
+                            action_dim=h2.action_dim,
+                            episode_done=bool(terminated or truncated),
+                        )
+
+                        if terminated or truncated:
+                            obs_r, info_r = env.reset()
+                            obs = obs_r
+                            info = info_r
+                            window.reset_episode()
+
                         state = game.snapshot(include_grid=True, visible=False)
                         if isinstance(state, dict):
                             cursor.sync_from_snapshot(state)
@@ -354,6 +380,10 @@ def run_watch_loop(*, args: Any, ctx: RunContext) -> int:
         # simulation updates (decoupled from render)
         if not paused:
             _maybe_reload()
+
+            if _model_required() and model is None:
+                _render_once()
+                continue
 
             interval_ms = speed.interval_ms()
             if interval_ms == 0:

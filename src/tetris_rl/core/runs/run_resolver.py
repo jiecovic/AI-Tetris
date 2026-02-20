@@ -124,6 +124,24 @@ def _find_latest_ga_ckpt(run_dir: Path) -> Path | None:
     return None
 
 
+def expected_checkpoint_path(*, run_dir: Path, which: str) -> Path:
+    ckpt_dir = Path(run_dir) / "checkpoints"
+    w = str(which).strip().lower()
+    if w == "latest":
+        name = "latest.zip"
+    elif w in {"best", "reward"}:
+        name = "best_reward.zip"
+    elif w == "lines":
+        name = "best_lines.zip"
+    elif w in {"survival", "len", "length", "time"}:
+        name = "best_survival.zip"
+    elif w == "final":
+        name = "final.zip"
+    else:
+        raise ValueError(f"unknown checkpoint selector: {which!r}")
+    return ckpt_dir / name
+
+
 def resolve_inference_artifact(*, spec: RunSpec, which: str) -> InferenceArtifact:
     if spec.algo_type == "imitation":
         path = resolve_checkpoint_from_manifest(run_dir=spec.run_dir, which=str(which))
@@ -183,6 +201,7 @@ def resolve_resume_checkpoint(target: str | Path) -> Path:
 
 
 __all__ = [
+    "expected_checkpoint_path",
     "InferenceArtifact",
     "RunSpec",
     "load_ga_policy_from_artifact",

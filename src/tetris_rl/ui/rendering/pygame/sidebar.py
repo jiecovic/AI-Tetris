@@ -125,6 +125,19 @@ def _fmt_value(v: Any) -> str:
     return str(v)
 
 
+def _fmt_signed(v: Any) -> str:
+    if isinstance(v, bool):
+        return _fmt_value(v)
+    if isinstance(v, int):
+        return f"{v:+d}"
+    if isinstance(v, float):
+        return f"{v:+.2f}"
+    try:
+        return f"{float(v):+.2f}"
+    except Exception:
+        return _fmt_value(v)
+
+
 def _extract_env_rows(env_info: Optional[dict[str, Any]]) -> List[tuple[str, Any]]:
     """
     Env rows are provided by macro_info.build_step_info_update under:
@@ -440,9 +453,17 @@ def _draw_kv(
         value_x: int,
         y: int,
 ) -> None:
-    label = f"{k:>5}:"
+    key = str(k)
+    label = f"{key:>5}:"
+    value_text = _fmt_value(v)
+    if key.startswith("Δ") or key.startswith("Î”"):
+        # Keep true deltas sign-stable (+0/-1/+2...), but ΔLines is a non-negative count.
+        if key.endswith("Lines"):
+            value_text = _fmt_value(v)
+        else:
+            value_text = _fmt_signed(v)
     blit_text(screen=screen, font=font, text=label, pos=(int(label_x), int(y)), color=palette.muted)
-    blit_text(screen=screen, font=font, text=_fmt_value(v), pos=(int(value_x), int(y)), color=palette.text)
+    blit_text(screen=screen, font=font, text=value_text, pos=(int(value_x), int(y)), color=palette.text)
 
 
 def draw_piece_preview_mask(
