@@ -37,6 +37,73 @@ class GameBundle:
     warmup_spec: Optional[Any]
 
 
+def _as_int(value: Any, *, where: str) -> int:
+    if isinstance(value, bool):
+        raise TypeError(f"{where} must be an int, got bool")
+    return int(value)
+
+
+def _parse_hole_range(value: Any, *, where: str) -> tuple[int, int]:
+    if isinstance(value, dict):
+        if "min" not in value or "max" not in value:
+            raise KeyError(f"{where} dict must contain keys {{min,max}}")
+        lo = _as_int(value["min"], where=f"{where}.min")
+        hi = _as_int(value["max"], where=f"{where}.max")
+    elif isinstance(value, (list, tuple)):
+        if len(value) != 2:
+            raise ValueError(f"{where} must have exactly 2 values [min,max]")
+        lo = _as_int(value[0], where=f"{where}[0]")
+        hi = _as_int(value[1], where=f"{where}[1]")
+    elif isinstance(value, str):
+        s = value.strip()
+        if s.startswith("[") and s.endswith("]"):
+            s = s[1:-1].strip()
+        parts = [p.strip() for p in s.split(",")]
+        if len(parts) != 2:
+            raise ValueError(f"{where} string range must be 'min,max'")
+        lo = _as_int(parts[0], where=f"{where}.min")
+        hi = _as_int(parts[1], where=f"{where}.max")
+    else:
+        raise TypeError(f"{where} must be a range ([min,max], 'min,max', or {{min,max}})")
+
+    if lo > hi:
+        raise ValueError(f"{where} min must be <= max (got {lo}>{hi})")
+    return lo, hi
+
+
+def _extract_holes_config(params: Dict[str, Any]) -> tuple[int, Optional[tuple[int, int]]]:
+    """
+    Supports:
+      - holes: int
+      - holes: [min,max] (or "min,max" / {min,max})
+      - uniform_holes: {min,max}  (legacy key)
+    """
+    holes_raw = params.get("holes", 1)
+    holes_range: Optional[tuple[int, int]] = None
+    fixed_holes: int
+
+    if isinstance(holes_raw, (list, tuple, dict)):
+        holes_range = _parse_hole_range(holes_raw, where="warmup.params.holes")
+        fixed_holes = int(holes_range[0])
+    elif isinstance(holes_raw, str) and "," in holes_raw:
+        holes_range = _parse_hole_range(holes_raw, where="warmup.params.holes")
+        fixed_holes = int(holes_range[0])
+    else:
+        fixed_holes = _as_int(holes_raw, where="warmup.params.holes")
+
+    uh = params.get("uniform_holes", None)
+    if uh is not None:
+        legacy_range = _parse_hole_range(uh, where="warmup.params.uniform_holes")
+        if holes_range is None:
+            holes_range = legacy_range
+        elif holes_range != legacy_range:
+            raise ValueError(
+                "warmup.params.holes range and warmup.params.uniform_holes disagree; use one or make them equal"
+            )
+
+    return fixed_holes, holes_range
+
+
 def _parse_warmup_spec(obj: Any) -> Optional[Any]:
     """
     Convert config -> tetris_rl_engine.WarmupSpec.
@@ -63,20 +130,19 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
     params = obj.get("params", {}) or {}
     if not isinstance(params, dict):
         raise TypeError("game.warmup.spec.params must be a mapping")
+    holes_fixed, holes_range = _extract_holes_config(params)
 
     if t in {"none", "off", "disabled", "null"}:
         spec = WarmupSpec.none()
 
     elif t == "fixed":
         rows = int(params["rows"])
-        holes = int(params.get("holes", 1))
-        spec = WarmupSpec.fixed(rows, holes=holes)
+        spec = WarmupSpec.fixed(rows, holes=holes_fixed)
 
     elif t in {"uniform_rows", "uniform"}:
         min_rows = int(params["min_rows"])
         max_rows = int(params["max_rows"])
-        holes = int(params.get("holes", 1))
-        spec = WarmupSpec.uniform_rows(min_rows, max_rows, holes=holes)
+        spec = WarmupSpec.uniform_rows(min_rows, max_rows, holes=holes_fixed)
 
     elif t == "poisson":
         lam_raw = params.get("lambda", params.get("lambda_", None))
@@ -84,8 +150,7 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
             raise KeyError("warmup.type=poisson requires key 'lambda' (or 'lambda_')")
         lam = float(lam_raw)
         cap = int(params["cap"])
-        holes = int(params.get("holes", 1))
-        spec = WarmupSpec.poisson(lam, cap, holes=holes)
+        spec = WarmupSpec.poisson(lam, cap, holes=holes_fixed)
 
     elif t in {"base_plus_poisson", "base+poisson"}:
         base = int(params["base"])
@@ -94,18 +159,14 @@ def _parse_warmup_spec(obj: Any) -> Optional[Any]:
             raise KeyError("warmup.type=base_plus_poisson requires key 'lambda' (or 'lambda_')")
         lam = float(lam_raw)
         cap = int(params["cap"])
-        holes = int(params.get("holes", 1))
-        spec = WarmupSpec.base_plus_poisson(base, lam, cap, holes=holes)
+        spec = WarmupSpec.base_plus_poisson(base, lam, cap, holes=holes_fixed)
 
     else:
         raise ValueError(f"unknown warmup.type={t!r}")
 
-    # optional: make holes uniform after base spec was built
-    uh = params.get("uniform_holes", None)
-    if uh is not None:
-        if not isinstance(uh, dict):
-            raise TypeError("warmup.params.uniform_holes must be a dict {min,max}")
-        spec = spec.with_uniform_holes(int(uh["min"]), int(uh["max"]))
+    # optional: uniform holes sampled per reset.
+    if holes_range is not None:
+        spec = spec.with_uniform_holes(int(holes_range[0]), int(holes_range[1]))
 
     return spec
 
