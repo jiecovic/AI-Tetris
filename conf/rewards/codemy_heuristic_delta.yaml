@@ -9,4 +9,5 @@ params:
   w_holes: -0.35663
   w_bumpiness: -0.184483
   w_agg_height: -0.510066
+  tetris_bonus: 0.0
   survival_bonus: 0.0

@@ -1,0 +1,20 @@
+# @package _group_
+# Custom heuristic-delta reward with per-feature clipping.
+# Initial weights are based on CodemyRoad and intended for further tuning.
+type: heuristic_delta
+params:
+  invalid_penalty: 10.0
+  terminal_penalty: 10.0
+  w_lines: 1.5
+  w_holes: -0.03
+  w_bumpiness: -0.02
+  w_agg_height: -0.01
+  tetris_bonus: 0.25
+  clip_term_lines: 8.0      # clamp line contribution to [-2, +2]
+  clip_term_holes: 0.2      # clamp holes contribution to [-2, +2]
+  clip_term_bumpiness: 0.2  # clamp bumpiness contribution to [-2, +2]
+  clip_term_agg_height: 0.1 # clamp agg_height contribution to [-2, +2]
+  survival_bonus: 0.9
+  survival_scale_mode: max_h   # none | max_h | agg_h
+  survival_scale_floor: 0.4    # [0,1], minimum survival multiplier
+  survival_scale_power: 1.0    # >=1, higher = stronger penalty near top

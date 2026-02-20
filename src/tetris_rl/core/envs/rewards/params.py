@@ -49,7 +49,39 @@ class HeuristicDeltaRewardParams(InvalidPenaltyParams):
     w_holes: float = -0.35663
     w_bumpiness: float = -0.184483
     w_agg_height: float = -0.510066
+    tetris_bonus: float = 0.0
+    clip_term_lines: float | None = None
+    clip_term_holes: float | None = None
+    clip_term_bumpiness: float | None = None
+    clip_term_agg_height: float | None = None
     survival_bonus: float = 0.0
+    survival_scale_mode: str = "none"
+    survival_scale_floor: float = 0.0
+    survival_scale_power: float = 1.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_clips(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        for name in ("clip_term_lines", "clip_term_holes", "clip_term_bumpiness", "clip_term_agg_height"):
+            value = out.get(name)
+            if value is None:
+                continue
+            if float(value) < 0.0:
+                raise ValueError(f"{name} must be >= 0 when set")
+        mode = str(out.get("survival_scale_mode", "none")).strip().lower()
+        if mode not in {"none", "max_h", "agg_h"}:
+            raise ValueError("survival_scale_mode must be one of: none|max_h|agg_h")
+        out["survival_scale_mode"] = mode
+        floor = float(out.get("survival_scale_floor", 0.0))
+        if not (0.0 <= floor <= 1.0):
+            raise ValueError("survival_scale_floor must be in [0,1]")
+        power = float(out.get("survival_scale_power", 1.0))
+        if power < 1.0:
+            raise ValueError("survival_scale_power must be >= 1")
+        return out
 
 
 class LinesCleanRewardParams(InvalidPenaltyParams):
