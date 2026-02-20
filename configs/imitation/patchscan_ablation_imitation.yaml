@@ -2,9 +2,9 @@
 defaults:
   - /hydra: default
   - /envs@env_train: warmup
-  - /rewards@env_train.reward: codemy_heuristic_delta
+  - /rewards@env_train.reward: custom_heuristic_delta_clipped
   - /envs@env_eval: empty
-  - /rewards@env_eval.reward: codemy_heuristic_delta
+  - /rewards@env_eval.reward: custom_heuristic_delta_clipped
   - /sb3_policies@policy: patchscan_ablation
   - /trains@_global_: imitation
   - _self_
@@ -19,4 +19,3 @@ run:
   device: cuda
   n_envs: 128
   vec: dummy
-

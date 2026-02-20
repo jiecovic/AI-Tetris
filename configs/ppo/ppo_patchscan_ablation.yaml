@@ -2,9 +2,9 @@
 defaults:
   - /hydra: default
   - /envs@env_train: warmup
-  - /rewards@env_train.reward: lines_shape
+  - /rewards@env_train.reward: custom_heuristic_delta_clipped
   - /envs@env_eval: empty
-  - /rewards@env_eval.reward: lines_shape
+  - /rewards@env_eval.reward: custom_heuristic_delta_clipped
   - /sb3_policies@policy: patchscan_ablation
   - /trains@_global_: ppo_eval
   - _self_
@@ -17,5 +17,5 @@ run:
   out_root: runs                     # output root directory
   tensorboard: true                  # enable TensorBoard logging
   device: cuda                       # cuda | cpu | auto
-  n_envs: 64                         # fewer envs for faster iteration
+  n_envs: 128                         # fewer envs for faster iteration
   vec: dummy                         # subproc | dummy
