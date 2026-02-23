@@ -222,3 +222,6 @@ datasets/
 
 # Local agent notes (keep private for now)
 /AGENTS.md
+
+# Local pre-commit cache (when PRE_COMMIT_HOME is set to repo dir)
+.pre-commit-cache/
