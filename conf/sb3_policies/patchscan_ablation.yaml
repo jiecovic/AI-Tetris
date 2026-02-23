@@ -16,8 +16,8 @@ feature_extractor:
     params:
       layers:                                  # options: list[{out,k,s,p,pre_pad,act,pool}]
         - { out: 32, k: 3, s: 1, p: 1, act: relu }
-        - { out: 32, k: 3, s: 1, p: 1, act: relu }
         - { out: 64, k: 3, s: 1, p: 1, act: relu }
+        - { out: 32, k: 3, s: 1, p: 1, act: relu }
         - { out: 16, k: 1, s: 1, p: 1, act: relu }
       use_batchnorm: false
       dropout: 0.0

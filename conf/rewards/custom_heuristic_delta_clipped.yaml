@@ -5,16 +5,16 @@ type: heuristic_delta
 params:
   invalid_penalty: 10.0
   terminal_penalty: 10.0
-  w_lines: 1.5
-  w_holes: -0.03
+  w_lines: 1.8
+  w_holes: -0.035
   w_bumpiness: -0.02
   w_agg_height: -0.01
   tetris_bonus: 0.25
   clip_term_lines: 8.0      # clamp line contribution to [-2, +2]
-  clip_term_holes: 0.2      # clamp holes contribution to [-2, +2]
-  clip_term_bumpiness: 0.2  # clamp bumpiness contribution to [-2, +2]
+  clip_term_holes: 0.3      # clamp holes contribution to [-2, +2]
+  clip_term_bumpiness: 0.3  # clamp bumpiness contribution to [-2, +2]
   clip_term_agg_height: 0.1 # clamp agg_height contribution to [-2, +2]
-  survival_bonus: 0.9
+  survival_bonus: 1.0
   survival_scale_mode: max_h   # none | max_h | agg_h
-  survival_scale_floor: 0.4    # [0,1], minimum survival multiplier
+  survival_scale_floor: 0.3    # [0,1], minimum survival multiplier
   survival_scale_power: 1.0    # >=1, higher = stronger penalty near top
