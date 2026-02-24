@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - /hydra: default
+  - /envs@env_train: warmup
+  - /rewards@env_train.reward: lines_height_scaled
+  - /envs@env_eval: empty
+  - /rewards@env_eval.reward: lines_height_scaled
+  - /sb3_policies@policy: patchscan_ablation
+  - /trains@_global_: ppo_eval
+  - _self_
+
+log_level: info                      # logging verbosity
+
+run:
+  name: ppo_patchscan_ablation_experiment1_run   # run name (used for output dir)
+  seed: 0                            # base RNG seed
+  out_root: runs                     # output root directory
+  tensorboard: true                  # enable TensorBoard logging
+  device: cuda                       # cuda | cpu | auto
+  n_envs: 128                         # fewer envs for faster iteration
+  vec: dummy                         # subproc | dummy
