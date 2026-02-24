@@ -9,7 +9,7 @@ params:
 game:
   piece_rule: uniform            # uniform | bag7
   warmup:
-    prob: 1.0                    # apply warmup on reset with this probability
+    prob: 0.98                    # apply warmup on reset with this probability
     spec:
       type: uniform_rows
       params:
