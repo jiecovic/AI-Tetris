@@ -95,7 +95,7 @@ class HudFormatter:
         # Episode
         lines.append("# Episode")
         lines.append(f"Episode: {int(s.episode_idx)} | Step: {int(s.episode_step)}")
-        lines.append(f"Ep reward: {float(s.episode_reward):+0.2f} | Last r: {float(s.last_step_reward):+0.2f}")
+        lines.append(f"Ep reward: {float(s.episode_reward):+0.3f} | Last r: {float(s.last_step_reward):+0.3f}")
         lines.append("")
 
         # Recent performance
