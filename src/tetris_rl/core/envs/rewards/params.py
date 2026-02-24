@@ -148,11 +148,35 @@ class LinesShapeRewardParams(InvalidPenaltyParams):
         return out
 
 
+class LinesHeightScaledRewardParams(InvalidPenaltyParams):
+    terminal_penalty: float = 10.0
+    survival_bonus: float = 0.001
+    line_cleared_bonus: float = 1.0
+    tetris_bonus: float = 1.0
+    positive_scale_floor: float = 0.2
+    positive_scale_power: float = 1.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_scaling(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        floor = float(out.get("positive_scale_floor", 0.2))
+        if not (0.0 <= floor <= 1.0):
+            raise ValueError("positive_scale_floor must be in [0,1]")
+        power = float(out.get("positive_scale_power", 1.0))
+        if power < 1.0:
+            raise ValueError("positive_scale_power must be >= 1")
+        return out
+
+
 RewardParams = (
     LinesRewardParams
     | HeuristicDeltaRewardParams
     | LinesCleanRewardParams
     | LinesShapeRewardParams
+    | LinesHeightScaledRewardParams
 )
 
 REWARD_PARAMS_REGISTRY: Mapping[str, type[ConfigBase]] = {
@@ -160,6 +184,7 @@ REWARD_PARAMS_REGISTRY: Mapping[str, type[ConfigBase]] = {
     "heuristic_delta": HeuristicDeltaRewardParams,
     "lines_clean": LinesCleanRewardParams,
     "lines_shape": LinesShapeRewardParams,
+    "lines_height_scaled": LinesHeightScaledRewardParams,
 }
 
 __all__ = [
@@ -167,6 +192,7 @@ __all__ = [
     "HeuristicDeltaRewardParams",
     "LinesCleanRewardParams",
     "LinesShapeRewardParams",
+    "LinesHeightScaledRewardParams",
     "RewardParams",
     "REWARD_PARAMS_REGISTRY",
 ]

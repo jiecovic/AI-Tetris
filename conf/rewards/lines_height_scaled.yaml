@@ -1,0 +1,10 @@
+# @package _group_
+type: lines_height_scaled
+params:
+  invalid_penalty: 10.0
+  terminal_penalty: 10.0
+  survival_bonus: 0.001
+  line_cleared_bonus: 1.0
+  tetris_bonus: 1.0
+  positive_scale_floor: 0.2
+  positive_scale_power: 1.0
