@@ -127,50 +127,69 @@ def read_manifest(*, dataset_dir: Path) -> DatasetManifest:
     return DatasetManifest(**raw_dict)
 
 
-def append_shard_to_manifest(*, dataset_dir: Path, shard: ShardInfo) -> Path:
+def _coerce_int(value: Any) -> int:
+    return int(value)
+
+
+def _to_shard_entry_dict(obj: Any) -> Optional[Dict[str, Any]]:
+    if isinstance(obj, dict):
+        sid_raw = obj.get("shard_id")
+        file_raw = obj.get("file")
+        num_samples_raw = obj.get("num_samples")
+        seed_raw = obj.get("seed")
+        episode_max_steps = obj.get("episode_max_steps", None)
+    else:
+        sid_raw = getattr(obj, "shard_id", None)
+        file_raw = getattr(obj, "file", None)
+        num_samples_raw = getattr(obj, "num_samples", None)
+        seed_raw = getattr(obj, "seed", None)
+        episode_max_steps = getattr(obj, "episode_max_steps", None)
+
+    try:
+        sid = _coerce_int(sid_raw)
+        file_rel = str(file_raw)
+        num_samples = _coerce_int(num_samples_raw)
+        seed = _coerce_int(seed_raw)
+    except Exception:
+        return None
+
+    out: Dict[str, Any] = {
+        "shard_id": int(sid),
+        "file": str(file_rel),
+        "num_samples": int(num_samples),
+        "seed": int(seed),
+    }
+
+    if episode_max_steps is not None:
+        try:
+            out["episode_max_steps"] = int(episode_max_steps)
+        except Exception:
+            pass
+
+    return out
+
+
+def merge_shards_into_manifest(*, dataset_dir: Path, shards: list[ShardInfo | Dict[str, Any]]) -> Path:
     ds = Path(dataset_dir)
     manifest = read_manifest(dataset_dir=ds)
 
-    shards_any = list(getattr(manifest, "shards", []) or [])
+    by_sid: Dict[int, Dict[str, Any]] = {}
 
-    entry: Dict[str, Any] = {
-        "shard_id": int(shard.shard_id),
-        "file": str(shard.file),
-        "num_samples": int(shard.num_samples),
-        "seed": int(shard.seed),
-    }
+    for s in list(getattr(manifest, "shards", []) or []):
+        entry = _to_shard_entry_dict(s)
+        if entry is None:
+            continue
+        by_sid[int(entry["shard_id"])] = entry
 
-    sid = int(shard.shard_id)
-    out: list[Dict[str, Any]] = []
-    for s in shards_any:
-        if isinstance(s, dict):
-            try:
-                if int(s.get("shard_id", -1)) == sid:
-                    continue
-            except Exception:
-                pass
-            out.append(s)
-        else:
-            try:
-                if int(getattr(s, "shard_id")) == sid:
-                    continue
-                out.append(
-                    {
-                        "shard_id": int(getattr(s, "shard_id")),
-                        "file": str(getattr(s, "file")),
-                        "num_samples": int(getattr(s, "num_samples")),
-                        "seed": int(getattr(s, "seed")),
-                    }
-                )
-            except Exception:
-                continue
+    for s in shards:
+        entry = _to_shard_entry_dict(s)
+        if entry is None:
+            raise ValueError(f"invalid shard entry: {s!r}")
+        by_sid[int(entry["shard_id"])] = entry
 
-    out.append(entry)
-    out.sort(key=lambda d: int(d.get("shard_id", 0)))
-
+    merged = [by_sid[sid] for sid in sorted(by_sid.keys())]
     m_dict = asdict(manifest)
-    m_dict["shards"] = out
-
+    m_dict["shards"] = merged
     updated = DatasetManifest(**m_dict)
     return write_manifest(dataset_dir=ds, manifest=updated, overwrite=True)
 
@@ -179,5 +198,5 @@ __all__ = [
     "init_manifest",
     "write_manifest",
     "read_manifest",
-    "append_shard_to_manifest",
+    "merge_shards_into_manifest",
 ]

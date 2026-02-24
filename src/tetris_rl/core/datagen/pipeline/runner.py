@@ -378,6 +378,7 @@ def run_datagen(
       - shards/shard_XXXX.npz
     """
     from planning_rl.utils.seed import seed32_from
+    from tetris_rl.core.datagen.io.writer import merge_shards_into_manifest
     from tetris_rl.core.datagen.workers.worker import worker_generate_shards
     from tetris_rl.core.envs.factory import make_env_from_cfg
 
@@ -442,6 +443,7 @@ def run_datagen(
     existing = _existing_shard_ids(shards_dir)
     expected = set(range(num_shards))
     missing = sorted(expected - existing)
+    generated_manifest_shards: list[Any] = []
 
     mode = "resume" if existing else "new"
     progress_every = 1 if num_workers <= 1 else max(
@@ -460,7 +462,7 @@ def run_datagen(
         ) as prog:
             if num_workers == 1:
                 for sid in missing:
-                    worker_generate_shards(
+                    result = worker_generate_shards(
                         worker_id=0,
                         shard_ids=[sid],
                         plan=plan,
@@ -469,6 +471,7 @@ def run_datagen(
                         progress_queue=prog.queue,
                         progress_every=progress_every,
                     )
+                    generated_manifest_shards.extend(list(getattr(result, "manifest_shards", []) or []))
             else:
                 ex: ProcessPoolExecutor | None = None
                 futures: list[Any] = []
@@ -501,7 +504,8 @@ def run_datagen(
                             pending, timeout=0.25, return_when=FIRST_COMPLETED
                         )
                         for fut in done:
-                            fut.result()
+                            result = fut.result()
+                            generated_manifest_shards.extend(list(getattr(result, "manifest_shards", []) or []))
 
                     ex.shutdown(wait=True)
                     ex = None
@@ -523,6 +527,9 @@ def run_datagen(
                 finally:
                     if ex is not None:
                         _hard_kill_executor(ex, futures)
+
+    if generated_manifest_shards:
+        merge_shards_into_manifest(dataset_dir=dataset_dir, shards=generated_manifest_shards)
 
     # ------------------------------------------------------------------
     # index.json (summary only, not schema)

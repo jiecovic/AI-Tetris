@@ -10,7 +10,6 @@ import numpy as np
 from planning_rl.utils.seed import seed32_from
 from tetris_rl.core.datagen.experts.expert_factory import make_expert_from_config
 from tetris_rl.core.datagen.io.schema import ShardInfo
-from tetris_rl.core.datagen.io.writer import append_shard_to_manifest
 from tetris_rl.core.datagen.pipeline.plan import DataGenPlan
 from tetris_rl.core.envs.factory import make_env_from_cfg
 
@@ -24,6 +23,7 @@ class WorkerResult:
     shard_ids: list[int]
     shards_written: int
     samples_written: int
+    manifest_shards: list[ShardInfo]
 
 
 def _set_worker_progress_queue(q: Any) -> None:
@@ -70,7 +70,7 @@ def worker_generate_shards(
       - steps engine with Rust expert (action_id)
       - records obs BEFORE expert action: {"grid","active_kind","next_kind"} + action_id
       - writes NPZ shard (uint8 everywhere except grid already uint8)
-      - appends shard entry to manifest.json
+      - returns shard metadata to the parent process (single manifest writer)
 
     Shard format (npz):
       - grid:        uint8  (N, H, W)
@@ -86,6 +86,7 @@ def worker_generate_shards(
 
     shards_written = 0
     samples_written = 0
+    manifest_shards: list[ShardInfo] = []
 
     k = int(progress_every) if progress_every is not None else 0
     if k < 0:
@@ -229,20 +230,15 @@ def worker_generate_shards(
                     action=act_buf,
                 )
 
-            # Best-effort manifest update (don't brick shard generation on races)
-            try:
-                append_shard_to_manifest(
-                    dataset_dir=out_dir,
-                    shard=ShardInfo(
-                        shard_id=int(sid),
-                        file=f"shards/shard_{int(sid):04d}.npz",
-                        num_samples=int(N),
-                        seed=int(s32),
-                        episode_max_steps=None if max_ep_i is None else int(max_ep_i),
-                    ),
+            manifest_shards.append(
+                ShardInfo(
+                    shard_id=int(sid),
+                    file=f"shards/shard_{int(sid):04d}.npz",
+                    num_samples=int(N),
+                    seed=int(s32),
+                    episode_max_steps=None if max_ep_i is None else int(max_ep_i),
                 )
-            except Exception:
-                pass
+            )
 
             shards_written += 1
             samples_written += int(N)
@@ -260,6 +256,7 @@ def worker_generate_shards(
         shard_ids=[int(x) for x in shard_ids],
         shards_written=int(shards_written),
         samples_written=int(samples_written),
+        manifest_shards=list(manifest_shards),
     )
 
 
