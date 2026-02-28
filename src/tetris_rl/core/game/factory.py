@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from functools import lru_cache
+from typing import Any, Dict, Optional
 
-if TYPE_CHECKING:
-    pass  # type: ignore[import-not-found]
+from tetris_rl.core.game.config import GameConfig, WarmupConfig
 
 
+@lru_cache(maxsize=1)
 def _import_engine() -> tuple[Any, Any]:
     """
     Runtime import for the PyO3 extension.
@@ -15,11 +16,11 @@ def _import_engine() -> tuple[Any, Any]:
     """
     try:
         from tetris_rl_engine import TetrisEngine, WarmupSpec  # type: ignore[import-not-found]
+
         return TetrisEngine, WarmupSpec
     except Exception as e:
         raise ImportError(
-            "Failed to import 'tetris_rl_engine' (PyO3 extension). "
-            "Build/install it into this interpreter."
+            "Failed to import 'tetris_rl_engine' (PyO3 extension). Build/install it into this interpreter."
         ) from e
 
 
@@ -104,74 +105,6 @@ def _extract_holes_config(params: Dict[str, Any]) -> tuple[int, Optional[tuple[i
     return fixed_holes, holes_range
 
 
-def _parse_warmup_spec(obj: Any) -> Optional[Any]:
-    """
-    Convert config -> tetris_rl_engine.WarmupSpec.
-
-    Canonical spec shape:
-      {"type": "...", "params": {...}}
-    """
-    if obj is None:
-        return None
-
-    _, WarmupSpec = _import_engine()
-
-    # already bound object
-    if isinstance(obj, WarmupSpec):
-        return obj
-
-    if not isinstance(obj, dict):
-        raise TypeError(f"game.warmup.spec must be None|WarmupSpec|dict, got {type(obj)!r}")
-
-    t = str(obj.get("type", "")).strip().lower()
-    if not t:
-        raise ValueError("game.warmup.spec.type must be a non-empty string")
-
-    params = obj.get("params", {}) or {}
-    if not isinstance(params, dict):
-        raise TypeError("game.warmup.spec.params must be a mapping")
-    holes_fixed, holes_range = _extract_holes_config(params)
-
-    if t in {"none", "off", "disabled", "null"}:
-        spec = WarmupSpec.none()
-
-    elif t == "fixed":
-        rows = int(params["rows"])
-        spec = WarmupSpec.fixed(rows, holes=holes_fixed)
-
-    elif t in {"uniform_rows", "uniform"}:
-        min_rows = int(params["min_rows"])
-        max_rows = int(params["max_rows"])
-        spec = WarmupSpec.uniform_rows(min_rows, max_rows, holes=holes_fixed)
-
-    elif t == "poisson":
-        lam_raw = params.get("lambda", params.get("lambda_", None))
-        if lam_raw is None:
-            raise KeyError("warmup.type=poisson requires key 'lambda' (or 'lambda_')")
-        lam = float(lam_raw)
-        cap = int(params["cap"])
-        spec = WarmupSpec.poisson(lam, cap, holes=holes_fixed)
-
-    elif t in {"base_plus_poisson", "base+poisson"}:
-        base = int(params["base"])
-        lam_raw = params.get("lambda", params.get("lambda_", None))
-        if lam_raw is None:
-            raise KeyError("warmup.type=base_plus_poisson requires key 'lambda' (or 'lambda_')")
-        lam = float(lam_raw)
-        cap = int(params["cap"])
-        spec = WarmupSpec.base_plus_poisson(base, lam, cap, holes=holes_fixed)
-
-    else:
-        raise ValueError(f"unknown warmup.type={t!r}")
-
-    # optional: uniform holes sampled per reset.
-    if holes_range is not None:
-        spec = spec.with_uniform_holes(int(holes_range[0]), int(holes_range[1]))
-
-    return spec
-
-
-
 def _parse_warmup_cfg(obj: Any) -> Optional[Any]:
     """
     Parse cfg.env.game.warmup in canonical form:
@@ -186,29 +119,65 @@ def _parse_warmup_cfg(obj: Any) -> Optional[Any]:
     if obj is None:
         return None
 
-    # If someone already passed a WarmupSpec instance here, treat as prob=1.
     _, WarmupSpec = _import_engine()
     if isinstance(obj, WarmupSpec):
         return obj
 
-    if not isinstance(obj, dict):
-        raise TypeError(f"cfg.env.game.warmup must be a mapping or null, got {type(obj)!r}")
+    if isinstance(obj, WarmupConfig):
+        warmup_cfg = obj
+    elif isinstance(obj, dict):
+        warmup_cfg = WarmupConfig.model_validate(obj)
+    else:
+        raise TypeError(f"cfg.env.game.warmup must be WarmupConfig|mapping|null, got {type(obj)!r}")
 
-    prob = float(obj.get("prob", 1.0))
+    prob = float(warmup_cfg.prob)
     if prob <= 0.0:
         return None
     if prob > 1.0:
         raise ValueError(f"cfg.env.game.warmup.prob must be in [0,1], got {prob}")
 
-    spec_obj = obj.get("spec", None)
-    if spec_obj is None:
+    spec_cfg = warmup_cfg.spec
+    if spec_cfg is None:
         raise KeyError("cfg.env.game.warmup.spec is required when warmup is enabled")
-    if not isinstance(spec_obj, dict):
-        raise TypeError(f"cfg.env.game.warmup.spec must be a mapping, got {type(spec_obj)!r}")
 
-    warmup_spec = _parse_warmup_spec(spec_obj)
-    if warmup_spec is None:
-        return None
+    t = str(spec_cfg.type).strip().lower()
+    params_obj = spec_cfg.params
+    if isinstance(params_obj, dict):
+        params = dict(params_obj)
+    else:
+        params = params_obj.model_dump(mode="json", by_alias=True)
+    holes_fixed, holes_range = _extract_holes_config(params)
+
+    if t in {"none", "off", "disabled", "null"}:
+        warmup_spec = WarmupSpec.none()
+    elif t == "fixed":
+        rows = int(params["rows"])
+        warmup_spec = WarmupSpec.fixed(rows, holes=holes_fixed)
+    elif t in {"uniform_rows", "uniform"}:
+        min_rows = int(params["min_rows"])
+        max_rows = int(params["max_rows"])
+        warmup_spec = WarmupSpec.uniform_rows(min_rows, max_rows, holes=holes_fixed)
+    elif t == "poisson":
+        lam_raw = params.get("lambda", params.get("lambda_", None))
+        if lam_raw is None:
+            raise KeyError("warmup.type=poisson requires key 'lambda' (or 'lambda_')")
+        lam = float(lam_raw)
+        cap = int(params["cap"])
+        warmup_spec = WarmupSpec.poisson(lam, cap, holes=holes_fixed)
+    elif t in {"base_plus_poisson", "base+poisson"}:
+        base = int(params["base"])
+        lam_raw = params.get("lambda", params.get("lambda_", None))
+        if lam_raw is None:
+            raise KeyError("warmup.type=base_plus_poisson requires key 'lambda' (or 'lambda_')")
+        lam = float(lam_raw)
+        cap = int(params["cap"])
+        warmup_spec = WarmupSpec.base_plus_poisson(base, lam, cap, holes=holes_fixed)
+    else:
+        raise ValueError(f"unknown warmup.type={t!r}")
+
+    if holes_range is not None:
+        warmup_spec = warmup_spec.with_uniform_holes(int(holes_range[0]), int(holes_range[1]))
+
     if prob < 1.0:
         warmup_spec = warmup_spec.with_prob(prob)
     return warmup_spec
@@ -225,22 +194,31 @@ def make_game_bundle_from_cfg(cfg: Dict[str, Any]) -> GameBundle:
     if not isinstance(cfg, dict):
         raise TypeError(f"cfg must be a mapping, got {type(cfg)!r}")
 
-    env_cfg = cfg.get("env", {}) or {}
-    if not isinstance(env_cfg, dict):
+    env_cfg = cfg.get("env", {})
+    if env_cfg is None:
         env_cfg = {}
-    game_cfg = env_cfg.get("game", {}) or {}
-    if not isinstance(game_cfg, dict):
-        game_cfg = {}
+    if not isinstance(env_cfg, dict):
+        raise TypeError(f"cfg.env must be a mapping when provided, got {type(env_cfg)!r}")
+
+    game_cfg_raw = env_cfg.get("game", {})
+    if game_cfg_raw is None:
+        game_cfg_raw = {}
+    if isinstance(game_cfg_raw, GameConfig):
+        game_cfg = game_cfg_raw
+    elif isinstance(game_cfg_raw, dict):
+        game_cfg = GameConfig.model_validate(game_cfg_raw)
+    else:
+        raise TypeError(f"cfg.env.game must be GameConfig|mapping when provided, got {type(game_cfg_raw)!r}")
 
     TetrisEngine, _ = _import_engine()
 
     # default seed here is fine; env.reset(seed=episode_seed) should override per episode
-    seed = int(game_cfg.get("seed", 12345))
+    seed = int(game_cfg.seed)
 
     # Rust expects "uniform" | "bag7"
-    piece_rule = str(game_cfg.get("piece_rule", "uniform")).strip().lower()
+    piece_rule = str(game_cfg.piece_rule).strip().lower()
 
-    warmup_spec = _parse_warmup_cfg(game_cfg.get("warmup", None))
+    warmup_spec = _parse_warmup_cfg(game_cfg.warmup)
 
     # Engine owns warmup gating; pass the spec at construction time.
     game = TetrisEngine(seed=seed, piece_rule=piece_rule, warmup=warmup_spec)
