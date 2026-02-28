@@ -1,0 +1,60 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - cleanup/**
+
+jobs:
+  rust-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Rust fmt (check)
+        run: cargo fmt --all -- --check
+
+      - name: Rust clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Rust docs build
+        run: cargo doc --workspace --no-deps
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit (all files)
+        run: pre-commit run --all-files
