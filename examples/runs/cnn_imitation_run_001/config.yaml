@@ -166,7 +166,6 @@ learn:
   max_samples: 0
   save_archive: true
   archive_dir: checkpoints/imitation
-  resume: null
 algo:
   type: imitation
   params:
