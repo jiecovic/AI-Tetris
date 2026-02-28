@@ -59,8 +59,7 @@ class EvalTable:
             f"T={paths.best_survival.name}"
         )
         self.emit(
-            "[eval] update legend: "
-            "R=best reward/step  N=best lines/step  T=best survival(1-go_rate)  .=no update"
+            "[eval] update legend: R=best reward/step  N=best lines/step  T=best survival(1-go_rate)  .=no update"
         )
         self.emit(
             "[eval] cols: "
@@ -111,12 +110,7 @@ class EvalTable:
             base += f"{'-' * self._COL_W_WGT} "
         if not show_bc:
             return base
-        return (
-            base
-            + f"{'-' * self._COL_W_BCL} "
-            + f"{'-' * self._COL_W_BCA} "
-            + f"{'-' * self._COL_W_BCH} "
-        )
+        return base + f"{'-' * self._COL_W_BCL} " + f"{'-' * self._COL_W_BCA} " + f"{'-' * self._COL_W_BCH} "
 
     def _fmt_float(self, v: Optional[float], width: int, *, prec: int = 4) -> str:
         if v is None:

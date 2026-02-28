@@ -102,6 +102,7 @@ def deep(ctx: ProfileContext) -> list[nn.Module]:
         _drop(p),
     ]
 
+
 def deep_l5(ctx: ProfileContext) -> list[nn.Module]:
     D = int(ctx.d_model)
     p = float(ctx.dropout)
@@ -117,26 +118,19 @@ def deep_l5(ctx: ProfileContext) -> list[nn.Module]:
         nn.Conv1d(ctx.in_ch, c1, kernel_size=3, stride=1, padding=0, bias=True),
         nn.ReLU(inplace=False),
         _drop(p),
-
         nn.Conv1d(c1, c2, kernel_size=3, stride=1, padding=0, bias=True),
         nn.ReLU(inplace=False),
         _drop(p),
-
         nn.Conv1d(c2, c3, kernel_size=3, stride=1, padding=0, bias=True),
         nn.ReLU(inplace=False),
         _drop(p),
-
         nn.Conv1d(c3, c4, kernel_size=3, stride=1, padding=0, bias=True),
         nn.ReLU(inplace=False),
         _drop(p),
-
         nn.Conv1d(c4, D, kernel_size=3, stride=1, padding=0, bias=True),
         nn.ReLU(inplace=False),
         _drop(p),
     ]
-
-
-
 
 
 CONV1D_PRESETS: Dict[str, ProfileFn] = {
@@ -181,12 +175,12 @@ def _from_conv1d_output(y: torch.Tensor, *, B: int, T: int) -> torch.Tensor:
 
 
 def _pad_lr_scalar(
-        x: torch.Tensor,
-        *,
-        pad_left: int,
-        pad_right: int,
-        left_val: float,
-        right_val: float,
+    x: torch.Tensor,
+    *,
+    pad_left: int,
+    pad_right: int,
+    left_val: float,
+    right_val: float,
 ) -> torch.Tensor:
     """
     x: (N, C, L)
@@ -417,5 +411,3 @@ __all__ = [
     "CONV1D_PRESETS",
     "Conv1DEmbedder",
 ]
-
-

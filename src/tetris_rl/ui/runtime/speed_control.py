@@ -21,6 +21,7 @@ class SpeedControl:
        0 : one step per rendered frame (step rate ~= render fps cap)
       <0 : uncapped sim (run as many steps as possible; renders still capped)
     """
+
     render_fps_cap: int = 60
     step_ms: int = 120
     step_ms_delta: int = 5
@@ -105,6 +106,7 @@ class RateMeter:
     """
     Sliding-window rate meter for events (steps or frames).
     """
+
     def __init__(self, *, window: int = 60) -> None:
         self._t: Deque[float] = deque(maxlen=max(2, int(window)))
 

@@ -166,9 +166,7 @@ class ImitationTrainer:
         train_total_samples_full = sum(int(counts.get(int(sid), 0)) for sid in train_sids)
 
         eval_every = (
-            int(self.callbacks_cfg.eval_checkpoint.every)
-            if bool(self.callbacks_cfg.eval_checkpoint.enabled)
-            else 0
+            int(self.callbacks_cfg.eval_checkpoint.every) if bool(self.callbacks_cfg.eval_checkpoint.enabled) else 0
         )
         latest_every = int(self.callbacks_cfg.latest.every) if bool(self.callbacks_cfg.latest.enabled) else 0
 
@@ -395,7 +393,9 @@ class ImitationTrainer:
                             n = 0
 
                         if n > 0:
-                            state = ImitationRunState(samples_seen=int(state.samples_seen + n), updates=int(state.updates))
+                            state = ImitationRunState(
+                                samples_seen=int(state.samples_seen + n), updates=int(state.updates)
+                            )
                             try:
                                 epoch_bar.update(int(n))  # <-- samples, not batches
                             except Exception:

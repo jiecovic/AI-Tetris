@@ -8,11 +8,11 @@ from tetris_rl.core.datagen.io.schema import ShardInfo
 
 
 def build_expected_shard_infos(
-        *,
-        num_shards: int,
-        shard_steps: int,
-        base_seed: int,
-        episode_max_steps: Optional[int],
+    *,
+    num_shards: int,
+    shard_steps: int,
+    base_seed: int,
+    episode_max_steps: Optional[int],
 ) -> List[ShardInfo]:
     """
     Deterministically build per-shard metadata for manifest.json.

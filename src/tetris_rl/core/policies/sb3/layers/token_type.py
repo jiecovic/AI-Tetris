@@ -26,7 +26,7 @@ Output:
 Notes
 -----
 - Token type ids are stable across runs/configs. Some ids may be unused depending on
-  tokenizer layout or whether specials are enabled. 
+  tokenizer layout or whether specials are enabled.
 - CLS is mixer-owned, but lives in the same shared vocabulary so the type embedding
   table can treat it uniformly.
 """
@@ -124,4 +124,3 @@ __all__ = [
     "TokenTypeEncodingSpec",
     "TokenTypeEncoding",
 ]
-

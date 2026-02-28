@@ -132,14 +132,14 @@ def draw_hud_panel(*, screen: pygame.Surface, palette: Palette, fonts: HudFonts,
 
 
 def _draw_pair(
-        *,
-        screen: pygame.Surface,
-        palette: Palette,
-        font: pygame.font.Font,
-        x0: int,
-        y: int,
-        max_width: int,
-        pair_text: str,
+    *,
+    screen: pygame.Surface,
+    palette: Palette,
+    font: pygame.font.Font,
+    x0: int,
+    y: int,
+    max_width: int,
+    pair_text: str,
 ) -> None:
     """
     Render one "Label: Value" pair within a bounded width starting at x0.

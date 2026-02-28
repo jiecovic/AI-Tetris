@@ -58,12 +58,7 @@ class FeatureBlock:
         )
 
     def as_prev_tuple(self) -> Optional[tuple[int, int, int, int]]:
-        if (
-            self.max_height is None
-            or self.agg_height is None
-            or self.holes is None
-            or self.bumpiness is None
-        ):
+        if self.max_height is None or self.agg_height is None or self.holes is None or self.bumpiness is None:
             return None
         return (
             int(self.max_height),

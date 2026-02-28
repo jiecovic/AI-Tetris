@@ -146,9 +146,7 @@ def instantiate(
         kwargs: dict[str, Any] = dict(inj)
 
         if not _accepts_kwarg(ctor, "spec"):
-            raise TypeError(
-                f"{where} type={spec.type!r} ctor={_callable_name(ctor)!r} must accept a 'spec' kwarg"
-            )
+            raise TypeError(f"{where} type={spec.type!r} ctor={_callable_name(ctor)!r} must accept a 'spec' kwarg")
         kwargs["spec"] = params_any
 
         try:

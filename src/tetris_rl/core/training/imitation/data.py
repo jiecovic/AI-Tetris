@@ -62,7 +62,6 @@ def split_shards_modulo(
     return SplitShards(train=tr, eval=ev)
 
 
-
 def _maybe_shuffle(rng: np.random.Generator, xs: List[int], enabled: bool) -> List[int]:
     if not enabled or len(xs) <= 1:
         return xs

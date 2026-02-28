@@ -89,5 +89,3 @@ class AttentionPoolHead(BaseSpatialHead):
 
 
 __all__ = ["AttentionPoolHead"]
-
-

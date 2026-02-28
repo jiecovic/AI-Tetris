@@ -37,4 +37,3 @@ def parse_typed_params(
 
     params = params_cls.model_validate(params_value)
     return tag, params
-

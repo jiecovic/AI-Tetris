@@ -49,4 +49,3 @@ class FFN(nn.Module):
 
 
 __all__ = ["FFNSpec", "FFN"]
-

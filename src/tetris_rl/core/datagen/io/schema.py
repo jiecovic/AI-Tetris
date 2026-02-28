@@ -12,10 +12,10 @@ import numpy as np
 
 SCHEMA_VERSION = 4
 
-NPZ_GRID = "grid"              # (N,H,W) uint8  cell_id grid: 0 empty, 1..K = kind_idx+1
+NPZ_GRID = "grid"  # (N,H,W) uint8  cell_id grid: 0 empty, 1..K = kind_idx+1
 NPZ_ACTIVE_KIND = "active_kind"  # (N,) uint8  0..K-1
-NPZ_NEXT_KIND = "next_kind"      # (N,) uint8  0..K-1
-NPZ_ACTION = "action"            # (N,) uint8  0..A-1
+NPZ_NEXT_KIND = "next_kind"  # (N,) uint8  0..K-1
+NPZ_ACTION = "action"  # (N,) uint8  0..A-1
 
 REQUIRED_KEYS: Tuple[str, ...] = (
     NPZ_GRID,

@@ -27,6 +27,7 @@ class CheckpointPoller:
     - Does NOT reset env/game on reload (watch is continuous).
     - Loads via load_model_from_algo_config(algo_cfg=...) so PPO vs MaskablePPO is handled correctly.
     """
+
     run_dir: Path
     which: str
     algo_cfg: AlgoConfig

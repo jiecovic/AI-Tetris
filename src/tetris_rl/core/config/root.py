@@ -40,7 +40,9 @@ class ExperimentConfig(ConfigBase):
             return data
         out = dict(data)
         if "policy_init" in out:
-            raise ValueError("policy_init is removed; use `policy: {source, which}` via `/sb3_policies@policy: pretrained`")
+            raise ValueError(
+                "policy_init is removed; use `policy: {source, which}` via `/sb3_policies@policy: pretrained`"
+            )
         learn_obj = out.get("learn", None)
         if isinstance(learn_obj, dict) and ("policy_init" in learn_obj or "resume" in learn_obj):
             raise ValueError("learn.policy_init/learn.resume are removed; use `policy: {source, which}`")
@@ -55,6 +57,7 @@ class ExperimentConfig(ConfigBase):
                     "use either `/sb3_policies@policy:<name>` or `/sb3_policies@policy:pretrained`"
                 )
         return out
+
 
 class ImitationExperimentConfig(ConfigBase):
     log_level: str = "info"
@@ -73,7 +76,9 @@ class ImitationExperimentConfig(ConfigBase):
             return data
         out = dict(data)
         if "policy_init" in out:
-            raise ValueError("policy_init is removed; use `policy: {source, which}` via `/sb3_policies@policy: pretrained`")
+            raise ValueError(
+                "policy_init is removed; use `policy: {source, which}` via `/sb3_policies@policy: pretrained`"
+            )
         learn_obj = out.get("learn", None)
         if isinstance(learn_obj, dict) and ("policy_init" in learn_obj or "resume" in learn_obj):
             raise ValueError("learn.policy_init/learn.resume are removed; use `policy: {source, which}`")
@@ -97,6 +102,7 @@ class ImitationExperimentConfig(ConfigBase):
             raise ValueError("imitation.dataset_dir must be set")
         return v
 
+
 class DataGenConfig(ConfigBase):
     log_level: str = "info"
     repo_root: str = ""
@@ -109,4 +115,3 @@ class DataGenConfig(ConfigBase):
 
 
 __all__ = ["ExperimentConfig", "ImitationExperimentConfig", "DataGenConfig"]
-

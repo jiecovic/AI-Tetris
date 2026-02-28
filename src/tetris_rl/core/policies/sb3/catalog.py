@@ -60,10 +60,10 @@ TOKEN_MIXER_REGISTRY: Mapping[str, Any] = {
 # ---------------------------------------------------------------------
 
 SPATIAL_HEAD_REGISTRY: Mapping[str, Any] = {
-    "global_pool": GlobalPoolHead,       # avg / max / avgmax (+ optional conv stack)
-    "flatten": FlattenHead,              # flatten HxWxC only (no MLP)
-    "flatten_mlp": FlattenMLPHead,       # flatten HxWxC then MLP(hidden_dims) -> features_dim
-    "attn_pool": AttentionPoolHead,      # learned attention pooling over spatial grid
+    "global_pool": GlobalPoolHead,  # avg / max / avgmax (+ optional conv stack)
+    "flatten": FlattenHead,  # flatten HxWxC only (no MLP)
+    "flatten_mlp": FlattenMLPHead,  # flatten HxWxC then MLP(hidden_dims) -> features_dim
+    "attn_pool": AttentionPoolHead,  # learned attention pooling over spatial grid
     "col_collapse": ColumnCollapseHead,  # column-wise collapse (Tetris inductive bias)
 }
 
@@ -84,4 +84,3 @@ __all__ = [
     "SPATIAL_HEAD_REGISTRY",
     "FEATURE_AUGMENTER_REGISTRY",
 ]
-

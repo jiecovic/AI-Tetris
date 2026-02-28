@@ -84,7 +84,6 @@ class BaseSpatialPreprocessor:
         if x.dim() == 2:
             x = torch.argmax(x, dim=-1)
 
-
         # 1D: either (B,) indices or (K,) one-hot
         elif x.dim() == 1:
             # Heuristic:
@@ -98,9 +97,7 @@ class BaseSpatialPreprocessor:
         elif x.dim() == 0:
             pass
         else:
-            raise ValueError(
-                f"obs['{name}'] must be scalar, (B,), (K,) or (B,K); got {tuple(x.shape)}"
-            )
+            raise ValueError(f"obs['{name}'] must be scalar, (B,), (K,) or (B,K); got {tuple(x.shape)}")
 
         # Ensure int64 dtype (SB3 one-hot comes as float)
         if x.dtype != torch.int64:
@@ -121,9 +118,9 @@ class BaseSpatialPreprocessor:
         )
 
     def __call__(
-            self,
-            *,
-            observations: Dict[str, torch.Tensor],
+        self,
+        *,
+        observations: Dict[str, torch.Tensor],
     ) -> Tuple[SpatialFeatures, Specials]:
         """
         Subclasses must override this.
@@ -149,9 +146,9 @@ class BinarySpatialPreprocessor(BaseSpatialPreprocessor):
     """
 
     def __call__(
-            self,
-            *,
-            observations: Dict[str, torch.Tensor],
+        self,
+        *,
+        observations: Dict[str, torch.Tensor],
     ) -> Tuple[SpatialFeatures, Specials]:
         self._validate_observations(observations)
 
@@ -177,5 +174,3 @@ __all__ = [
     "BaseSpatialPreprocessor",
     "BinarySpatialPreprocessor",
 ]
-
-

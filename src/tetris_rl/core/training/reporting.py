@@ -268,14 +268,14 @@ def log_policy_compact(*, model: Any, logger) -> None:
     _log_module("features_extractor", feat)
 
     if pi is not None:
-        shared = (pi is feat)
+        shared = pi is feat
         msg = f"  pi_features_extractor: {type(pi).__name__} params={_fmt_int(_count(pi))}"
         if shared:
             msg += " shared_with_base=True"
         logger.info(msg)
 
     if vf is not None:
-        shared = (vf is feat)
+        shared = vf is feat
         msg = f"  vf_features_extractor: {type(vf).__name__} params={_fmt_int(_count(vf))}"
         if shared:
             msg += " shared_with_base=True"

@@ -30,9 +30,9 @@ class ColumnTokenizer(PatchTokenizer):
         super().__init__(patch_h=1, patch_w=1, stride_h=1, stride_w=1)
 
     def __call__(
-            self,
-            *,
-            spatial: SpatialFeatures,
+        self,
+        *,
+        spatial: SpatialFeatures,
     ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         x = spatial.x
         if x.dim() != 4:
@@ -50,5 +50,3 @@ class ColumnTokenizer(PatchTokenizer):
 
 
 __all__ = ["ColumnTokenizer"]
-
-

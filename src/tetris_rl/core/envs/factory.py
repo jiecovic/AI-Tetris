@@ -19,10 +19,10 @@ class BuiltEnv:
       - No tokenizer here (model-owned).
       - Env must emit RAW Dict observations only.
     """
+
     env: Any
     reward_fn: Any
     game: Any
-
 
 
 def build_env(*, cfg: Dict[str, Any], env_cfg: EnvConfig, game: Any) -> BuiltEnv:

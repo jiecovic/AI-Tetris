@@ -60,19 +60,19 @@ class TetrisTokenizer(nn.Module):
     """
 
     def __init__(
-            self,
-            *,
-            d_model: int,
-            layout: LayoutConfig,
-            board_embedding: BoardEmbeddingConfig,
-            add_active_token: bool = True,
-            add_next_token: bool = False,
-            # NEW: whether ACTIVE/NEXT share one kind embedding table
-            share_kind_embedding: bool = True,
-            # injected by factory if add_active_token or add_next_token
-            n_kinds: Optional[int] = None,
-            # injected by orchestrator: post-(preproc+stem) spatial spec
-            in_spec: SpatialSpec,
+        self,
+        *,
+        d_model: int,
+        layout: LayoutConfig,
+        board_embedding: BoardEmbeddingConfig,
+        add_active_token: bool = True,
+        add_next_token: bool = False,
+        # NEW: whether ACTIVE/NEXT share one kind embedding table
+        share_kind_embedding: bool = True,
+        # injected by factory if add_active_token or add_next_token
+        n_kinds: Optional[int] = None,
+        # injected by orchestrator: post-(preproc+stem) spatial spec
+        in_spec: SpatialSpec,
     ) -> None:
         super().__init__()
 
@@ -184,9 +184,7 @@ class TetrisTokenizer(nn.Module):
             if sh <= 0 or sw <= 0:
                 raise ValueError("stride_h/stride_w must be > 0")
             if ph > self.H or pw > self.W:
-                raise ValueError(
-                    f"patch ({ph},{pw}) cannot exceed grid ({self.H},{self.W})"
-                )
+                raise ValueError(f"patch ({ph},{pw}) cannot exceed grid ({self.H},{self.W})")
             n_h, n_w = self._patch_grid_shape(
                 H=self.H,
                 W=self.W,
@@ -344,9 +342,7 @@ class TetrisTokenizer(nn.Module):
         W = int(x.shape[2])
         C = int(x.shape[3])
         if H != self.H or W != self.W or C != self.C:
-            raise ValueError(
-                f"spatial shape changed: expected (H,W,C)=({self.H},{self.W},{self.C}), got ({H},{W},{C})"
-            )
+            raise ValueError(f"spatial shape changed: expected (H,W,C)=({self.H},{self.W},{self.C}), got ({H},{W},{C})")
 
         # 1) Board tokens + types
         board_x, board_types = self._embed_board(spatial=spatial)  # (B,Tb,D), (Tb,)
@@ -363,7 +359,9 @@ class TetrisTokenizer(nn.Module):
                 active_tok = self.kind_emb_shared(active_idx).unsqueeze(1)  # (B,1,D)
             else:
                 if self.kind_emb_active is None:
-                    raise RuntimeError("kind_emb_active is None but share_kind_embedding=False and add_active_token=True")
+                    raise RuntimeError(
+                        "kind_emb_active is None but share_kind_embedding=False and add_active_token=True"
+                    )
                 active_tok = self.kind_emb_active(active_idx).unsqueeze(1)  # (B,1,D)
 
             tokens.append(active_tok)
@@ -489,8 +487,6 @@ class TetrisTokenizer(nn.Module):
             kind = "row" if self._conv_row.params.padding == "tetris" else None
             emb = self._conv_row(stripes, kind=kind)  # (B,H,D)
 
-
-
         elif emb_type == "linear":
             if self._proj_row is None:
                 raise RuntimeError("linear row projection is None (bad init/config)")
@@ -520,7 +516,6 @@ class TetrisTokenizer(nn.Module):
             stripes = x.permute(0, 2, 1, 3).contiguous()  # (B,T=W,L=H,C)
             kind = "col" if self._conv_col.params.padding == "tetris" else None
             emb = self._conv_col(stripes, kind=kind)  # (B,W,D)
-
 
         elif emb_type == "linear":
             if self._proj_col is None:
@@ -655,14 +650,14 @@ class TetrisTokenizer(nn.Module):
 
     @staticmethod
     def _patch_grid_shape(
-            *,
-            H: int,
-            W: int,
-            patch_h: int,
-            patch_w: int,
-            stride_h: int,
-            stride_w: int,
-            padding: str,
+        *,
+        H: int,
+        W: int,
+        patch_h: int,
+        patch_w: int,
+        stride_h: int,
+        stride_w: int,
+        padding: str,
     ) -> tuple[int, int]:
         pad_mode = str(padding).strip().lower()
         if pad_mode == "valid":
@@ -673,5 +668,3 @@ class TetrisTokenizer(nn.Module):
 
 
 __all__ = ["TetrisTokenizer"]
-
-

@@ -24,11 +24,9 @@ GymEnv: TypeAlias = gym.Env
 
 @runtime_checkable
 class GAWorkerFactory(Protocol):
-    def build_env(self, *, seed: int, worker_index: int) -> GymEnv:
-        ...
+    def build_env(self, *, seed: int, worker_index: int) -> GymEnv: ...
 
-    def build_policy(self) -> VectorParamPolicy:
-        ...
+    def build_policy(self) -> VectorParamPolicy: ...
 
 
 __all__ = ["GAStats", "GAWorkerFactory", "GymEnv"]

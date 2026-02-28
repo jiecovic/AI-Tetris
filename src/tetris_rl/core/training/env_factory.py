@@ -67,9 +67,7 @@ def make_vec_env_from_cfg(*, cfg: dict[str, Any], run_cfg: RunConfig) -> BuiltVe
 
         return _thunk
 
-    env_fns: list[Callable[[], Env]] = [
-        cast(Callable[[], Env], make_one(i)) for i in range(int(n_envs))
-    ]
+    env_fns: list[Callable[[], Env]] = [cast(Callable[[], Env], make_one(i)) for i in range(int(n_envs))]
     if vec_kind == "subproc":
         vec_env: VecEnv = SubprocVecEnv(env_fns, start_method="spawn")
     elif vec_kind == "dummy":

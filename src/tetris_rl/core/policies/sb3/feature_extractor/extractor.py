@@ -198,9 +198,9 @@ class TetrisFeatureExtractor(BaseFeaturesExtractor):
         if feature_augmenter is not None:
             self.feature_augmenter = build_feature_augmenter(
                 cfg=feature_augmenter,
-                n_kinds=self._n_kinds,        # injected (NOT in params)
-                in_dim=int(F_base),           # base features coming in
-                features_dim=int(F_final),    # SB3 must see post-augment dim
+                n_kinds=self._n_kinds,  # injected (NOT in params)
+                in_dim=int(F_base),  # base features coming in
+                features_dim=int(F_final),  # SB3 must see post-augment dim
             )
 
         # ------------------------------------------------------------------
@@ -246,5 +246,3 @@ class TetrisFeatureExtractor(BaseFeaturesExtractor):
 
 
 __all__ = ["TetrisFeatureExtractor"]
-
-

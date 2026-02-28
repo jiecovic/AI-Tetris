@@ -34,6 +34,7 @@ class Specials:
       active_kind: (B,) int64
       next_kind:   (B,) int64 or None
     """
+
     active_kind: torch.Tensor
     next_kind: Optional[torch.Tensor] = None
 
@@ -57,6 +58,7 @@ class SpatialFeatures:
     occupancy before any learned transformation. This is used to
     gate LUT-based token embeddings.
     """
+
     x: torch.Tensor  # (B, H, W, C) float32
     is_discrete_binary: bool = False
 
@@ -82,6 +84,7 @@ class TokenStream:
     If you need to inject Specials after mixing, do it via FeatureAugmenter
     on the final (B,F) feature vector.
     """
+
     x: torch.Tensor
     types: torch.Tensor
 
@@ -89,6 +92,7 @@ class TokenStream:
 # ---------------------------------------------------------------------
 # Protocols (interfaces)
 # ---------------------------------------------------------------------
+
 
 @runtime_checkable
 class SpatialPreprocessor(Protocol):
@@ -105,9 +109,9 @@ class SpatialPreprocessor(Protocol):
     """
 
     def __call__(
-            self,
-            *,
-            observations: dict[str, torch.Tensor],
+        self,
+        *,
+        observations: dict[str, torch.Tensor],
     ) -> tuple[SpatialFeatures, Specials]: ...
 
     def out_spec(self, *, board: BoardSpec) -> SpatialSpec: ...
@@ -128,13 +132,14 @@ class Tokenizer(Protocol):
     """
 
     def __call__(
-            self,
-            *,
-            spatial: SpatialFeatures,
-            specials: Specials,
+        self,
+        *,
+        spatial: SpatialFeatures,
+        specials: Specials,
     ) -> TokenStream: ...
 
     def stream_spec(self) -> TokenStreamSpec: ...
+
 
 @runtime_checkable
 class TokenMixer(Protocol):
@@ -158,10 +163,10 @@ class SpatialHead(Protocol):
     """
 
     def __call__(
-            self,
-            *,
-            spatial: SpatialFeatures,
-            specials: Specials,
+        self,
+        *,
+        spatial: SpatialFeatures,
+        specials: Specials,
     ) -> torch.Tensor: ...
 
 
@@ -183,10 +188,10 @@ class FeatureAugmenter(Protocol):
     """
 
     def __call__(
-            self,
-            *,
-            features: torch.Tensor,
-            specials: Specials,
+        self,
+        *,
+        features: torch.Tensor,
+        specials: Specials,
     ) -> torch.Tensor: ...
 
 
@@ -227,4 +232,3 @@ __all__ = [
     "SpatialHead",
     "FeatureAugmenter",
 ]
-

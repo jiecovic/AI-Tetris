@@ -40,15 +40,11 @@ class FlattenHead(BaseSpatialHead):
         self.in_w = int(in_w)
         self.in_channels = int(in_channels)
         if self.in_h <= 0 or self.in_w <= 0 or self.in_channels <= 0:
-            raise ValueError(
-                f"invalid FlattenHead input shape: (H,W,C)=({self.in_h},{self.in_w},{self.in_channels})"
-            )
+            raise ValueError(f"invalid FlattenHead input shape: (H,W,C)=({self.in_h},{self.in_w},{self.in_channels})")
 
         self.in_dim = int(self.in_h) * int(self.in_w) * int(self.in_channels)
         self.proj: nn.Module = (
-            nn.Identity()
-            if self.in_dim == self.features_dim
-            else nn.Linear(self.in_dim, self.features_dim)
+            nn.Identity() if self.in_dim == self.features_dim else nn.Linear(self.in_dim, self.features_dim)
         )
 
     def forward(self, *, spatial: SpatialFeatures, specials: Specials) -> torch.Tensor:
@@ -65,5 +61,3 @@ class FlattenHead(BaseSpatialHead):
 
 
 __all__ = ["FlattenHead"]
-
-

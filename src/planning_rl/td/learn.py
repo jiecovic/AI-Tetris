@@ -101,15 +101,10 @@ def learn_td(
     elif feature_clear_mode in {"post", "clear", "post_clear", "after"}:
         pre_clear = False
     else:
-        raise ValueError(
-            "feature_clear_mode must be 'auto', 'pre', or 'post' "
-            f"(got {feature_clear_mode!r})"
-        )
+        raise ValueError(f"feature_clear_mode must be 'auto', 'pre', or 'post' (got {feature_clear_mode!r})")
 
     line_feature_names = {"complete_lines", "complete_lines_norm", "lines", "lines_norm"}
-    line_feature_idx = [
-        i for i, name in enumerate(features) if str(name).strip().lower() in line_feature_names
-    ]
+    line_feature_idx = [i for i, name in enumerate(features) if str(name).strip().lower() in line_feature_names]
 
     def _features_for_action(*, env: Any, action: Any) -> np.ndarray:
         phi = extract_features(
@@ -172,9 +167,7 @@ def learn_td(
                 if v.shape[0] == 1:
                     v = np.repeat(v, n_envs)
                 else:
-                    raise RuntimeError(
-                        f"TD value shape mismatch: expected ({n_envs},), got {v.shape}"
-                    )
+                    raise RuntimeError(f"TD value shape mismatch: expected ({n_envs},), got {v.shape}")
 
             rewards_batch: list[float] = []
             dones_batch: list[float] = []
@@ -219,9 +212,7 @@ def learn_td(
                 if next_v.shape[0] == 1:
                     next_v = np.repeat(next_v, n_envs)
                 else:
-                    raise RuntimeError(
-                        f"TD next value shape mismatch: expected ({n_envs},), got {next_v.shape}"
-                    )
+                    raise RuntimeError(f"TD next value shape mismatch: expected ({n_envs},), got {next_v.shape}")
 
             for i, done_flag in enumerate(dones_batch):
                 if done_flag > 0.0:

@@ -48,6 +48,7 @@ def _format_count(n: int) -> str:
 # SB3 helpers (policy/algo plumbing)
 # -----------------------------------------------------------------------------
 
+
 def parse_net_arch(obj: Any) -> list[int] | dict[str, list[int]]:
     """
     SB3 supports:
@@ -109,6 +110,7 @@ def build_algo_kwargs(*, algo_cls: Type[Any], raw: Mapping[str, Any], seed: int,
 # Param reports (existing)
 # -----------------------------------------------------------------------------
 
+
 def format_sb3_param_summary(model: Any) -> str:
     """
     One-line, human readable summary.
@@ -150,14 +152,18 @@ def format_sb3_param_report(model: Any) -> str:
 
     if isinstance(feat, torch.nn.Module):
         pc = _count_params(feat)
-        lines.append(f"[params] features_extractor({type(feat).__name__}): total={pc.total:,} trainable={pc.trainable:,}")
+        lines.append(
+            f"[params] features_extractor({type(feat).__name__}): total={pc.total:,} trainable={pc.trainable:,}"
+        )
 
     if isinstance(pi_feat, torch.nn.Module):
         if pi_feat is feat:
             lines.append("[params] pi_features_extractor: <shared with features_extractor>")
         else:
             pc = _count_params(pi_feat)
-            lines.append(f"[params] pi_features_extractor({type(pi_feat).__name__}): total={pc.total:,} trainable={pc.trainable:,}")
+            lines.append(
+                f"[params] pi_features_extractor({type(pi_feat).__name__}): total={pc.total:,} trainable={pc.trainable:,}"
+            )
 
     if isinstance(vf_feat, torch.nn.Module):
         if vf_feat is feat:
@@ -166,13 +172,17 @@ def format_sb3_param_report(model: Any) -> str:
             lines.append("[params] vf_features_extractor: <shared with pi_features_extractor>")
         else:
             pc = _count_params(vf_feat)
-            lines.append(f"[params] vf_features_extractor({type(vf_feat).__name__}): total={pc.total:,} trainable={pc.trainable:,}")
+            lines.append(
+                f"[params] vf_features_extractor({type(vf_feat).__name__}): total={pc.total:,} trainable={pc.trainable:,}"
+            )
 
     # --- mlp_extractor (SB3 common) ---
     mlp_extractor = _get_attr(policy, "mlp_extractor")
     if isinstance(mlp_extractor, torch.nn.Module):
         pc_mlp = _count_params(mlp_extractor)
-        lines.append(f"[params] mlp_extractor({type(mlp_extractor).__name__}): total={pc_mlp.total:,} trainable={pc_mlp.trainable:,}")
+        lines.append(
+            f"[params] mlp_extractor({type(mlp_extractor).__name__}): total={pc_mlp.total:,} trainable={pc_mlp.trainable:,}"
+        )
 
         policy_net = _get_attr(mlp_extractor, "policy_net")
         if isinstance(policy_net, torch.nn.Module):

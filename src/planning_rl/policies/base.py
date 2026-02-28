@@ -7,6 +7,7 @@ from typing import Any
 
 class PlanningPolicy(ABC):
     """Policy that selects actions by simulating the environment."""
+
     @abstractmethod
     def predict(self, *, env: Any) -> Any:
         raise NotImplementedError

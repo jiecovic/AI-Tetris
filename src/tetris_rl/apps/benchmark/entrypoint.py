@@ -133,9 +133,7 @@ class BenchTotals:
     def to_dict(self) -> dict[str, Any]:
         denom_steps = float(max(1, self.steps))
 
-        avg_ep_len_done_only = (
-            (self.sum_ep_len_done / float(self.episodes_done)) if self.episodes_done > 0 else None
-        )
+        avg_ep_len_done_only = (self.sum_ep_len_done / float(self.episodes_done)) if self.episodes_done > 0 else None
         # Option A: include the partial/in-progress episode at the end of the benchmark
         denom_eps_started = float(max(1, self.episodes_started))
         avg_ep_len_including_partial = (self.sum_ep_len_done + float(self.cur_ep_len)) / denom_eps_started
@@ -299,9 +297,7 @@ class _BenchInterimTable:
             f"{float(stats['avg_episode_len_including_partial']):.1f}",
             f"{float(stats.get('steps_per_sec', 0.0)):.1f}",
         ]
-        row = "[bench] " + " ".join(
-            f"{val:>{width}}" for val, (_name, width) in zip(values, self._cols)
-        )
+        row = "[bench] " + " ".join(f"{val:>{width}}" for val, (_name, width) in zip(values, self._cols))
         self._emit(row)
 
 
@@ -452,7 +448,11 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
             if print_every > 0 and (totals.steps % print_every) == 0 and (not bool(args.json)):
                 d = totals.to_dict()
-                d.update(_speed_stats(steps=int(d["steps"]), episodes_done=int(d["episodes_done"]), start_time_s=bench_start_s))
+                d.update(
+                    _speed_stats(
+                        steps=int(d["steps"]), episodes_done=int(d["episodes_done"]), start_time_s=bench_start_s
+                    )
+                )
                 if interim_table is not None:
                     interim_table.emit_row(d)
 
@@ -476,7 +476,9 @@ def run_benchmark(args: argparse.Namespace) -> int:
         env.close()
 
     stats = totals.to_dict()
-    stats.update(_speed_stats(steps=int(stats["steps"]), episodes_done=int(stats["episodes_done"]), start_time_s=bench_start_s))
+    stats.update(
+        _speed_stats(steps=int(stats["steps"]), episodes_done=int(stats["episodes_done"]), start_time_s=bench_start_s)
+    )
     meta = {
         "run": str(args.run),
         "env": str(args.env).strip().lower(),

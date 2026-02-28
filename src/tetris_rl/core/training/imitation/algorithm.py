@@ -37,9 +37,7 @@ class ImitationAlgorithm(BaseAlgorithm):
             raise ValueError("policy_backend=maskable_ppo requires a MaskableActorCriticPolicy instance")
         if self.policy_backend == "ppo" and isinstance(policy, MaskableActorCriticPolicy):
             raise ValueError("policy_backend=ppo requires an ActorCriticPolicy instance")
-        self._tetris_algo_type = (
-            "maskable_ppo" if isinstance(policy, MaskableActorCriticPolicy) else "ppo"
-        )
+        self._tetris_algo_type = "maskable_ppo" if isinstance(policy, MaskableActorCriticPolicy) else "ppo"
 
     def learn(
         self,

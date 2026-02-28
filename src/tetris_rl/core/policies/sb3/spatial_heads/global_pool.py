@@ -102,7 +102,11 @@ class GlobalPoolHead(BaseSpatialHead):
                 nn.Linear(Hh, self.features_dim, bias=True),
             )
         else:
-            self.post = nn.Identity() if pooled_dim == self.features_dim else nn.Linear(pooled_dim, self.features_dim, bias=True)
+            self.post = (
+                nn.Identity()
+                if pooled_dim == self.features_dim
+                else nn.Linear(pooled_dim, self.features_dim, bias=True)
+            )
 
     def forward(self, *, spatial: SpatialFeatures, specials: Specials) -> torch.Tensor:
         _ = specials
@@ -131,5 +135,3 @@ class GlobalPoolHead(BaseSpatialHead):
 
 
 __all__ = ["GlobalPoolHead"]
-
-

@@ -30,13 +30,13 @@ from tetris_rl.core.policies.sb3.api import SpatialFeatures
 
 class PatchTokenizer:
     def __init__(
-            self,
-            *,
-            patch_h: int,
-            patch_w: int,
-            stride_h: int | None = None,
-            stride_w: int | None = None,
-            padding: str = "valid",
+        self,
+        *,
+        patch_h: int,
+        patch_w: int,
+        stride_h: int | None = None,
+        stride_w: int | None = None,
+        padding: str = "valid",
     ) -> None:
         self.patch_h = int(patch_h)
         self.patch_w = int(patch_w)
@@ -52,13 +52,13 @@ class PatchTokenizer:
             raise ValueError(f"padding must be one of valid|same|tetris, got {padding!r}")
 
     def _extract_patches_2d(
-            self,
-            *,
-            x: torch.Tensor,  # (B,H,W,C)
-            patch_h: int,
-            patch_w: int,
-            stride_h: int,
-            stride_w: int,
+        self,
+        *,
+        x: torch.Tensor,  # (B,H,W,C)
+        patch_h: int,
+        patch_w: int,
+        stride_h: int,
+        stride_w: int,
     ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         if x.dim() != 4:
             raise ValueError(f"SpatialFeatures.x must be (B,H,W,C), got {tuple(x.shape)}")
@@ -95,7 +95,7 @@ class PatchTokenizer:
                 else:
                     Bn, Cn, Hn, Wn = x_nchw.shape
                     padded = x_nchw.new_ones((Bn, Cn, Hn + pad_h, Wn + pad_w))
-                    padded[:, :, pad_top:pad_top + Hn, pad_left:pad_left + Wn] = x_nchw
+                    padded[:, :, pad_top : pad_top + Hn, pad_left : pad_left + Wn] = x_nchw
                     if pad_top > 0:
                         padded[:, :, :pad_top, :] = 0.0
                     x_nchw = padded
@@ -124,9 +124,9 @@ class PatchTokenizer:
         return tokens, pos_h, pos_w
 
     def __call__(
-            self,
-            *,
-            spatial: SpatialFeatures,
+        self,
+        *,
+        spatial: SpatialFeatures,
     ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         return self._extract_patches_2d(
             x=spatial.x,
@@ -138,5 +138,3 @@ class PatchTokenizer:
 
 
 __all__ = ["PatchTokenizer"]
-
-

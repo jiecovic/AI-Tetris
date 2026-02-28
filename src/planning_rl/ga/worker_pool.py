@@ -35,6 +35,7 @@ def _init_worker(factory: GAWorkerFactory, fitness_cfg: Mapping[str, Any], seed_
     if os.name == "nt":
         try:
             import ctypes
+
             # Ignore Ctrl+C in worker processes to avoid noisy aborts on Windows.
             ctypes.windll.kernel32.SetConsoleCtrlHandler(None, True)
         except Exception:

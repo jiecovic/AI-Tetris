@@ -25,6 +25,7 @@ class MacroObsSpec:
           1..K = kind_idx+1
       - active_kind / next_kind are STRICT kind indices 0..K-1 from State (or dict snapshot).
     """
+
     board_h: int
     board_w: int
     num_kinds: int
@@ -74,7 +75,9 @@ def _extract_locked_grid(game: Any, state: Any) -> np.ndarray:
 
     g2 = _get_field(state, "grid", None)
     if g2 is None:
-        raise RuntimeError("cannot extract locked grid: neither game.board.grid nor state['grid']/state.grid is available")
+        raise RuntimeError(
+            "cannot extract locked grid: neither game.board.grid nor state['grid']/state.grid is available"
+        )
     return np.asarray(g2)
 
 

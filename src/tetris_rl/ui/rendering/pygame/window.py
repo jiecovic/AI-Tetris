@@ -42,9 +42,9 @@ def compute_layout(
     cell: int,
     hud_h: int = 0,
     sidebar_w: int = SIDEBAR_W,
-    right_pad: int = 8,   # breathing room on the right
+    right_pad: int = 8,  # breathing room on the right
     bottom_pad: int = 8,  # breathing room BETWEEN board+sidebar outer frame and footer bar
-    footer_h: int = 0,    # reserved footer bar height (below board+sidebar)
+    footer_h: int = 0,  # reserved footer bar height (below board+sidebar)
 ) -> Layout:
     """
     Authoritative layout for window geometry.

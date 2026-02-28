@@ -149,13 +149,7 @@ SPATIAL_HEAD_PARAMS_REGISTRY = {
 
 class SpatialHeadConfig(ConfigBase):
     type: SpatialHeadType
-    params: (
-        GlobalPoolParams
-        | FlattenParams
-        | FlattenMLPParams
-        | AttentionPoolParams
-        | ColumnCollapseParams
-    )
+    params: GlobalPoolParams | FlattenParams | FlattenMLPParams | AttentionPoolParams | ColumnCollapseParams
 
     @model_validator(mode="before")
     @classmethod
@@ -186,4 +180,3 @@ __all__ = [
     "SpatialHeadConfig",
     "SPATIAL_HEAD_PARAMS_REGISTRY",
 ]
-

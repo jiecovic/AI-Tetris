@@ -9,17 +9,11 @@ from tetris_rl_engine import ExpertPolicy, TetrisEngine, WarmupSpec
 
 def make_expert(name: str, args: argparse.Namespace) -> ExpertPolicy:
     if name == "codemy0":
-        return ExpertPolicy.codemy0(
-            beam_width=args.beam_width, beam_from_depth=args.beam_from_depth
-        )
+        return ExpertPolicy.codemy0(beam_width=args.beam_width, beam_from_depth=args.beam_from_depth)
     if name == "codemy1":
-        return ExpertPolicy.codemy1(
-            beam_width=args.beam_width, beam_from_depth=args.beam_from_depth
-        )
+        return ExpertPolicy.codemy1(beam_width=args.beam_width, beam_from_depth=args.beam_from_depth)
     if name == "codemy2":
-        return ExpertPolicy.codemy2(
-            beam_width=args.beam_width, beam_from_depth=args.beam_from_depth
-        )
+        return ExpertPolicy.codemy2(beam_width=args.beam_width, beam_from_depth=args.beam_from_depth)
     if name == "codemy2fast":
         return ExpertPolicy.codemy2fast(tail_weight=args.tail_weight)
     raise ValueError(f"unknown expert {name!r}")
@@ -73,9 +67,7 @@ def build_warmup(args: argparse.Namespace) -> WarmupSpec | None:
 
     if args.warmup_mode == "base_plus_poisson":
         if args.rows_base is None or args.lambda_ is None or args.rows_cap is None:
-            raise ValueError(
-                "--warmup-mode=base_plus_poisson requires --rows-base, --lambda and --rows-cap"
-            )
+            raise ValueError("--warmup-mode=base_plus_poisson requires --rows-base, --lambda and --rows-cap")
         w = WarmupSpec.base_plus_poisson(
             base=int(args.rows_base),
             lambda_=float(args.lambda_),
@@ -196,9 +188,7 @@ def _run_speed_test(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Speed test Rust Tetris engine (Python bindings)"
-    )
+    parser = argparse.ArgumentParser(description="Speed test Rust Tetris engine (Python bindings)")
     parser.add_argument("--steps", type=int, default=200_000, help="Total placement steps to execute.")
     parser.add_argument("--seed", type=int, default=12345)
     parser.add_argument("--piece-rule", type=str, default="uniform", choices=["uniform", "bag7"])
@@ -211,7 +201,9 @@ def parse_args() -> argparse.Namespace:
         choices=["none", "fixed", "uniform_rows", "poisson", "base_plus_poisson"],
         help="Warmup distribution for garbage rows. 'fixed' uses --warmup-rows/--warmup-holes for backwards compatibility.",
     )
-    parser.add_argument("--spawn-buffer", type=int, default=None, help="Override spawn buffer (rows kept empty at top).")
+    parser.add_argument(
+        "--spawn-buffer", type=int, default=None, help="Override spawn buffer (rows kept empty at top)."
+    )
 
     # Back-compat / convenience (fixed warmup)
     parser.add_argument("--warmup-rows", type=int, default=0)

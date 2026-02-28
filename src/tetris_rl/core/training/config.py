@@ -54,11 +54,14 @@ class EvalCheckpointCallbackConfig(ConfigBase):
                     if n is None or legacy is None:
                         raise ValueError
                     if int(n) != int(legacy):
-                        raise ValueError("eval_checkpoint.num_envs and eval_checkpoint.n_envs disagree; use n_envs only")
+                        raise ValueError(
+                            "eval_checkpoint.num_envs and eval_checkpoint.n_envs disagree; use n_envs only"
+                        )
                 except Exception:
                     raise ValueError("eval_checkpoint.num_envs and eval_checkpoint.n_envs disagree; use n_envs only")
 
         return out
+
 
 class LatestCallbackConfig(ConfigBase):
     enabled: bool = True

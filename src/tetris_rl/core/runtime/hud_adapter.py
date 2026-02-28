@@ -122,4 +122,3 @@ def from_info(info: Any) -> HudStep:
 def env_info_for_renderer(info: Any) -> Optional[Dict[str, Any]]:
     d = _as_dict(info)
     return d or None
-

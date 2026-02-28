@@ -98,6 +98,7 @@ class FeatureAugmenterBaseParams:
     Intentionally feature-dim agnostic:
     augmenters return (B, F + extra) with NO projection back.
     """
+
     pass
 
 
@@ -158,5 +159,3 @@ __all__ = [
     "_as_int_tuple",
     "_build_mlp",
 ]
-
-

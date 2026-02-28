@@ -70,15 +70,14 @@ class TransitionFeatures:
 @runtime_checkable
 class RewardFn(Protocol):
     def __call__(
-            self,
-            *,
-            prev_state: Any,
-            action: Any,
-            next_state: Any,
-            features: TransitionFeatures,
-            info: Dict[str, Any],
+        self,
+        *,
+        prev_state: Any,
+        action: Any,
+        next_state: Any,
+        features: TransitionFeatures,
+        info: Dict[str, Any],
     ) -> float: ...
 
 
 __all__ = ["TransitionFeatures", "RewardFn"]
-

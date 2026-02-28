@@ -9,6 +9,7 @@ from planning_rl.policies.base import PlanningPolicy
 
 class VectorParamPolicy(PlanningPolicy):
     """Planning policy parameterized by a flat vector for optimizers like GA."""
+
     @property
     @abstractmethod
     def num_params(self) -> int:

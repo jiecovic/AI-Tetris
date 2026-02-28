@@ -86,5 +86,3 @@ class Conv3x3_32_32_64Stem(nn.Module):
 
 
 __all__ = ["Conv3x3_32_32_64Stem"]
-
-

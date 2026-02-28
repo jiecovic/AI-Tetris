@@ -130,6 +130,7 @@ def run_datagen_job(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         logger.warning("[datagen] interrupted (Ctrl+C)")
         import os
+
         os._exit(130)  # guaranteed immediate exit (avoids mp/queue teardown hangs on Windows)
     except Exception:
         logger.exception("[datagen] generation failed")

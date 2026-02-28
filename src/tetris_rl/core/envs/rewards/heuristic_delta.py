@@ -145,13 +145,13 @@ class HeuristicDeltaReward(RewardFn):
         return float(floor + (1.0 - floor) * shaped)
 
     def __call__(
-            self,
-            *,
-            prev_state: Any,
-            action: Any,
-            next_state: Any,
-            features: TransitionFeatures,
-            info: Dict[str, Any],
+        self,
+        *,
+        prev_state: Any,
+        action: Any,
+        next_state: Any,
+        features: TransitionFeatures,
+        info: Dict[str, Any],
     ) -> float:
         r = 0.0
 

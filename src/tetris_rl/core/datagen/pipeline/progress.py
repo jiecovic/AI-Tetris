@@ -79,13 +79,13 @@ def _force_refresh(bar: Any) -> None:
 
 
 def _ensure_slot_started(
-        *,
-        slot_id: int,
-        sid: int,
-        total: int,
-        slot_bars: Dict[int, Any],
-        slot_state: Dict[int, Tuple[int, int, int]],  # slot -> (sid, done, total)
-        refresh: bool,
+    *,
+    slot_id: int,
+    sid: int,
+    total: int,
+    slot_bars: Dict[int, Any],
+    slot_state: Dict[int, Tuple[int, int, int]],  # slot -> (sid, done, total)
+    refresh: bool,
 ) -> None:
     slot_id = int(slot_id)
     sid = int(sid)
@@ -116,12 +116,12 @@ def _ensure_slot_started(
 
 
 def _handle_event(
-        *,
-        ev: Any,
-        shard_bar: Any,
-        slot_bars: Dict[int, Any],
-        slot_state: Dict[int, Tuple[int, int, int]],
-        refresh: bool,
+    *,
+    ev: Any,
+    shard_bar: Any,
+    slot_bars: Dict[int, Any],
+    slot_state: Dict[int, Tuple[int, int, int]],
+    refresh: bool,
 ) -> None:
     if not ev:
         return
@@ -208,13 +208,13 @@ def _handle_event(
 
 
 def _consume_loop(
-        *,
-        q: Any,
-        stop_evt: Event,
-        shard_bar: Any,
-        slot_bars: Dict[int, Any],
-        slot_state: Dict[int, Tuple[int, int, int]],
-        poll_s: float,
+    *,
+    q: Any,
+    stop_evt: Event,
+    shard_bar: Any,
+    slot_bars: Dict[int, Any],
+    slot_state: Dict[int, Tuple[int, int, int]],
+    poll_s: float,
 ) -> None:
     timeout = float(max(0.001, poll_s))
 
@@ -246,13 +246,13 @@ def _consume_loop(
 
 
 def _drain_queue(
-        *,
-        q: Any,
-        shard_bar: Any,
-        slot_bars: Dict[int, Any],
-        slot_state: Dict[int, Tuple[int, int, int]],
-        poll_s: float,
-        max_iters: int = 200,
+    *,
+    q: Any,
+    shard_bar: Any,
+    slot_bars: Dict[int, Any],
+    slot_state: Dict[int, Tuple[int, int, int]],
+    poll_s: float,
+    max_iters: int = 200,
 ) -> None:
     timeout = float(max(0.001, poll_s))
 
@@ -290,14 +290,14 @@ class MultiWorkerProgress:
     """
 
     def __init__(
-            self,
-            *,
-            total_shards: int,
-            shard_steps: int,
-            num_slots: int,
-            already_done: int = 0,
-            poll_s: float = PROGRESS_DRAIN_POLL_S,
-            queue_maxsize: int = PROGRESS_QUEUE_MAXSIZE,
+        self,
+        *,
+        total_shards: int,
+        shard_steps: int,
+        num_slots: int,
+        already_done: int = 0,
+        poll_s: float = PROGRESS_DRAIN_POLL_S,
+        queue_maxsize: int = PROGRESS_QUEUE_MAXSIZE,
     ) -> None:
         self.total_shards = int(total_shards)
         self.shard_steps = int(shard_steps)

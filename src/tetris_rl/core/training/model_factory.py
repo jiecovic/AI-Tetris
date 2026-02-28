@@ -189,4 +189,3 @@ def make_model_from_cfg(
         return model
 
     raise ValueError(f"unsupported algo type: {algo_type!r}")
-

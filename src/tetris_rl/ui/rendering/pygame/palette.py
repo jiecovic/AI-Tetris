@@ -29,9 +29,9 @@ class Palette:
     muted: Color = (170, 170, 190)
     matrix: Color = (0, 255, 128)
 
-    empty: Color = (32, 32, 40)         # empty cell fill
-    grid: Color = (45, 45, 58)          # grid line color
-    warn: Color = (240, 90, 90)         # warnings / game over
+    empty: Color = (32, 32, 40)  # empty cell fill
+    grid: Color = (45, 45, 58)  # grid line color
+    warn: Color = (240, 90, 90)  # warnings / game over
 
     fallback_piece: Color = (180, 180, 180)
 
@@ -57,13 +57,13 @@ class Palette:
     #
     # IMPORTANT: this is UI-only.
     # ---------------------------------------------------------------------
-    piece_1: Color = (0, 240, 240)    # I
-    piece_2: Color = (240, 240, 0)    # O
-    piece_3: Color = (160, 0, 240)    # T
-    piece_4: Color = (0, 240, 0)      # S
-    piece_5: Color = (240, 0, 0)      # Z
-    piece_6: Color = (0, 0, 240)      # J
-    piece_7: Color = (240, 160, 0)    # L
+    piece_1: Color = (0, 240, 240)  # I
+    piece_2: Color = (240, 240, 0)  # O
+    piece_3: Color = (160, 0, 240)  # T
+    piece_4: Color = (0, 240, 0)  # S
+    piece_5: Color = (240, 0, 0)  # Z
+    piece_6: Color = (0, 0, 240)  # J
+    piece_7: Color = (240, 160, 0)  # L
 
     def color_for_piece_id(self, piece_id: int) -> Color:
         """

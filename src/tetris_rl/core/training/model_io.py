@@ -34,9 +34,9 @@ def _looks_like_policy_mismatch(err: Exception) -> bool:
         return False
     s = str(err)
     return (
-            "MaskableActorCriticPolicy" in s
-            or "Policy must subclass" in s
-            or ("maskable" in s.lower() and "policy" in s.lower())
+        "MaskableActorCriticPolicy" in s
+        or "Policy must subclass" in s
+        or ("maskable" in s.lower() and "policy" in s.lower())
     )
 
 
@@ -151,9 +151,7 @@ def load_model_from_algo_config(
             _raise_maskable_load_hint(e)
             raise  # unreachable
 
-    raise ValueError(
-        f"unsupported algo.type: {algo_type!r} (expected 'ppo' or 'maskable_ppo')"
-    )
+    raise ValueError(f"unsupported algo.type: {algo_type!r} (expected 'ppo' or 'maskable_ppo')")
 
 
 def warn_if_maskable_with_multidiscrete(*, algo_cfg: AlgoConfig, env: Any) -> None:

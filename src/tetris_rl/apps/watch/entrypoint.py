@@ -100,7 +100,9 @@ def run_watch(args: argparse.Namespace) -> int:
     if ctx.artifact.note:
         logger.info("[watch] note=%s", str(ctx.artifact.note))
 
-    agent_name = "rust_expert" if bool(args.heuristic_agent) else ("random" if bool(args.random_action) else ctx.algo_type)
+    agent_name = (
+        "rust_expert" if bool(args.heuristic_agent) else ("random" if bool(args.random_action) else ctx.algo_type)
+    )
     if bool(args.heuristic_agent):
         agent_name = f"{agent_name}({str(args.heuristic_policy).strip().lower()})"
     if ctx.planning_policy is not None and (not bool(args.heuristic_agent)) and (not bool(args.random_action)):

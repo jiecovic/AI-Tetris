@@ -154,13 +154,13 @@ def run_td_experiment(cfg: DictConfig) -> int:
     for i in range(n_envs):
         seed_i = int(seed32_from(base_seed=int(td_cfg.seed), stream_id=int(0x7D00 + i)))
         built_env = make_env_from_cfg(
-                cfg=with_env_cfg(
-                    cfg=cfg_dict,
-                    env_cfg=env_train_cfg,
-                    max_steps_per_episode=td_cfg.max_steps_per_episode,
-                ),
-                seed=seed_i,
-            )
+            cfg=with_env_cfg(
+                cfg=cfg_dict,
+                env_cfg=env_train_cfg,
+                max_steps_per_episode=td_cfg.max_steps_per_episode,
+            ),
+            seed=seed_i,
+        )
         if i == 0:
             log_env_reward_summary(logger=logger, label="train", built_env=built_env, env_cfg=env_train_cfg)
         envs.append(built_env.env)

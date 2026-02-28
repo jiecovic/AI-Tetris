@@ -261,5 +261,3 @@ def worker_generate_shards(
 
 
 __all__ = ["WorkerResult", "worker_generate_shards", "_set_worker_progress_queue"]
-
-

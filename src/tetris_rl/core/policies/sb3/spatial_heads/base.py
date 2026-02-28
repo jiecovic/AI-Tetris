@@ -54,5 +54,3 @@ class BaseSpatialHead(nn.Module, ABC):
 
 
 __all__ = ["BaseSpatialHead"]
-
-

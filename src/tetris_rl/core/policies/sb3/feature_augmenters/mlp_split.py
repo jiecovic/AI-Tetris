@@ -31,6 +31,7 @@ class SplitMLPParams(FeatureAugmenterBaseParams):
 
     NOTE: NO projection back to any fixed dim.
     """
+
     use_active: bool = True
     use_next: bool = False
 
@@ -173,5 +174,3 @@ class SplitMLPAugmenter(BaseFeatureAugmenter):
 
 
 __all__ = ["SplitMLPParams", "SplitMLPAugmenter"]
-
-

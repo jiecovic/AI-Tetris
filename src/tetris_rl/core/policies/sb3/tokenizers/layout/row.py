@@ -50,5 +50,3 @@ class RowTokenizer(PatchTokenizer):
 
 
 __all__ = ["RowTokenizer"]
-
-

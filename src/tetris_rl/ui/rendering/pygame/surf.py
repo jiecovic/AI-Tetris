@@ -33,12 +33,12 @@ class SurfaceCache:
 
 
 def blit_text(
-        *,
-        screen: pygame.Surface,
-        font: pygame.font.Font,
-        text: str,
-        pos: Tuple[int, int],
-        color: Color,
+    *,
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    text: str,
+    pos: Tuple[int, int],
+    color: Color,
 ) -> None:
     img = font.render(text, True, color)
     screen.blit(img, pos)

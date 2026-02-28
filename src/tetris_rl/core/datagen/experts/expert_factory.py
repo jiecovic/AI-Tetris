@@ -17,6 +17,7 @@ class RustExpertBundle:
       - keep the Rust binding import localized
       - extend later (e.g. expose name/knobs) without touching call sites
     """
+
     policy: Any  # tetris_rl_engine.ExpertPolicy
 
 
@@ -58,17 +59,11 @@ def make_expert_from_config(*, expert_cfg: DataGenExpertConfig) -> RustExpertBun
     beam_from_depth = int(_opt_int(getattr(params, "beam_from_depth", None)) or 0)
 
     if t == "codemy0":
-        return RustExpertBundle(
-            policy=ExpertPolicy.codemy0(beam_width=beam_width, beam_from_depth=beam_from_depth)
-        )
+        return RustExpertBundle(policy=ExpertPolicy.codemy0(beam_width=beam_width, beam_from_depth=beam_from_depth))
     if t == "codemy1":
-        return RustExpertBundle(
-            policy=ExpertPolicy.codemy1(beam_width=beam_width, beam_from_depth=beam_from_depth)
-        )
+        return RustExpertBundle(policy=ExpertPolicy.codemy1(beam_width=beam_width, beam_from_depth=beam_from_depth))
     if t == "codemy2":
-        return RustExpertBundle(
-            policy=ExpertPolicy.codemy2(beam_width=beam_width, beam_from_depth=beam_from_depth)
-        )
+        return RustExpertBundle(policy=ExpertPolicy.codemy2(beam_width=beam_width, beam_from_depth=beam_from_depth))
 
     # ---------------------------
     # codemy2fast has its own knob

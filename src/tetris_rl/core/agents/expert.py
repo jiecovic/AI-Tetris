@@ -7,6 +7,7 @@ from typing import Any
 
 def resolve_expert_policy_class(*, engine: Any) -> Any:
     from tetris_rl_engine import ExpertPolicy
+
     return ExpertPolicy
 
 

@@ -14,6 +14,7 @@ class ImitationRunState:
 
     We keep these separate from SB3's num_timesteps because imitation is offline.
     """
+
     samples_seen: int = 0
     updates: int = 0
 
@@ -28,6 +29,7 @@ class ImitationSplitSpec:
 
     This keeps splits stable across runs and avoids row-level leakage.
     """
+
     eval_mod: int = 50  # ~2% eval if shards are dense
     eval_mod_offset: int = 0  # which residue is eval
 
@@ -44,6 +46,7 @@ class ImitationScheduleSpec:
       - "samples": cadences measured in samples_seen (recommended)
       - "updates": cadences measured in optimizer updates
     """
+
     tick_unit: TickUnit = "samples"
 
     # How often to save latest.zip (cadence counter depends on tick_unit).

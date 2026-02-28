@@ -89,7 +89,9 @@ def _policy_log_prob(policy: Any, obs_t: Any, actions_t: torch.Tensor) -> torch.
     raise RuntimeError("policy has neither get_distribution nor evaluate_actions")
 
 
-def _policy_entropy_and_acc(policy: Any, obs_t: Any, actions_t: torch.Tensor) -> Tuple[Optional[float], Optional[float]]:
+def _policy_entropy_and_acc(
+    policy: Any, obs_t: Any, actions_t: torch.Tensor
+) -> Tuple[Optional[float], Optional[float]]:
     """
     Best-effort diagnostics:
       - entropy: mean(dist.entropy())
@@ -127,12 +129,12 @@ def _policy_entropy_and_acc(policy: Any, obs_t: Any, actions_t: torch.Tensor) ->
 
 
 def bc_train_stream(
-        *,
-        model: Any,
-        batch_iter: Any,  # Iterator[Dict[str, np.ndarray]]
-        spec: BCTrainSpec,
-        device: str | torch.device = "cpu",
-        on_update: Optional[Callable[[int, Dict[str, float]], None]] = None,
+    *,
+    model: Any,
+    batch_iter: Any,  # Iterator[Dict[str, np.ndarray]]
+    spec: BCTrainSpec,
+    device: str | torch.device = "cpu",
+    on_update: Optional[Callable[[int, Dict[str, float]], None]] = None,
 ) -> Dict[str, float]:
     """
     Behavior cloning on a stream of batches.
@@ -234,11 +236,11 @@ def bc_train_stream(
 
 
 def bc_eval_stream(
-        *,
-        model: Any,
-        batch_iter: Any,  # Iterator[Dict[str, np.ndarray]]
-        device: str | torch.device = "cpu",
-        max_samples: int = 0,
+    *,
+    model: Any,
+    batch_iter: Any,  # Iterator[Dict[str, np.ndarray]]
+    device: str | torch.device = "cpu",
+    max_samples: int = 0,
 ) -> Dict[str, float]:
     """
     Offline (dataset-only) validation pass.

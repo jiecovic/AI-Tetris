@@ -86,4 +86,3 @@ __all__ = [
     "make_activation",
     "activation_class",
 ]
-

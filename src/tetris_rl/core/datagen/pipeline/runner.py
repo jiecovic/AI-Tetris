@@ -272,18 +272,18 @@ def _ensure_manifest(
             if int(getattr(m, "board_h")) != int(board_h) or int(getattr(m, "board_w")) != int(board_w):
                 raise RuntimeError(
                     f"[datagen] board shape mismatch for existing dataset: "
-                    f"manifest=({getattr(m,'board_h',None)},{getattr(m,'board_w',None)}) "
+                    f"manifest=({getattr(m, 'board_h', None)},{getattr(m, 'board_w', None)}) "
                     f"expected=({board_h},{board_w}) (refusing to repair)"
                 )
             if int(getattr(m, "num_kinds")) != int(num_kinds):
                 raise RuntimeError(
                     f"[datagen] num_kinds mismatch for existing dataset: "
-                    f"manifest={getattr(m,'num_kinds',None)} expected={num_kinds} (refusing to repair)"
+                    f"manifest={getattr(m, 'num_kinds', None)} expected={num_kinds} (refusing to repair)"
                 )
             if int(getattr(m, "action_dim")) != int(action_dim):
                 raise RuntimeError(
                     f"[datagen] action_dim mismatch for existing dataset: "
-                    f"manifest={getattr(m,'action_dim',None)} expected={action_dim} (refusing to repair)"
+                    f"manifest={getattr(m, 'action_dim', None)} expected={action_dim} (refusing to repair)"
                 )
         except AttributeError:
             # If manifest is extremely broken, we'll rebuild below.
@@ -446,9 +446,7 @@ def run_datagen(
     generated_manifest_shards: list[Any] = []
 
     mode = "resume" if existing else "new"
-    progress_every = 1 if num_workers <= 1 else max(
-        1, int(getattr(run, "progress_update_every_k", 2000))
-    )
+    progress_every = 1 if num_workers <= 1 else max(1, int(getattr(run, "progress_update_every_k", 2000)))
 
     # ------------------------------------------------------------------
     # generate shards
@@ -500,9 +498,7 @@ def run_datagen(
 
                     pending = set(futures)
                     while pending:
-                        done, pending = wait(
-                            pending, timeout=0.25, return_when=FIRST_COMPLETED
-                        )
+                        done, pending = wait(pending, timeout=0.25, return_when=FIRST_COMPLETED)
                         for fut in done:
                             result = fut.result()
                             generated_manifest_shards.extend(list(getattr(result, "manifest_shards", []) or []))

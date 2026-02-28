@@ -156,5 +156,3 @@ class TransformerMixer(nn.Module):
 
 
 __all__ = ["TransformerMixer"]
-
-

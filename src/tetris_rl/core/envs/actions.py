@@ -9,7 +9,7 @@ import numpy as np
 ActionMode = Literal["discrete", "multidiscrete"]
 
 InvalidActionPolicy = Literal[
-    "noop",       # do nothing (no engine step)
+    "noop",  # do nothing (no engine step)
     "terminate",  # end episode immediately
 ]
 

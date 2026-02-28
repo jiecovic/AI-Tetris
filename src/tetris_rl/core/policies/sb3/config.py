@@ -81,4 +81,3 @@ __all__ = [
     "FeatureExtractorConfig",
     "SB3PolicyConfig",
 ]
-

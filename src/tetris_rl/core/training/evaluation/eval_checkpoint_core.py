@@ -60,13 +60,13 @@ class EvalCheckpointCore:
     """
 
     def __init__(
-            self,
-            *,
-            spec: EvalCheckpointCoreSpec,
-            cfg: Dict[str, Any],
-            emit: Optional[Callable[[str], None]] = None,
-            log_scalar: Optional[Callable[[str, float, int], None]] = None,
-            eval_fn: Optional[EvalRunner] = None,
+        self,
+        *,
+        spec: EvalCheckpointCoreSpec,
+        cfg: Dict[str, Any],
+        emit: Optional[Callable[[str], None]] = None,
+        log_scalar: Optional[Callable[[str, float, int], None]] = None,
+        eval_fn: Optional[EvalRunner] = None,
     ) -> None:
         self.spec = spec
         self.cfg = cfg
@@ -159,7 +159,9 @@ class EvalCheckpointCore:
                 pbar.update(1)
             elif pbar.n < pbar.total:
                 pbar.update(1)
-            in_min_steps_drain = min_steps > 0 and done_eps_seen >= int(eval_episodes) and int(steps_seen) < int(min_steps)
+            in_min_steps_drain = (
+                min_steps > 0 and done_eps_seen >= int(eval_episodes) and int(steps_seen) < int(min_steps)
+            )
             _refresh_postfix(ret)
 
         def _on_step(k: int) -> None:
@@ -170,7 +172,9 @@ class EvalCheckpointCore:
             if dk <= 0:
                 return
             steps_seen += dk
-            in_min_steps_drain = min_steps > 0 and done_eps_seen >= int(eval_episodes) and int(steps_seen) < int(min_steps)
+            in_min_steps_drain = (
+                min_steps > 0 and done_eps_seen >= int(eval_episodes) and int(steps_seen) < int(min_steps)
+            )
             # Keep the UI alive when episode target is reached but step target is still not met.
             if in_min_steps_drain:
                 if (int(steps_seen) % 256) == 0:
@@ -229,12 +233,12 @@ class EvalCheckpointCore:
         return metrics
 
     def maybe_tick(
-            self,
-            *,
-            progress_step: int,
-            phase: str,
-            model: Any,
-            extra_metrics_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        self,
+        *,
+        progress_step: int,
+        phase: str,
+        model: Any,
+        extra_metrics_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     ) -> bool:
         if not self.ticker.should_tick(int(progress_step)):
             return False
@@ -281,7 +285,9 @@ class EvalCheckpointCore:
         if lines_like is not None:
             did_n = self.manager.maybe_save_best(model=model, metric="lines", value=float(lines_like), timesteps=t)
         if survival_like is not None:
-            did_t = self.manager.maybe_save_best(model=model, metric="survival", value=float(survival_like), timesteps=t)
+            did_t = self.manager.maybe_save_best(
+                model=model, metric="survival", value=float(survival_like), timesteps=t
+            )
 
         upd = ("R" if did_r else ".") + ("N" if did_n else ".") + ("T" if did_t else ".")
 

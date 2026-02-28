@@ -93,16 +93,16 @@ class StepWindow:
         self._last_step_reward = 0.0
 
     def push(
-            self,
-            *,
-            step_reward: float,
-            cleared_lines: int,
-            invalid: int,
-            masked: int,
-            score_delta: float = 0.0,
-            action_id: Optional[int] = None,
-            action_dim: Optional[int] = None,
-            episode_done: bool = False,
+        self,
+        *,
+        step_reward: float,
+        cleared_lines: int,
+        invalid: int,
+        masked: int,
+        score_delta: float = 0.0,
+        action_id: Optional[int] = None,
+        action_dim: Optional[int] = None,
+        episode_done: bool = False,
     ) -> None:
         # Track episode length regardless of step-window capacity.
         self._cur_ep_steps += 1

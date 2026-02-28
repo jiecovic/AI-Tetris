@@ -46,6 +46,7 @@ def pieces_dir() -> Path:
 # ADDITIONS (used by cli/watch.py)
 # ---------------------------------------------------------------------------
 
+
 def relpath(path: Path, *, base: Path) -> str:
     """
     Safe relative path helper for logging.
@@ -96,5 +97,3 @@ def resolve_run_dir(repo: Path, run: str) -> Path:
     if not out.is_dir():
         raise NotADirectoryError(f"run path is not a directory: {out}")
     return out
-
-

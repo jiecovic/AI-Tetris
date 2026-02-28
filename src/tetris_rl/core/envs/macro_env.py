@@ -32,11 +32,11 @@ class MacroTetrisEnv(gym.Env):
     metadata = {"render_modes": []}
 
     def __init__(
-            self,
-            *,
-            game: Any,  # PyO3 TetrisEngine
-            reward_fn: RewardFn,
-            spec: MacroEnvParams,
+        self,
+        *,
+        game: Any,  # PyO3 TetrisEngine
+        reward_fn: RewardFn,
+        spec: MacroEnvParams,
     ) -> None:
         super().__init__()
         self.game = game
@@ -51,7 +51,6 @@ class MacroTetrisEnv(gym.Env):
         self.invalid_action_policy = str(spec.invalid_action_policy).strip().lower()
         if self.invalid_action_policy not in {"noop", "terminate"}:
             raise ValueError(f"unknown invalid_action_policy: {spec.invalid_action_policy!r}")
-
 
         # Geometry from engine (authoritative).
         self.h = int(self.game.visible_h())
@@ -147,7 +146,6 @@ class MacroTetrisEnv(gym.Env):
         if vals is None:
             raise RuntimeError("simulate_active_features returned None for the requested action")
         return [float(v) for v in vals]
-
 
     def _snapshot(self) -> Dict[str, Any]:
         # Current binding supports snapshot(include_grid=True, visible=True)

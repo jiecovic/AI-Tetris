@@ -208,9 +208,7 @@ def resolve_policy_bootstrap(*, source: str, which: str = "latest") -> PolicyBoo
         except Exception:
             ckpt = expected_checkpoint_path(run_dir=spec.run_dir, which=str(which))
         if not ckpt.is_file():
-            raise FileNotFoundError(
-                f"policy checkpoint not found: {ckpt} (run={spec.run_dir}, which={which!r})"
-            )
+            raise FileNotFoundError(f"policy checkpoint not found: {ckpt} (run={spec.run_dir}, which={which!r})")
         preferred_algo = "maskable_ppo" if spec.algo_type == "imitation" else spec.algo_type
         return PolicyBootstrap(
             source=spec.run_dir,
@@ -224,10 +222,7 @@ def resolve_policy_bootstrap(*, source: str, which: str = "latest") -> PolicyBoo
         raise FileNotFoundError(f"policy source not found: {src_path}")
 
     if src_path.suffix.lower() not in {".yaml", ".yml"}:
-        raise ValueError(
-            "policy.source must be a run dir or YAML path (full config or policy config): "
-            f"{src_path}"
-        )
+        raise ValueError(f"policy.source must be a run dir or YAML path (full config or policy config): {src_path}")
 
     raw = load_yaml(src_path)
     policy_raw = raw.get("policy") if isinstance(raw.get("policy"), dict) else raw
@@ -266,10 +261,7 @@ def resolve_inference_artifact(*, spec: RunSpec, which: str) -> InferenceArtifac
     if intermediate_path.is_file():
         return InferenceArtifact(kind="ga_policy", path=intermediate_path, note="intermediate")
 
-    raise FileNotFoundError(
-        "GA run missing checkpoints/latest.zip and policy specs.\n"
-        f"run_dir={spec.run_dir}"
-    )
+    raise FileNotFoundError(f"GA run missing checkpoints/latest.zip and policy specs.\nrun_dir={spec.run_dir}")
 
 
 def load_ga_policy_from_artifact(

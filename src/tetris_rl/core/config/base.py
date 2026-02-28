@@ -9,4 +9,3 @@ class ConfigBase(BaseModel):
         extra="forbid",
         frozen=True,
     )
-

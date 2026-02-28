@@ -25,6 +25,7 @@ class JointMLPParams(FeatureAugmenterBaseParams):
     Output:
       features': (B, F + out_dim)  (if enabled and out_dim>0)
     """
+
     use_active: bool = True
     use_next: bool = False
 
@@ -102,5 +103,3 @@ class JointMLPAugmenter(BaseFeatureAugmenter):
 
 
 __all__ = ["JointMLPParams", "JointMLPAugmenter"]
-
-

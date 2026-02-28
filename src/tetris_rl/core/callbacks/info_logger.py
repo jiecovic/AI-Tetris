@@ -92,9 +92,9 @@ class InfoLoggerCallback(BaseCallback):
         summary = self._acc.summarize()
         for k, v in summary.items():
             if k.startswith("tf/"):
-                kk = f"{str(self.spec.prefix_tf).rstrip('/')}/{k[len('tf/'):]}".rstrip("/")
+                kk = f"{str(self.spec.prefix_tf).rstrip('/')}/{k[len('tf/') :]}".rstrip("/")
             elif k.startswith("game/"):
-                kk = f"{str(self.spec.prefix_game).rstrip('/')}/{k[len('game/'):]}".rstrip("/")
+                kk = f"{str(self.spec.prefix_game).rstrip('/')}/{k[len('game/') :]}".rstrip("/")
             else:
                 kk = k
             self.logger.record(kk, float(v))
@@ -103,7 +103,7 @@ class InfoLoggerCallback(BaseCallback):
             base = str(self.spec.prefix_actions).strip().rstrip("/")
             base = base if base else "train/actions"
             for hk, arr in self._acc.histograms().items():
-                suffix = hk[len("actions/"):] if hk.startswith("actions/") else hk
+                suffix = hk[len("actions/") :] if hk.startswith("actions/") else hk
                 self.logger.record(f"{base}/{suffix}", arr)
 
         self._acc.reset()

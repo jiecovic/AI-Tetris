@@ -310,10 +310,12 @@ def run_ga_experiment(cfg: DictConfig) -> int:
                 on_episode=on_episode,
                 on_step=on_step,
             )
+
         def _extra_metrics() -> dict[str, Any]:
             if last_eval_weights is None:
                 return {}
             return {"policy/weights": list(last_eval_weights)}
+
         core_cb = EvalCallback(
             spec=EvalCheckpointCoreSpec(
                 checkpoint_dir=paths.ckpt_dir,

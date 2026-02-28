@@ -175,4 +175,3 @@ def concat_extra(*, base: torch.Tensor, extra: Optional[torch.Tensor]) -> torch.
 
 
 __all__ = ["PoolKind", "pooled_dim", "pool_tokens", "concat_extra"]
-

@@ -76,9 +76,7 @@ class TDValuePlanningPolicy(TDPolicy):
             vm_cfg["weight_norm_eps"] = float(getattr(self._value_model, "weight_norm_eps", 1e-8))
         if hasattr(self._value_model, "weight_scale"):
             try:
-                vm_cfg["weight_scale"] = float(
-                    self._value_model.weight_scale.detach().cpu().item()
-                )
+                vm_cfg["weight_scale"] = float(self._value_model.weight_scale.detach().cpu().item())
             except Exception:
                 vm_cfg["weight_scale"] = float(self._value_model.weight_scale)
         if vm_cfg:

@@ -17,6 +17,7 @@ from tetris_rl.core.datagen.io.schema import DatasetManifest, ShardInfo
 # helpers
 # -----------------------------------------------------------------------------
 
+
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -67,6 +68,7 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
 # -----------------------------------------------------------------------------
 # manifest (BC-minimal)
 # -----------------------------------------------------------------------------
+
 
 def init_manifest(
     *,

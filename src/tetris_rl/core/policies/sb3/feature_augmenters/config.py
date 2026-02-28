@@ -125,4 +125,3 @@ __all__ = [
     "FeatureAugmenterConfig",
     "FEATURE_AUGMENTER_PARAMS_REGISTRY",
 ]
-

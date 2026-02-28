@@ -28,10 +28,10 @@ class LatestCheckpointCore:
     """
 
     def __init__(
-            self,
-            *,
-            spec: LatestCheckpointCoreSpec,
-            emit: Optional[Callable[[str], None]] = None,
+        self,
+        *,
+        spec: LatestCheckpointCoreSpec,
+        emit: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.spec = spec
         self.emit = emit

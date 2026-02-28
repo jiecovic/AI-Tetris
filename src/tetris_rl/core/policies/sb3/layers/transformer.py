@@ -64,5 +64,3 @@ class TransformerBlock(nn.Module):
 
 
 __all__ = ["TransformerBlockSpec", "TransformerBlock"]
-
-

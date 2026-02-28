@@ -184,12 +184,12 @@ class ColumnCollapseHead(BaseSpatialHead):
         return int(fc_hidden[-1])
 
     def __init__(
-            self,
-            *,
-            in_h: int,
-            in_channels: int,
-            features_dim: int,
-            spec: ColumnCollapseParams,
+        self,
+        *,
+        in_h: int,
+        in_channels: int,
+        features_dim: int,
+        spec: ColumnCollapseParams,
     ) -> None:
         super().__init__(features_dim=int(features_dim))
         self.spec = spec
@@ -276,7 +276,7 @@ class ColumnCollapseHead(BaseSpatialHead):
                 raise ValueError(f"fc_hidden entries must be > 0, got {h}")
             fc_layers.append(nn.Linear(d_prev, h))
             # apply activation/dropout after each FC; last one is configurable
-            is_last = (i == len(fc_hidden) - 1)
+            is_last = i == len(fc_hidden) - 1
             if (not is_last) or post_fc_activation:
                 fc_layers.append(act.__class__())
                 if p > 0.0:
@@ -350,5 +350,3 @@ class ColumnCollapseHead(BaseSpatialHead):
 
 
 __all__ = ["ColumnCollapseHead"]
-
-

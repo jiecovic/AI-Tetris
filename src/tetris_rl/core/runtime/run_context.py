@@ -168,6 +168,7 @@ def build_run_context(
         )
         planning_policy = algo.policy
         if float(reload_every_s) > 0.0:
+
             def _reload_td(path: Path) -> Any:
                 td_algo = TDAlgorithm.load(
                     path,
@@ -175,6 +176,7 @@ def build_run_context(
                     policy_builder=_build_policy,
                 )
                 return td_algo.policy
+
             planning_poller = PlanningCheckpointPoller(
                 run_dir=spec.run_dir,
                 which=str(which),
@@ -239,11 +241,7 @@ def build_run_context(
     elif spec.algo_cfg is not None:
         reload_algo_cfg = spec.algo_cfg
 
-    if (
-        spec.algo_type not in {"ga", "td"}
-        and float(reload_every_s) > 0.0
-        and reload_algo_cfg is not None
-    ):
+    if spec.algo_type not in {"ga", "td"} and float(reload_every_s) > 0.0 and reload_algo_cfg is not None:
         poller = CheckpointPoller(
             run_dir=spec.run_dir,
             which=str(which),

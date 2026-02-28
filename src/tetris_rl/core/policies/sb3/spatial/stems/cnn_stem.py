@@ -176,9 +176,7 @@ class CNNStem(nn.Module):
                             layers.append(nn.ConstantPad2d((left, right, top, bottom), default))
                         else:
                             layers.append(SideValuePad2d(padding=(left, right, top, bottom), values=vals))
-                        self._geom_ops.append(
-                            ("prepad", (int(top), int(bottom)), (int(left), int(right)), (0, 0))
-                        )
+                        self._geom_ops.append(("prepad", (int(top), int(bottom)), (int(left), int(right)), (0, 0)))
 
                 layers.append(
                     nn.Conv2d(
@@ -305,5 +303,3 @@ class CNNStem(nn.Module):
 
 
 __all__ = ["CNNStem"]
-
-

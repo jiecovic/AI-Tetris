@@ -27,9 +27,7 @@ def choose_config_path(run_dir: Path) -> Path:
 
     found = sorted([p.name for p in run_dir.iterdir() if p.is_file()])
     raise FileNotFoundError(
-        "Could not find config in run dir. Expected config.yaml.\n"
-        f"run_dir={run_dir}\n"
-        f"files={found}"
+        f"Could not find config in run dir. Expected config.yaml.\nrun_dir={run_dir}\nfiles={found}"
     )
 
 
@@ -80,6 +78,7 @@ class RunPaths:
 
     This is *runtime plumbing*, not config semantics.
     """
+
     run_dir: Path
     tb_dir: Optional[Path]
     ckpt_dir: Path

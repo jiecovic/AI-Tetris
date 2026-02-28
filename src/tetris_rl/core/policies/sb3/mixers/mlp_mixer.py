@@ -244,5 +244,3 @@ class MLPMixer(nn.Module):
 
 
 __all__ = ["MLPMixer"]
-
-

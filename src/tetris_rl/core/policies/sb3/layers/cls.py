@@ -12,11 +12,11 @@ from torch import nn
 
 
 def prepend_cls(
-        *,
-        x: torch.Tensor,  # (B,T,D)
-        types: torch.Tensor,  # (T,)
-        cls: nn.Parameter,  # (1,K,D)
-        cls_type_id: int,
+    *,
+    x: torch.Tensor,  # (B,T,D)
+    types: torch.Tensor,  # (T,)
+    cls: nn.Parameter,  # (1,K,D)
+    cls_type_id: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if x.dim() != 3:
         raise ValueError(f"x must be (B,T,D), got {tuple(x.shape)}")
@@ -41,4 +41,3 @@ def prepend_cls(
 
 
 __all__ = ["prepend_cls"]
-

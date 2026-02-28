@@ -12,7 +12,7 @@ class _CursorState:
     kind: str = "?"
     rot: int = 0
     col: int = 0  # IMPORTANT: engine action "col" parameter == bbox-left (col_left)
-    y: int = 0    # render-only (spawn row), typically 0
+    y: int = 0  # render-only (spawn row), typically 0
 
 
 class ManualMacroCursor:
@@ -144,7 +144,7 @@ class ManualMacroCursor:
 
     def _mask_bool(self) -> np.ndarray:
         m_u8 = np.asarray(self.engine.action_mask(), dtype=np.uint8).reshape(-1)
-        return (m_u8 != 0)
+        return m_u8 != 0
 
     def _action_id(self, *, rot: int, col: int) -> int:
         return int(self.engine.encode_action_id(int(rot), int(col)))
