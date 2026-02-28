@@ -1,6 +1,31 @@
 // rust/engine/src/lib.rs
 #![forbid(unsafe_code)]
 
+/*!
+Stable public API contract for `tetris_engine`.
+
+This crate intentionally exposes a curated root-level API only. Internal module
+layout is private implementation detail and may change without notice.
+
+Public engine surface:
+- Core state/types: `Game`, `SimPlacement`, `StepResult`
+- Geometry/constants: `H`, `W`, `HIDDEN_ROWS`, `ACTION_DIM`
+- Piece/warmup config: `Kind`, `PieceRuleKind`, `WarmupSpec`, `RowCountDist`, `HoleCount`
+- Feature types/functions:
+  - `GridFeatures`, `GridDelta`, `StepFeatures`
+  - `compute_grid_features`, `compute_grid_features_visible`, `compute_step_features`
+- Action-id helpers: `encode_action_id`, `decode_action_id`
+- UI helper: `preview_mask_4x4`
+
+Public policy surface:
+- Trait/config: `Policy`, `BeamConfig`
+- Policy entrypoints: `RandomPolicy`, `HeuristicPolicy`, `CodemyPolicy`, `Codemy0/1/2`, `Codemy2FastPolicy`
+- Heuristic support: `HeuristicFeature`, `HeuristicBuildError`, `compute_feature_values`
+
+Compatibility guidance:
+- Depend on items re-exported from crate root (`tetris_engine::...`).
+- Do not depend on internal module paths or private types.
+*/
 mod engine;
 mod policy;
 
