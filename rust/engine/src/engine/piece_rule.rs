@@ -68,7 +68,11 @@ impl PieceRule {
 
     pub fn draw(&mut self) -> Kind {
         match self.kind {
-            PieceRuleKind::Uniform => *Kind::all().choose(&mut self.rng).unwrap(),
+            PieceRuleKind::Uniform => {
+                let all = Kind::all();
+                let idx = self.rng.gen_range(0..all.len());
+                all[idx]
+            }
             PieceRuleKind::Bag7 => {
                 if self.bag_idx >= 7 {
                     self.refill_bag7();

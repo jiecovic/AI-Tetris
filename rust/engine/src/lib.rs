@@ -10,6 +10,6 @@ pub use engine::{
 };
 
 pub use policy::{
-    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, HeuristicFeature, HeuristicPolicy,
-    Policy,
+    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, HeuristicBuildError,
+    HeuristicFeature, HeuristicPolicy, Policy,
 };

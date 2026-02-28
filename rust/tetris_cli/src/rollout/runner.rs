@@ -94,13 +94,13 @@ impl Runner {
         // Progress bar is UI only; runner logic does not depend on it.
         let pb = if cfg.verbosity >= 1 {
             let pb = ProgressBar::new(cfg.steps);
-            pb.set_style(
-                ProgressStyle::with_template(
-                    "{bar:40.cyan/blue} {pos:>9}/{len:<9}  {percent:>3}%  {elapsed_precise}  {msg}",
-                )
-                .unwrap()
-                .progress_chars("=>-"),
-            );
+            let style = match ProgressStyle::with_template(
+                "{bar:40.cyan/blue} {pos:>9}/{len:<9}  {percent:>3}%  {elapsed_precise}  {msg}",
+            ) {
+                Ok(s) => s.progress_chars("=>-"),
+                Err(_) => ProgressStyle::default_bar().progress_chars("=>-"),
+            };
+            pb.set_style(style);
             Some(pb)
         } else {
             None
