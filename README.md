@@ -90,6 +90,36 @@ pip install -e .[viz]
 
 ---
 
+## Dev workflow
+
+Run one command set for local checks/fixes:
+
+```bash
+# Auto-fix lint + format
+tetris-dev fix
+
+# Validate lint + format + types
+tetris-dev check
+```
+
+Install and run git hooks with the same toolchain:
+
+```bash
+tetris-dev hooks --install
+```
+
+`tetris-dev check` runs:
+- `ruff check .`
+- `ruff format --check .`
+- `pyright`
+
+Pre-commit runs:
+- `ruff --fix`
+- `ruff-format`
+- `pyright`
+
+---
+
 ## CLI tools
 
 After installation, the following commands are available:

@@ -3,10 +3,13 @@ repos:
     rev: v0.6.5
     hooks:
       - id: ruff
+        args: [--fix]
+      - id: ruff-format
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.370
     hooks:
       - id: pyright
+        pass_filenames: false
   - repo: local
     hooks:
       - id: cargo-clippy

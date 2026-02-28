@@ -32,6 +32,7 @@ tetris-watch = "tetris_rl.cli.watch:main"
 tetris-datagen = "tetris_rl.cli.datagen:main"
 tetris-engine-speedtest = "tetris_rl.cli.engine_speedtest:main"
 tetris-benchmark = "tetris_rl.cli.benchmark:main"
+tetris-dev = "tetris_rl.cli.dev:main"
 
 
 [tool.maturin]
