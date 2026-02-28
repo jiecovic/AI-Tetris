@@ -10,3 +10,11 @@ path = "src/lib.rs"
 [dependencies]
 rand = "0.8"
 rustc-hash = "2.1"
+
+[dev-dependencies]
+criterion = "0.5"
+proptest = "1.6"
+
+[[bench]]
+name = "engine_core_bench"
+harness = false

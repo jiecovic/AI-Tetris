@@ -99,6 +99,29 @@ fn blocked_game_with_no_valid_actions() -> Game {
     g
 }
 
+fn policy_fixture_game_b() -> Game {
+    let mut g = Game::new_with_rule(27182818, PieceRuleKind::Uniform);
+
+    for c in 0..W {
+        if c != 1 && c != 8 {
+            g.grid[H - 1][c] = 1;
+        }
+        if c != 4 {
+            g.grid[H - 2][c] = 2;
+        }
+    }
+    for c in [0usize, 3, 5, 9] {
+        g.grid[H - 3][c] = 3;
+    }
+    for c in [2usize, 6] {
+        g.grid[H - 4][c] = 4;
+    }
+
+    g.active = Kind::S;
+    g.next = Kind::J;
+    g
+}
+
 fn with_each_policy(mut f: impl FnMut(&str, &mut dyn Policy)) {
     let mut p0 = Codemy0::new(None);
     f("codemy0", &mut p0);
@@ -183,6 +206,28 @@ fn codemy_regression_fixture_actions_are_stable() {
     let g = policy_fixture_game();
 
     const EXPECTED: RegressionActions = (Some(17), Some(18), Some(18), Some(18), Some(18));
+
+    let mut p0 = Codemy0::new(None);
+    let mut p1 = Codemy1::new(None);
+    let mut p2 = Codemy2::new(None);
+    let mut p2_fast = Codemy2FastPolicy::new(0.35);
+    let mut p_dynamic = CodemyPolicy::new(3, None);
+
+    let actual = (
+        p0.choose_action(&g),
+        p1.choose_action(&g),
+        p2.choose_action(&g),
+        p2_fast.choose_action(&g),
+        p_dynamic.choose_action(&g),
+    );
+    assert_eq!(actual, EXPECTED);
+}
+
+#[test]
+fn codemy_regression_fixture_b_actions_are_stable() {
+    let g = policy_fixture_game_b();
+
+    const EXPECTED: RegressionActions = (Some(10), Some(10), Some(12), Some(10), Some(12));
 
     let mut p0 = Codemy0::new(None);
     let mut p1 = Codemy1::new(None);
