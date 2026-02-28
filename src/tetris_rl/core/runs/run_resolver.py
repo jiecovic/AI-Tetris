@@ -188,10 +188,12 @@ def resolve_policy_bootstrap(*, source: str, which: str = "latest") -> PolicyBoo
         src_path = (repo / src).resolve()
 
     spec: RunSpec | None = None
-    try:
-        spec = load_run_spec(src_raw)
-    except Exception:
-        spec = None
+    source_looks_like_yaml = src_path.suffix.lower() in {".yaml", ".yml"}
+    if not source_looks_like_yaml:
+        try:
+            spec = load_run_spec(src_raw)
+        except (FileNotFoundError, NotADirectoryError):
+            spec = None
 
     if spec is not None:
         if spec.algo_type in {"ga", "td"}:
@@ -205,7 +207,7 @@ def resolve_policy_bootstrap(*, source: str, which: str = "latest") -> PolicyBoo
 
         try:
             ckpt = resolve_checkpoint_from_manifest(run_dir=spec.run_dir, which=str(which))
-        except Exception:
+        except FileNotFoundError:
             ckpt = expected_checkpoint_path(run_dir=spec.run_dir, which=str(which))
         if not ckpt.is_file():
             raise FileNotFoundError(f"policy checkpoint not found: {ckpt} (run={spec.run_dir}, which={which!r})")
