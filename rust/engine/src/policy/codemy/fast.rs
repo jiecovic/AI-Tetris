@@ -8,28 +8,36 @@ use crate::policy::base::Policy;
 
 use super::core::{BestResponseCache, CodemyCore};
 
-/// "codemy2fast": codemy1 exact best-response to known next piece,
-/// plus a cheap one-step tail estimate for the unknown next-next piece.
-/// No beam needed; uses per-decision caching.
+/**
+ * "codemy2fast": codemy1 exact best-response to known next piece,
+ * plus a cheap one-step tail estimate for the unknown next-next piece.
+ * No beam needed; uses per-decision caching.
+ */
 pub struct Codemy2FastPolicy {
     tail_weight: f64,
+    core: CodemyCore,
+    tail_cache: FxHashMap<u64, [f64; 7]>,
+    br_cache: BestResponseCache,
 }
 
 impl Codemy2FastPolicy {
     pub fn new(tail_weight: f64) -> Self {
-        Self { tail_weight }
+        Self {
+            tail_weight,
+            core: CodemyCore::new(None),
+            tail_cache: FxHashMap::default(),
+            br_cache: FxHashMap::default(),
+        }
     }
 }
 
 impl Policy for Codemy2FastPolicy {
     fn choose_action(&mut self, g: &Game) -> Option<usize> {
-        let core = CodemyCore::new(None);
-
         // Per-decision caches:
         //  - tail_cache: grid_hash -> best leaf scores for each kind (7)
         //  - br_cache: (grid_hash, kind) -> (best_aid, best_score_lock, best_grid_after_clear)
-        let mut tail_cache: FxHashMap<u64, [f64; 7]> = FxHashMap::default();
-        let mut br_cache: BestResponseCache = FxHashMap::default();
+        self.tail_cache.clear();
+        self.br_cache.clear();
 
         let mask1 = g.action_mask();
         let mut best: Option<(usize, f64)> = None;
@@ -45,13 +53,14 @@ impl Policy for Codemy2FastPolicy {
 
             let grid1 = &sim1.grid_after_clear;
 
-            let Some((_aid1_star, best1_score_lock, grid2)) =
-                core.best_response_for_known_piece_cached(grid1, g.next, &mut br_cache)
+            let Some((_aid1_star, best1_score_lock, grid2)) = self
+                .core
+                .best_response_for_known_piece_cached(grid1, g.next, &mut self.br_cache)
             else {
                 continue;
             };
 
-            let tail = core.tail_uniform_cached(&grid2, &mut tail_cache);
+            let tail = self.core.tail_uniform_cached(&grid2, &mut self.tail_cache);
             let v0 = best1_score_lock + self.tail_weight * tail;
 
             match best {

@@ -7,16 +7,18 @@ use pyo3::prelude::*;
 
 use tetris_engine::{H, W};
 
-/// Convert a Rust grid `[[u8; W]; H]` into a NumPy array with row range [r0, r1).
-///
-/// This intentionally copies into a Vec<Vec<u8>> for a simple, safe PyO3 surface.
-/// (We can optimize later with a contiguous buffer if it becomes a bottleneck.)
+/**
+ * Convert a Rust grid `[[u8; W]; H]` into a NumPy array with row range [r0, r1).
+ *
+ * This intentionally copies into a Vec<Vec<u8>> for a simple, safe PyO3 surface.
+ * (We can optimize later with a contiguous buffer if it becomes a bottleneck.)
+ */
 pub(crate) fn grid_rows_to_pyarray2<'py>(
     py: Python<'py>,
     grid: &[[u8; W]; H],
     r0: usize,
     r1: usize,
-) -> Bound<'py, PyArray2<u8>> {
+) -> PyResult<Bound<'py, PyArray2<u8>>> {
     let r0 = r0.min(H);
     let r1 = r1.min(H);
     let r0 = r0.min(r1);
@@ -26,7 +28,11 @@ pub(crate) fn grid_rows_to_pyarray2<'py>(
         rows.push(row.to_vec());
     }
 
-    PyArray2::from_vec2_bound(py, &rows).expect("from_vec2 failed")
+    PyArray2::from_vec2_bound(py, &rows).map_err(|e| {
+        PyValueError::new_err(format!(
+            "grid_rows_to_pyarray2: failed to build numpy array from grid rows [{r0},{r1}): {e}"
+        ))
+    })
 }
 
 /// Map a Kind glyph ("I","O","T","S","Z","J","L") to strict kind_idx (0..6).

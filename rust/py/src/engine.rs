@@ -8,18 +8,18 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use tetris_engine::engine::{
-    compute_grid_features, compute_step_features, Game, GridDelta, GridFeatures, PieceRuleKind,
-    SimPlacement, StepFeatures, WarmupSpec, ACTION_DIM, H, HIDDEN_ROWS, MAX_ROTS, W,
+    ACTION_DIM, Game, GridDelta, GridFeatures, H, HIDDEN_ROWS, MAX_ROTS, PieceRuleKind,
+    SimPlacement, StepFeatures, W, WarmupSpec, compute_grid_features, compute_step_features,
 };
-use tetris_engine::policy::heuristic::compute_feature_values;
 use tetris_engine::policy::HeuristicFeature;
+use tetris_engine::policy::heuristic::compute_feature_values;
 
 // Authoritative: bind the engine's canonical action-id helpers (do NOT reimplement).
 use tetris_engine::engine::constants::{decode_action_id, encode_action_id};
 
 // UI helpers (authoritative) for piece layout preview.
 // NOTE: pieces live under tetris_engine::engine::pieces (not crate-root).
-use tetris_engine::engine::pieces::{preview_mask_4x4, Kind};
+use tetris_engine::engine::pieces::{Kind, preview_mask_4x4};
 
 use crate::engine_dicts::{grid_features_to_dict, step_features_to_dict};
 use crate::engine_helpers::{mask4_to_pyarray2, visible_grid_as_full_h};
@@ -64,7 +64,7 @@ impl TetrisEngine {
         if after_clear {
             let grid_vis = visible_grid_as_full_h(&self.g.grid);
             let sf = compute_step_features(&grid_vis, prev_f);
-            return Ok(step_features_to_dict(py, sf, None, None).into_py(py));
+            return Ok(step_features_to_dict(py, sf, None, None)?.into_py(py));
         }
 
         let lock_f = self.g.last_lock_features();
@@ -79,23 +79,27 @@ impl TetrisEngine {
             _ => GridDelta::default(),
         };
         let sf = StepFeatures { cur, delta };
-        Ok(step_features_to_dict(py, sf, None, None).into_py(py))
+        Ok(step_features_to_dict(py, sf, None, None)?.into_py(py))
     }
 }
 
 #[pymethods]
 impl TetrisEngine {
-    /// TetrisEngine(seed=12345, piece_rule="uniform", warmup=None)
-    ///
-    /// Seeding notes:
-    /// - The Rust engine is deterministic given (seed, piece_rule, warmup).
-    /// - For RL training, the *Python* environment should generate a fresh episode seed
-    ///   each reset and pass it explicitly.
+    /**
+     * TetrisEngine(seed=12345, piece_rule="uniform", warmup=None)
+     *
+     * Seeding notes:
+     * - The Rust engine is deterministic given (seed, piece_rule, warmup).
+     * - For RL training, the *Python* environment should generate a fresh episode seed
+     *   each reset and pass it explicitly.
+     */
     #[new]
     #[pyo3(signature = (seed=12345, piece_rule="uniform", warmup=None))]
     fn new(seed: u64, piece_rule: &str, warmup: Option<PyWarmupSpec>) -> Self {
         let rule = PieceRuleKind::from_cli(piece_rule);
-        let warmup = warmup.map(|w| w.into_inner()).unwrap_or_else(WarmupSpec::none);
+        let warmup = warmup
+            .map(|w| w.into_inner())
+            .unwrap_or_else(WarmupSpec::none);
         let g = Game::new_with_rule_and_warmup_spec(seed, rule, warmup);
         Self { g, rule, warmup }
     }
@@ -124,11 +128,13 @@ impl TetrisEngine {
         H.saturating_sub(HIDDEN_ROWS)
     }
 
-    /// Fixed rotation slots used by action-id encoding.
-    ///
-    /// NOTE:
-    /// This is NOT "number of distinct rotations of the current piece".
-    /// Distinct rotations are enforced by the engine's validity/mask logic.
+    /**
+     * Fixed rotation slots used by action-id encoding.
+     *
+     * NOTE:
+     * This is NOT "number of distinct rotations of the current piece".
+     * Distinct rotations are enforced by the engine's validity/mask logic.
+     */
     fn max_rots(&self) -> usize {
         MAX_ROTS
     }
@@ -142,9 +148,11 @@ impl TetrisEngine {
     // Piece rule reporting (UI/logging convenience)
     // ---------------------------------------------------------------------
 
-    /// piece_rule() -> "uniform" | "bag7"
-    ///
-    /// Convenience getter so Python code doesn't have to depend on snapshot keys.
+    /**
+     * piece_rule() -> "uniform" | "bag7"
+     *
+     * Convenience getter so Python code doesn't have to depend on snapshot keys.
+     */
     fn piece_rule(&self) -> &'static str {
         match self.g.piece_rule_kind() {
             PieceRuleKind::Uniform => "uniform",
@@ -156,11 +164,13 @@ impl TetrisEngine {
     // Action-id helpers (authoritative: bind constants::{encode_action_id, decode_action_id})
     // ---------------------------------------------------------------------
 
-    /// encode_action_id(rot, col) -> action_id
-    ///
-    /// Fixed action encoding, authoritative in Rust engine.
-    /// - rot is wrapped by MAX_ROTS
-    /// - col must be in [0, W)
+    /**
+     * encode_action_id(rot, col) -> action_id
+     *
+     * Fixed action encoding, authoritative in Rust engine.
+     * - rot is wrapped by MAX_ROTS
+     * - col must be in [0, W)
+     */
     fn encode_action_id(&self, rot: usize, col: usize) -> PyResult<usize> {
         if col >= W {
             return Err(PyValueError::new_err(format!(
@@ -170,9 +180,11 @@ impl TetrisEngine {
         Ok(encode_action_id(rot % MAX_ROTS, col))
     }
 
-    /// decode_action_id(action_id) -> (rot, col)
-    ///
-    /// Inverse of encode_action_id, authoritative in Rust engine.
+    /**
+     * decode_action_id(action_id) -> (rot, col)
+     *
+     * Inverse of encode_action_id, authoritative in Rust engine.
+     */
     fn decode_action_id(&self, action_id: usize) -> PyResult<(usize, usize)> {
         if action_id >= ACTION_DIM {
             return Err(PyValueError::new_err(format!(
@@ -186,16 +198,18 @@ impl TetrisEngine {
     // UI-only helpers (piece preview layout)
     // ---------------------------------------------------------------------
 
-    /// kind_preview_mask(kind_idx, rot=0) -> uint8[4,4]
-    ///
-    /// UI-only helper:
-    /// - Returns a 4x4 mask for the given piece kind and rotation.
-    /// - Filled cells contain the piece id (1..=7), empty cells are 0.
-    ///
-    /// Notes:
-    /// - `kind_idx` matches the engine grid encoding (0 = empty, 1..=7 = piece kind).
-    /// - `rot` is clamped to the last *distinct* rotation for that kind.
-    /// - This method must only be called by rendering / watch-mode code, never in the env step path.
+    /**
+     * kind_preview_mask(kind_idx, rot=0) -> uint8[4,4]
+     *
+     * UI-only helper:
+     * - Returns a 4x4 mask for the given piece kind and rotation.
+     * - Filled cells contain the piece id (1..=7), empty cells are 0.
+     *
+     * Notes:
+     * - `kind_idx` matches the engine grid encoding (0 = empty, 1..=7 = piece kind).
+     * - `rot` is clamped to the last *distinct* rotation for that kind.
+     * - This method must only be called by rendering / watch-mode code, never in the env step path.
+     */
     #[pyo3(signature = (kind_idx, rot=0))]
     fn kind_preview_mask<'py>(
         &self,
@@ -210,21 +224,23 @@ impl TetrisEngine {
         })?;
 
         let m = preview_mask_4x4(kind, rot, kind.idx());
-        Ok(mask4_to_pyarray2(py, m))
+        mask4_to_pyarray2(py, m)
     }
 
     // ---------------------------------------------------------------------
     // Episode control
     // ---------------------------------------------------------------------
 
-    /// reset(seed=None, piece_rule=None, warmup=None)
-    ///
-    /// IMPORTANT:
-    /// - `seed` MUST be provided. If seed is None, this raises ValueError.
-    /// - This is intentional: Gymnasium envs should generate an episode seed in Python and pass it in.
-    ///
-    /// Determinism:
-    /// - Same (seed, piece_rule, warmup) => identical episode (piece stream + warmup noise).
+    /**
+     * reset(seed=None, piece_rule=None, warmup=None)
+     *
+     * IMPORTANT:
+     * - `seed` MUST be provided. If seed is None, this raises ValueError.
+     * - This is intentional: Gymnasium envs should generate an episode seed in Python and pass it in.
+     *
+     * Determinism:
+     * - Same (seed, piece_rule, warmup) => identical episode (piece stream + warmup noise).
+     */
     #[pyo3(signature = (seed=None, piece_rule=None, warmup=None))]
     fn reset(
         &mut self,
@@ -255,10 +271,12 @@ impl TetrisEngine {
         (r.terminated, r.cleared_lines, r.invalid_action)
     }
 
-    /// Convenience helper: compute expert action + step once.
-    /// Returns (terminated, cleared_lines, invalid_action, action_id).
-    ///
-    /// If the expert has no valid action, returns (true, 0, false, None).
+    /**
+     * Convenience helper: compute expert action + step once.
+     * Returns (terminated, cleared_lines, invalid_action, action_id).
+     *
+     * If the expert has no valid action, returns (true, 0, false, None).
+     */
     fn step_expert(&mut self, policy: &mut ExpertPolicy) -> (bool, u32, bool, Option<usize>) {
         let Some(aid) = policy.inner.action_id(&self.g) else {
             return (true, 0, false, None);
@@ -288,12 +306,12 @@ impl TetrisEngine {
     // ---------------------------------------------------------------------
 
     /// Returns grid as uint8 array of shape (H, W).
-    fn grid<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u8>> {
+    fn grid<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u8>>> {
         grid_rows_to_pyarray2(py, &self.g.grid, 0, H)
     }
 
     /// Returns the *visible* grid as uint8 array of shape (H - HIDDEN_ROWS, W).
-    fn visible_grid<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u8>> {
+    fn visible_grid<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u8>>> {
         grid_rows_to_pyarray2(py, &self.g.grid, HIDDEN_ROWS, H)
     }
 
@@ -301,10 +319,12 @@ impl TetrisEngine {
     // Snapshot (dict)
     // ---------------------------------------------------------------------
 
-    /// snapshot(include_grid=False, visible=True) -> dict
-    ///
-    /// Returns a small Python dict containing the engine state.
-    /// If include_grid is True, includes "grid" (visible or full depending on `visible`).
+    /**
+     * snapshot(include_grid=False, visible=True) -> dict
+     *
+     * Returns a small Python dict containing the engine state.
+     * If include_grid is True, includes "grid" (visible or full depending on `visible`).
+     */
     #[pyo3(signature = (include_grid=false, visible=true))]
     fn snapshot<'py>(
         &self,
@@ -333,7 +353,11 @@ impl TetrisEngine {
         d.set_item("piece_rule", self.piece_rule())?;
 
         if include_grid {
-            let g = if visible { self.visible_grid(py) } else { self.grid(py) };
+            let g = if visible {
+                self.visible_grid(py)?
+            } else {
+                self.grid(py)?
+            };
             d.set_item("grid", g)?;
         }
 
@@ -344,22 +368,26 @@ impl TetrisEngine {
     // Features (VISIBLE GRID ONLY)
     // ---------------------------------------------------------------------
 
-    /// grid_features() -> dict
-    ///
-    /// Computes classic locked-grid features (max_h, agg_h, holes, bump)
-    /// on the VISIBLE rows only (HIDDEN_ROWS..H).
+    /**
+     * grid_features() -> dict
+     *
+     * Computes classic locked-grid features (max_h, agg_h, holes, bump)
+     * on the VISIBLE rows only (HIDDEN_ROWS..H).
+     */
     fn grid_features<'py>(&self, py: Python<'py>) -> PyResult<PyObject> {
         let grid_vis = visible_grid_as_full_h(&self.g.grid);
         let f = compute_grid_features(&grid_vis);
-        Ok(grid_features_to_dict(py, f).into_py(py))
+        Ok(grid_features_to_dict(py, f)?.into_py(py))
     }
 
-    /// step_features(prev=None, after_clear=true) -> dict
-    ///
-    /// Computes current grid features plus deltas vs `prev` on the VISIBLE rows only.
-    /// `prev` is either None or a 4-tuple: (max_h, agg_h, holes, bump).
-    ///
-    /// If after_clear is False, uses lock-grid (pre-clear) features instead.
+    /**
+     * step_features(prev=None, after_clear=true) -> dict
+     *
+     * Computes current grid features plus deltas vs `prev` on the VISIBLE rows only.
+     * `prev` is either None or a 4-tuple: (max_h, agg_h, holes, bump).
+     *
+     * If after_clear is False, uses lock-grid (pre-clear) features instead.
+     */
     #[pyo3(signature = (prev=None, after_clear=true))]
     fn step_features<'py>(
         &self,
@@ -370,10 +398,12 @@ impl TetrisEngine {
         self.build_step_features_dict(py, prev, after_clear)
     }
 
-    /// step_action_id_with_features(action_id, prev=None, after_clear=true)
-    ///   -> (terminated, cleared, invalid, features)
-    ///
-    /// Applies the action and returns a step_features dict in the same format as step_features().
+    /**
+     * step_action_id_with_features(action_id, prev=None, after_clear=true)
+     *   -> (terminated, cleared, invalid, features)
+     *
+     * Applies the action and returns a step_features dict in the same format as step_features().
+     */
     #[pyo3(signature = (action_id, prev=None, after_clear=true))]
     fn step_action_id_with_features<'py>(
         &mut self,
@@ -387,10 +417,12 @@ impl TetrisEngine {
         Ok((r.terminated, r.cleared_lines, r.invalid_action, sf))
     }
 
-    /// heuristic_features(features, as_dict=false, visible=false) -> list|dict
-    ///
-    /// Computes heuristic feature values for the current grid.
-    /// If `visible` is True, hidden rows are zeroed before feature extraction.
+    /**
+     * heuristic_features(features, as_dict=false, visible=false) -> list|dict
+     *
+     * Computes heuristic feature values for the current grid.
+     * If `visible` is True, hidden rows are zeroed before feature extraction.
+     */
     #[pyo3(signature = (features, as_dict=false, visible=false))]
     fn heuristic_features<'py>(
         &self,
@@ -419,9 +451,11 @@ impl TetrisEngine {
         Ok(list.into_py(py))
     }
 
-    /// simulate_active_features(action_id, features, after_clear=true, as_dict=false, visible=false) -> list|dict|None
-    ///
-    /// Returns feature values for the simulated placement, or None if invalid.
+    /**
+     * simulate_active_features(action_id, features, after_clear=true, as_dict=false, visible=false) -> list|dict|None
+     *
+     * Returns feature values for the simulated placement, or None if invalid.
+     */
     #[pyo3(signature = (action_id, features, after_clear=true, as_dict=false, visible=false))]
     fn simulate_active_features<'py>(
         &self,
@@ -491,8 +525,8 @@ impl TetrisEngine {
         if include_grids {
             let (start, end) = if visible { (HIDDEN_ROWS, H) } else { (0, H) };
 
-            let g_lock = grid_rows_to_pyarray2(py, &sim.grid_after_lock, start, end);
-            let g_clear = grid_rows_to_pyarray2(py, &sim.grid_after_clear, start, end);
+            let g_lock = grid_rows_to_pyarray2(py, &sim.grid_after_lock, start, end)?;
+            let g_clear = grid_rows_to_pyarray2(py, &sim.grid_after_clear, start, end)?;
             d.set_item("grid_after_lock", g_lock)?;
             d.set_item("grid_after_clear", g_clear)?;
         }
