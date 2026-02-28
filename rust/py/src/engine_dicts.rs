@@ -4,7 +4,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use tetris_engine::engine::{GridDelta, GridFeatures, StepFeatures};
+use tetris_engine::{GridDelta, GridFeatures, StepFeatures};
 
 pub(crate) fn grid_features_to_dict<'py>(
     py: Python<'py>,

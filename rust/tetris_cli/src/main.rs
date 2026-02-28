@@ -6,9 +6,9 @@ mod rollout;
 use clap::Parser;
 
 use crate::rollout::{NoopSink, RolloutSink, Runner, RunnerConfig, TableSink};
-use tetris_engine::PieceRuleKind;
-use tetris_engine::policy::{
-    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, CodemyPolicy, Policy, RandomPolicy,
+use tetris_engine::{
+    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, CodemyPolicy, PieceRuleKind, Policy,
+    RandomPolicy,
 };
 
 #[derive(Parser, Debug)]

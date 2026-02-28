@@ -10,8 +10,9 @@
  * - Policy decision latency on fixed board states
  */
 use criterion::{BatchSize, Criterion, black_box, criterion_group, criterion_main};
-use tetris_engine::policy::{HeuristicFeature, HeuristicPolicy};
-use tetris_engine::{Codemy2FastPolicy, Game, PieceRuleKind, Policy};
+use tetris_engine::{
+    Codemy2FastPolicy, Game, HeuristicFeature, HeuristicPolicy, PieceRuleKind, Policy,
+};
 
 fn build_nontrivial_game(seed: u64) -> Game {
     let mut g = Game::new_with_rule(seed, PieceRuleKind::Uniform);

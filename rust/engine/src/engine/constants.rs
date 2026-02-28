@@ -5,7 +5,6 @@ pub const H: usize = 22;
 pub const W: usize = 10;
 
 pub const HIDDEN_ROWS: usize = 2;
-pub const VISIBLE_H: usize = H - HIDDEN_ROWS;
 
 /**
  * Default number of top rows that must remain empty at episode start (warmup headroom).

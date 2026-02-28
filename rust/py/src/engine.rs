@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use tetris_engine::{
-    ACTION_DIM, Game, GridDelta, GridFeatures, H, HIDDEN_ROWS, HeuristicFeature, Kind, MAX_ROTS,
+    ACTION_DIM, Game, GridDelta, GridFeatures, H, HIDDEN_ROWS, HeuristicFeature, Kind,
     PieceRuleKind, SimPlacement, StepFeatures, W, WarmupSpec, compute_feature_values,
     compute_grid_features, compute_step_features, decode_action_id, encode_action_id,
     preview_mask_4x4,
@@ -129,7 +129,7 @@ impl TetrisEngine {
      * Distinct rotations are enforced by the engine's validity/mask logic.
      */
     fn max_rots(&self) -> usize {
-        MAX_ROTS
+        ACTION_DIM / W
     }
 
     /// Fixed action-space dimension (MAX_ROTS * W).
@@ -161,7 +161,7 @@ impl TetrisEngine {
      * encode_action_id(rot, col) -> action_id
      *
      * Fixed action encoding, authoritative in Rust engine.
-     * - rot is wrapped by MAX_ROTS
+     * - rot is wrapped by fixed rotation slots (`ACTION_DIM / W`)
      * - col must be in [0, W)
      */
     fn encode_action_id(&self, rot: usize, col: usize) -> PyResult<usize> {
@@ -170,7 +170,7 @@ impl TetrisEngine {
                 "encode_action_id: col out of range: {col} (expected 0..{W})"
             )));
         }
-        Ok(encode_action_id(rot % MAX_ROTS, col))
+        Ok(encode_action_id(rot % (ACTION_DIM / W), col))
     }
 
     /**

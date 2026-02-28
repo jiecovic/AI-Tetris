@@ -19,7 +19,7 @@ impl PieceRuleKind {
 }
 
 #[derive(Clone)]
-pub struct PieceRule {
+pub(crate) struct PieceRule {
     kind: PieceRuleKind,
 
     // RNG lives here (spawn stream responsibility)
@@ -31,7 +31,7 @@ pub struct PieceRule {
 }
 
 impl PieceRule {
-    pub fn new(seed: u64, kind: PieceRuleKind) -> Self {
+    pub(crate) fn new(seed: u64, kind: PieceRuleKind) -> Self {
         Self {
             kind,
             rng: StdRng::seed_from_u64(seed),
@@ -48,7 +48,7 @@ impl PieceRule {
         }
     }
 
-    pub fn kind(&self) -> PieceRuleKind {
+    pub(crate) fn kind(&self) -> PieceRuleKind {
         self.kind
     }
 
@@ -66,7 +66,7 @@ impl PieceRule {
         self.bag_idx = 0;
     }
 
-    pub fn draw(&mut self) -> Kind {
+    pub(crate) fn draw(&mut self) -> Kind {
         match self.kind {
             PieceRuleKind::Uniform => {
                 let all = Kind::all();

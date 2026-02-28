@@ -29,10 +29,9 @@
  */
 use std::collections::HashSet;
 
-use tetris_engine::engine::Kind;
-use tetris_engine::policy::CodemyPolicy;
 use tetris_engine::{
-    Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, Game, H, PieceRuleKind, Policy, W,
+    Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, CodemyPolicy, Game, H, Kind, PieceRuleKind,
+    Policy, W,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]

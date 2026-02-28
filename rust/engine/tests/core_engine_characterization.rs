@@ -28,7 +28,6 @@
  * - They assert public API contracts (not private implementation details), so
  *   internals can be refactored without rewriting tests as long as behavior holds.
  */
-use tetris_engine::engine::PieceRule;
 use tetris_engine::{
     ACTION_DIM, Game, HoleCount, PieceRuleKind, RowCountDist, W, WarmupSpec, decode_action_id,
     encode_action_id,
@@ -177,13 +176,18 @@ fn simulate_active_matches_step_for_valid_actions() {
 
 #[test]
 fn bag7_emits_each_kind_exactly_once_per_bag() {
-    let mut rule = PieceRule::new(9001, PieceRuleKind::Bag7);
+    let mut g = Game::new_with_rule(9001, PieceRuleKind::Bag7);
+    let mut draws = Vec::with_capacity(28);
+    draws.push(g.active.idx());
+    for _ in 1..28 {
+        g.spawn_next();
+        draws.push(g.active.idx());
+    }
 
-    for _ in 0..4 {
+    for bag in 0..4 {
         let mut seen = [false; 7];
-        for _ in 0..7 {
-            let kind = rule.draw();
-            let idx0 = (kind.idx() - 1) as usize;
+        for idx in draws[(bag * 7)..((bag + 1) * 7)].iter() {
+            let idx0 = (*idx - 1) as usize;
             assert!(!seen[idx0]);
             seen[idx0] = true;
         }
@@ -193,9 +197,12 @@ fn bag7_emits_each_kind_exactly_once_per_bag() {
 
 #[test]
 fn uniform_rule_emits_only_valid_kind_ids() {
-    let mut rule = PieceRule::new(123456, PieceRuleKind::Uniform);
-    for _ in 0..200 {
-        let idx = rule.draw().idx();
+    let mut g = Game::new_with_rule(123456, PieceRuleKind::Uniform);
+    for i in 0..200 {
+        if i > 0 {
+            g.spawn_next();
+        }
+        let idx = g.active.idx();
         assert!((1..=7).contains(&idx));
     }
 }

@@ -4,10 +4,9 @@
 
 use pyo3::prelude::*;
 
-use tetris_engine::Game;
-use tetris_engine::policy::{
-    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, HeuristicFeature, HeuristicPolicy,
-    Policy,
+use tetris_engine::{
+    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, Game, HeuristicFeature,
+    HeuristicPolicy, Policy,
 };
 
 use crate::engine::TetrisEngine;

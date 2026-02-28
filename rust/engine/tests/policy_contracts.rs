@@ -12,9 +12,9 @@
  * - `RandomPolicy` (seeded deterministic RNG path)
  * - `HeuristicPolicy` (deterministic scorer/search path)
  */
-use tetris_engine::engine::Kind;
-use tetris_engine::policy::{HeuristicFeature, HeuristicPolicy, RandomPolicy};
-use tetris_engine::{Game, H, PieceRuleKind, Policy, W};
+use tetris_engine::{
+    Game, H, HeuristicFeature, HeuristicPolicy, Kind, PieceRuleKind, Policy, RandomPolicy, W,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct GameSnapshot {
