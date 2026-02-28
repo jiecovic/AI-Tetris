@@ -1,10 +1,10 @@
 # @package _global_
 defaults:
   - /hydra: default
-  - /envs@env_train: warmup
-  - /rewards@env_train.reward: lines_height_scaled
+  - /envs@env_train: warmup_finite_horizon
+  - /rewards@env_train.reward: lines_height_scaled_terminal
   - /envs@env_eval: empty
-  - /rewards@env_eval.reward: lines_height_scaled
+  - /rewards@env_eval.reward: lines_height_scaled_terminal
   - /sb3_policies@policy: patchscan_experiment1
   - /trains@_global_: ppo_eval
   - _self_
@@ -12,7 +12,7 @@ defaults:
 log_level: info                      # logging verbosity
 
 run:
-  name: ppo_patchscan_experiment1_run   # run name (used for output dir)
+  name: ppo_patchscan_experiment2_run   # run name (used for output dir)
   seed: 0                            # base RNG seed
   out_root: runs                     # output root directory
   tensorboard: true                  # enable TensorBoard logging

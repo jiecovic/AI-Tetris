@@ -26,8 +26,8 @@ algo:
     n_steps: 4096                     # rollout length per environment
     batch_size: 2048                   # minibatch size for updates
     n_epochs: 3                       # number of optimization epochs per rollout
-    gamma: 0.9995                      # discount factor
-    gae_lambda: 0.97
-    ent_coef: 0.005                    # entropy regularization coefficient
+    gamma: 0.993                      # discount factor
+    gae_lambda: 0.95
+    ent_coef: 0.02                    # entropy regularization coefficient
 #    target_kl: 0.02                   # KL divergence target (optional)
 #    clip_range: 0.1                   # PPO clip range (optional)
