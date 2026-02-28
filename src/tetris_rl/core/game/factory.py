@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from tetris_rl.core.game.config import GameConfig, WarmupConfig
+from tetris_rl.core.game.warmup_params import extract_holes_config
 
 
 @lru_cache(maxsize=1)
@@ -36,73 +37,6 @@ class GameBundle:
 
     game: Any
     warmup_spec: Optional[Any]
-
-
-def _as_int(value: Any, *, where: str) -> int:
-    if isinstance(value, bool):
-        raise TypeError(f"{where} must be an int, got bool")
-    return int(value)
-
-
-def _parse_hole_range(value: Any, *, where: str) -> tuple[int, int]:
-    if isinstance(value, dict):
-        if "min" not in value or "max" not in value:
-            raise KeyError(f"{where} dict must contain keys {{min,max}}")
-        lo = _as_int(value["min"], where=f"{where}.min")
-        hi = _as_int(value["max"], where=f"{where}.max")
-    elif isinstance(value, (list, tuple)):
-        if len(value) != 2:
-            raise ValueError(f"{where} must have exactly 2 values [min,max]")
-        lo = _as_int(value[0], where=f"{where}[0]")
-        hi = _as_int(value[1], where=f"{where}[1]")
-    elif isinstance(value, str):
-        s = value.strip()
-        if s.startswith("[") and s.endswith("]"):
-            s = s[1:-1].strip()
-        parts = [p.strip() for p in s.split(",")]
-        if len(parts) != 2:
-            raise ValueError(f"{where} string range must be 'min,max'")
-        lo = _as_int(parts[0], where=f"{where}.min")
-        hi = _as_int(parts[1], where=f"{where}.max")
-    else:
-        raise TypeError(f"{where} must be a range ([min,max], 'min,max', or {{min,max}})")
-
-    if lo > hi:
-        raise ValueError(f"{where} min must be <= max (got {lo}>{hi})")
-    return lo, hi
-
-
-def _extract_holes_config(params: Dict[str, Any]) -> tuple[int, Optional[tuple[int, int]]]:
-    """
-    Supports:
-      - holes: int
-      - holes: [min,max] (or "min,max" / {min,max})
-      - uniform_holes: {min,max}  (legacy key)
-    """
-    holes_raw = params.get("holes", 1)
-    holes_range: Optional[tuple[int, int]] = None
-    fixed_holes: int
-
-    if isinstance(holes_raw, (list, tuple, dict)):
-        holes_range = _parse_hole_range(holes_raw, where="warmup.params.holes")
-        fixed_holes = int(holes_range[0])
-    elif isinstance(holes_raw, str) and "," in holes_raw:
-        holes_range = _parse_hole_range(holes_raw, where="warmup.params.holes")
-        fixed_holes = int(holes_range[0])
-    else:
-        fixed_holes = _as_int(holes_raw, where="warmup.params.holes")
-
-    uh = params.get("uniform_holes", None)
-    if uh is not None:
-        legacy_range = _parse_hole_range(uh, where="warmup.params.uniform_holes")
-        if holes_range is None:
-            holes_range = legacy_range
-        elif holes_range != legacy_range:
-            raise ValueError(
-                "warmup.params.holes range and warmup.params.uniform_holes disagree; use one or make them equal"
-            )
-
-    return fixed_holes, holes_range
 
 
 def _parse_warmup_cfg(obj: Any) -> Optional[Any]:
@@ -146,7 +80,7 @@ def _parse_warmup_cfg(obj: Any) -> Optional[Any]:
         params = dict(params_obj)
     else:
         params = params_obj.model_dump(mode="json", by_alias=True)
-    holes_fixed, holes_range = _extract_holes_config(params)
+    holes_fixed, holes_range = extract_holes_config(params)
 
     if t in {"none", "off", "disabled", "null"}:
         warmup_spec = WarmupSpec.none()
@@ -183,7 +117,7 @@ def _parse_warmup_cfg(obj: Any) -> Optional[Any]:
     return warmup_spec
 
 
-def make_game_bundle_from_cfg(cfg: Dict[str, Any]) -> GameBundle:
+def make_game_bundle_from_cfg(cfg: dict[str, Any]) -> GameBundle:
     """
     Construct the Rust engine wrapper + warmup spec.
 
@@ -226,7 +160,7 @@ def make_game_bundle_from_cfg(cfg: Dict[str, Any]) -> GameBundle:
     return GameBundle(game=game, warmup_spec=warmup_spec)
 
 
-def make_game_from_cfg(cfg: Dict[str, Any]) -> Any:
+def make_game_from_cfg(cfg: dict[str, Any]) -> Any:
     """
     Backward-compat helper returning only the engine.
 

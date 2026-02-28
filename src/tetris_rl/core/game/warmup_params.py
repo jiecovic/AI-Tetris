@@ -44,6 +44,46 @@ def _parse_hole_range(value: object, *, where: str) -> dict[str, int]:
     return {"min": int(lo), "max": int(hi)}
 
 
+def parse_hole_range(value: object, *, where: str) -> tuple[int, int]:
+    parsed = _parse_hole_range(value, where=where)
+    return int(parsed["min"]), int(parsed["max"])
+
+
+def extract_holes_config(params: Mapping[str, object]) -> tuple[int, tuple[int, int] | None]:
+    """
+    Normalize warmup holes config from params mapping.
+
+    Supports:
+      - holes: int
+      - holes: [min,max] (or "min,max" / {min,max})
+      - uniform_holes: {min,max}  (legacy key)
+    """
+    holes_raw = params.get("holes", 1)
+    holes_range: tuple[int, int] | None = None
+    fixed_holes: int
+
+    if isinstance(holes_raw, (list, tuple, Mapping)):
+        holes_range = parse_hole_range(holes_raw, where="warmup.params.holes")
+        fixed_holes = int(holes_range[0])
+    elif isinstance(holes_raw, str) and "," in holes_raw:
+        holes_range = parse_hole_range(holes_raw, where="warmup.params.holes")
+        fixed_holes = int(holes_range[0])
+    else:
+        fixed_holes = _as_int(holes_raw, where="warmup.params.holes")
+
+    uh = params.get("uniform_holes", None)
+    if uh is not None:
+        legacy_range = parse_hole_range(uh, where="warmup.params.uniform_holes")
+        if holes_range is None:
+            holes_range = legacy_range
+        elif holes_range != legacy_range:
+            raise ValueError(
+                "warmup.params.holes range and warmup.params.uniform_holes disagree; use one or make them equal"
+            )
+
+    return int(fixed_holes), holes_range
+
+
 class HoleRangeConfig(ConfigBase):
     min: int = Field(ge=0)
     max: int = Field(ge=0)
@@ -205,7 +245,9 @@ WarmupParams = (
 
 
 __all__ = [
+    "extract_holes_config",
     "HoleRangeConfig",
+    "parse_hole_range",
     "WarmupHolesParams",
     "WarmupNoneParams",
     "WarmupFixedParams",

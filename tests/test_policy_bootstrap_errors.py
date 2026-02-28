@@ -14,11 +14,7 @@ def test_resolve_policy_bootstrap_surfaces_invalid_run_config(tmp_path: Path) ->
     run_dir = tmp_path / "bad_run"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "config.yaml").write_text(
-        "algo:\n"
-        "  type: maskable_ppo\n"
-        "policy_init:\n"
-        "  source: runs/previous\n"
-        "  which: latest\n",
+        "algo:\n  type: maskable_ppo\npolicy_init:\n  source: runs/previous\n  which: latest\n",
         encoding="utf-8",
     )
 
