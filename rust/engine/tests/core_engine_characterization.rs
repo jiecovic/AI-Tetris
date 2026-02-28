@@ -1,6 +1,33 @@
 // rust/engine/tests/core_engine_characterization.rs
 #![forbid(unsafe_code)]
 
+/**
+ * Core engine characterization tests.
+ *
+ * Purpose:
+ * - Lock in current observable engine behavior before deeper refactors.
+ * - Catch behavioral regressions in the transition kernel, seeding rules,
+ *   and piece generation semantics.
+ *
+ * What is tested:
+ * - Deterministic trajectories for identical `(seed, piece_rule, warmup)` inputs.
+ * - Warmup isolation: warmup must not alter initial `active/next` piece draws.
+ * - Action-id encoding/decoding roundtrip and invalid out-of-range no-op behavior.
+ * - Simulation parity: `simulate_action_id_active` must match `step_action_id`
+ *   for valid actions on grid and scalar counters.
+ * - Piece-rule invariants:
+ *   - `Bag7`: each bag contains every kind exactly once.
+ *   - `Uniform`: emitted kind ids are always valid.
+ * - Game-over latch semantics when spawn rows are occupied.
+ *
+ * How the tests work:
+ * - They primarily compare full-state snapshots (`grid`, piece kinds, counters,
+ *   `game_over`, `last_lock_features`) rather than isolated fields.
+ * - They use deterministic fixture seeds and bounded rollout loops to keep tests
+ *   fast while still exercising realistic transitions.
+ * - They assert public API contracts (not private implementation details), so
+ *   internals can be refactored without rewriting tests as long as behavior holds.
+ */
 use tetris_engine::engine::PieceRule;
 use tetris_engine::{
     ACTION_DIM, Game, HoleCount, PieceRuleKind, RowCountDist, W, WarmupSpec, decode_action_id,

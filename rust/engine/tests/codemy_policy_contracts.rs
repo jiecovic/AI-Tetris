@@ -1,6 +1,32 @@
 // rust/engine/tests/codemy_policy_contracts.rs
 #![forbid(unsafe_code)]
 
+/**
+ * Codemy policy contract and regression tests.
+ *
+ * Purpose:
+ * - Define stable behavioral contracts for codemy family policies independent
+ *   of internal search/caching implementation details.
+ * - Provide a compact regression harness so refactors can be validated quickly.
+ *
+ * What is tested:
+ * - Contract: when legal actions exist, each policy returns a legal action id.
+ * - Contract: when no legal actions exist, each policy returns `None`.
+ * - Determinism: repeated `choose_action` calls on the same immutable state
+ *   produce the same result.
+ * - Purity: `choose_action` does not mutate the input `Game` state.
+ * - Regression fixture: a deterministic handcrafted board + fixed active/next
+ *   piece pair yields a fixed action tuple across codemy variants.
+ *
+ * How the tests work:
+ * - A shared fixture builder creates:
+ *   - one non-trivial board with multiple decision options, and
+ *   - one fully blocked board with zero legal actions.
+ * - A `with_each_policy` helper runs the same assertions over all target
+ *   codemy variants to keep coverage broad and consistent.
+ * - The regression test stores expected actions as explicit constants so
+ *   behavior deltas during refactors are surfaced immediately.
+ */
 use std::collections::HashSet;
 
 use tetris_engine::engine::Kind;
