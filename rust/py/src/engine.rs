@@ -7,19 +7,12 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use tetris_engine::engine::{
-    ACTION_DIM, Game, GridDelta, GridFeatures, H, HIDDEN_ROWS, MAX_ROTS, PieceRuleKind,
-    SimPlacement, StepFeatures, W, WarmupSpec, compute_grid_features, compute_step_features,
+use tetris_engine::{
+    ACTION_DIM, Game, GridDelta, GridFeatures, H, HIDDEN_ROWS, HeuristicFeature, Kind, MAX_ROTS,
+    PieceRuleKind, SimPlacement, StepFeatures, W, WarmupSpec, compute_feature_values,
+    compute_grid_features, compute_step_features, decode_action_id, encode_action_id,
+    preview_mask_4x4,
 };
-use tetris_engine::policy::HeuristicFeature;
-use tetris_engine::policy::heuristic::compute_feature_values;
-
-// Authoritative: bind the engine's canonical action-id helpers (do NOT reimplement).
-use tetris_engine::engine::constants::{decode_action_id, encode_action_id};
-
-// UI helpers (authoritative) for piece layout preview.
-// NOTE: pieces live under tetris_engine::engine::pieces (not crate-root).
-use tetris_engine::engine::pieces::{Kind, preview_mask_4x4};
 
 use crate::engine_dicts::{grid_features_to_dict, step_features_to_dict};
 use crate::engine_helpers::{mask4_to_pyarray2, visible_grid_as_full_h};

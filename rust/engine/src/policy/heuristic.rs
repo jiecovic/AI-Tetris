@@ -329,13 +329,6 @@ impl HeuristicScorer {
         Ok(Self { features, weights })
     }
 
-    /**
-     * Backward-compatible constructor returning string errors.
-     */
-    pub fn new(features: Vec<HeuristicFeature>, weights: Vec<f64>) -> Result<Self, String> {
-        Self::try_new(features, weights).map_err(|e| e.to_string())
-    }
-
     fn score_grid(&self, grid: &[[u8; W]; H]) -> f64 {
         let needs = feature_needs(&self.features);
         let stats = compute_feature_stats(grid, needs);

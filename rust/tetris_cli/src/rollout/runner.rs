@@ -5,9 +5,7 @@ use std::time::Duration;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use tetris_engine::engine::Game;
-use tetris_engine::engine::warmup::{HoleCount, RowCountDist, WarmupSpec};
-use tetris_engine::policy::Policy;
+use tetris_engine::{Game, HoleCount, PieceRuleKind, Policy, RowCountDist, WarmupSpec};
 
 use super::sinks::{ReportRow, RolloutSink};
 use super::stats::{FinalReport, RolloutStats};
@@ -25,7 +23,7 @@ pub struct RunnerConfig {
     pub steps: u64,
     /// Base seed; each episode uses base_seed + episode_id.
     pub base_seed: u64,
-    pub rule_kind: tetris_engine::engine::PieceRuleKind,
+    pub rule_kind: PieceRuleKind,
 
     /// Used only for the final report string.
     pub policy_name: String,

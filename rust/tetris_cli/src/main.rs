@@ -8,8 +8,7 @@ use clap::Parser;
 use crate::rollout::{NoopSink, RolloutSink, Runner, RunnerConfig, TableSink};
 use tetris_engine::PieceRuleKind;
 use tetris_engine::policy::{
-    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, CodemyPolicyDynamic, Policy,
-    RandomPolicy,
+    BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, CodemyPolicy, Policy, RandomPolicy,
 };
 
 #[derive(Parser, Debug)]
@@ -119,7 +118,7 @@ fn main() {
                 1 => Box::new(Codemy0::new(beam)),
                 2 => Box::new(Codemy1::new(beam)),
                 3 => Box::new(Codemy2::new(beam)),
-                _ => Box::new(CodemyPolicyDynamic::new(n, beam)),
+                _ => Box::new(CodemyPolicy::new(n, beam)),
             }
         }
 

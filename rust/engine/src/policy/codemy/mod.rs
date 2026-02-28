@@ -14,9 +14,9 @@ mod fast;
 mod score;
 mod unknown;
 
-pub use core::{GridScorer, SearchCore};
+pub(crate) use core::{GridScorer, SearchCore};
 pub use fast::Codemy2FastPolicy;
-pub use unknown::UniformIID;
+pub(crate) use unknown::UniformIID;
 
 // Keep these internal unless you actually want them public later.
 use core::{CodemyCore, CodemyScorer};

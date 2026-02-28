@@ -3,7 +3,7 @@
 
 use std::time::Instant;
 
-use tetris_engine::engine::{GridDelta, GridFeatures, PieceRuleKind, compute_grid_features};
+use tetris_engine::{GridDelta, GridFeatures, H, PieceRuleKind, W, compute_grid_features};
 
 #[derive(Clone, Debug)]
 pub struct RolloutStats {
@@ -64,12 +64,7 @@ impl RolloutStats {
      * `max_h` and `avg_h` are from your cheap height metrics.
      * We ALSO compute grid features here (agg/holes/bump) to maintain running averages.
      */
-    pub fn on_step(
-        &mut self,
-        grid: &[[u8; tetris_engine::engine::W]; tetris_engine::engine::H],
-        max_h: u32,
-        avg_h: f32,
-    ) {
+    pub fn on_step(&mut self, grid: &[[u8; W]; H], max_h: u32, avg_h: f32) {
         self.steps_done += 1;
         self.ep_len += 1;
 
