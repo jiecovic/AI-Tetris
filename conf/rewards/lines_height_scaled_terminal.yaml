@@ -1,0 +1,21 @@
+# @package _group_
+type: lines_height_scaled
+params:
+  invalid_penalty: 10.0                  # Invalid action penalty; usually inactive with MaskablePPO masks.
+  terminal_penalty: 50.0                # Game-over penalty (natural termination).
+  survival_bonus: 0.0                    # Per-step bonus while alive.
+  line_cleared_bonus: 1.1                # Reward per cleared line.
+  tetris_bonus: 0.25                     # Extra reward for clearing 4 lines.
+  board_clear_bonus: 5.0                 # Extra reward when board is fully empty after a step.
+  positive_scale_floor: 0.2              # Lower bound for positive-term scaling at high board risk.
+  positive_scale_power: 1.1              # Curvature of positive-term scaling.
+  positive_scale_metric: agg_height      # agg_height | max_height
+
+  # Truncation reward: at truncated episode end, add
+  # -(lambda_h * min(height_metric, truncation_height_cap)
+  #   + lambda_holes * min(holes, truncation_holes_cap)).
+  truncation_penalty_height_coeff: 1.0   # lambda_h
+  truncation_penalty_holes_coeff: 0.05    # lambda_holes
+  truncation_height_metric: max_height   # max_height | agg_height
+  truncation_height_cap: 20              # cap for selected height metric
+  truncation_holes_cap: 100               # cap for holes

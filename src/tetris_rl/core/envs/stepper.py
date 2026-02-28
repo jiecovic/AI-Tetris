@@ -94,6 +94,7 @@ class MacroStepRunner:
             next_state=st,
             action=action,
             payload=payload,
+            truncated=bool(truncated),
         )
 
         if str(getattr(env, "info_level", "train")).strip().lower() != "watch":
@@ -142,9 +143,11 @@ class MacroStepRunner:
         next_state: Dict[str, Any],
         action: Any,
         payload,
+        truncated: bool,
     ) -> float:
         env = self.env
         info_for_reward = dict(payload.info)
+        info_for_reward["truncated"] = bool(truncated)
         info_for_reward["engine_info"] = {"game": env.game}
         return float(
             env.reward_fn(

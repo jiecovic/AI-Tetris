@@ -133,9 +133,7 @@ class LinesShapeRewardParams(InvalidPenaltyParams):
                 out[name] = float(value)
                 return
             if float(out[name]) != float(value):
-                raise ValueError(
-                    f"legacy hole key conflicts with {name}; use {name} only"
-                )
+                raise ValueError(f"legacy hole key conflicts with {name}; use {name} only")
 
         if old_inc_pen is not None:
             _set_or_check("holes_increase_reward", -float(old_inc_pen))
@@ -153,8 +151,15 @@ class LinesHeightScaledRewardParams(InvalidPenaltyParams):
     survival_bonus: float = 0.001
     line_cleared_bonus: float = 1.0
     tetris_bonus: float = 1.0
+    board_clear_bonus: float = 0.0
     positive_scale_floor: float = 0.2
     positive_scale_power: float = 1.0
+    positive_scale_metric: str = "agg_height"
+    truncation_penalty_height_coeff: float = 0.0
+    truncation_penalty_holes_coeff: float = 0.0
+    truncation_height_metric: str = "max_height"
+    truncation_height_cap: float = 20.0
+    truncation_holes_cap: float = 20.0
 
     @model_validator(mode="before")
     @classmethod
@@ -168,6 +173,35 @@ class LinesHeightScaledRewardParams(InvalidPenaltyParams):
         power = float(out.get("positive_scale_power", 1.0))
         if power < 1.0:
             raise ValueError("positive_scale_power must be >= 1")
+        board_clear_bonus = float(out.get("board_clear_bonus", 0.0))
+        if board_clear_bonus < 0.0:
+            raise ValueError("board_clear_bonus must be >= 0")
+        pos_metric = str(out.get("positive_scale_metric", "agg_height")).strip().lower()
+        if pos_metric in {"max", "max_h", "max_height", "maxheight"}:
+            out["positive_scale_metric"] = "max_height"
+        elif pos_metric in {"agg", "agg_h", "agg_height", "aggheight"}:
+            out["positive_scale_metric"] = "agg_height"
+        else:
+            raise ValueError("positive_scale_metric must be one of: agg_height | max_height")
+        metric = str(out.get("truncation_height_metric", "max_height")).strip().lower()
+        if metric in {"max", "max_h", "max_height", "maxheight"}:
+            out["truncation_height_metric"] = "max_height"
+        elif metric in {"agg", "agg_h", "agg_height", "aggheight"}:
+            out["truncation_height_metric"] = "agg_height"
+        else:
+            raise ValueError("truncation_height_metric must be one of: max_height | agg_height")
+        height_cap = float(out.get("truncation_height_cap", 20.0))
+        if height_cap < 0.0:
+            raise ValueError("truncation_height_cap must be >= 0")
+        holes_cap = float(out.get("truncation_holes_cap", 20.0))
+        if holes_cap < 0.0:
+            raise ValueError("truncation_holes_cap must be >= 0")
+        h_coeff = float(out.get("truncation_penalty_height_coeff", 0.0))
+        hole_coeff = float(out.get("truncation_penalty_holes_coeff", 0.0))
+        if h_coeff < 0.0:
+            raise ValueError("truncation_penalty_height_coeff must be >= 0")
+        if hole_coeff < 0.0:
+            raise ValueError("truncation_penalty_holes_coeff must be >= 0")
         return out
 
 

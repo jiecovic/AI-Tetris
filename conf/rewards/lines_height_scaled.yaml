@@ -3,8 +3,15 @@ type: lines_height_scaled
 params:
   invalid_penalty: 10.0
   terminal_penalty: 10.0
-  survival_bonus: 0.001
-  line_cleared_bonus: 1.0
-  tetris_bonus: 1.0
-  positive_scale_floor: 0.5
+  survival_bonus: 0.0
+  line_cleared_bonus: 1.1
+  tetris_bonus: 0.25
+  board_clear_bonus: 0.0
+  positive_scale_floor: 0.4
   positive_scale_power: 1.0
+  positive_scale_metric: agg_height
+  truncation_penalty_height_coeff: 0.0
+  truncation_penalty_holes_coeff: 0.0
+  truncation_height_metric: max_height
+  truncation_height_cap: 20
+  truncation_holes_cap: 20
