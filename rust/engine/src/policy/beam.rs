@@ -1,12 +1,14 @@
 // src/policy/beam.rs
 #![forbid(unsafe_code)]
 
-/// Beam pruning configuration for Codemy-style lookahead.
-///
-/// Depth meaning:
-/// - 0 = choosing aid0 (current piece)
-/// - 1 = choosing aid1 (next piece)
-/// - 2+ = deeper recursion
+/**
+ * Beam pruning configuration for Codemy-style lookahead.
+ *
+ * Depth meaning:
+ * - 0 = choosing aid0 (current piece)
+ * - 1 = choosing aid1 (next piece)
+ * - 2+ = deeper recursion
+ */
 #[derive(Clone, Copy, Debug)]
 pub struct BeamConfig {
     /// Start pruning from this depth onward.
@@ -24,8 +26,10 @@ impl BeamConfig {
     }
 }
 
-/// Deterministic top-N selection for (aid, score) without sorting the entire list.
-/// - O(n) partition + O(k log k) sort of the kept prefix.
+/**
+ * Deterministic top-N selection for (aid, score) without sorting the entire list.
+ * - O(n) partition + O(k log k) sort of the kept prefix.
+ */
 pub(crate) fn prune_top_n_scores(mut xs: Vec<(usize, f64)>, n: usize) -> Vec<(usize, f64)> {
     if xs.is_empty() {
         return xs;
@@ -44,8 +48,10 @@ pub(crate) fn prune_top_n_scores(mut xs: Vec<(usize, f64)>, n: usize) -> Vec<(us
     xs
 }
 
-/// In-place top-N pruning on a preallocated slice.
-/// Returns the number of kept elements (prefix length).
+/**
+ * In-place top-N pruning on a preallocated slice.
+ * Returns the number of kept elements (prefix length).
+ */
 pub(crate) fn prune_top_n_scores_inplace(xs: &mut [(usize, f64)], len: usize, n: usize) -> usize {
     if len == 0 {
         return 0;

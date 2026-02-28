@@ -14,8 +14,8 @@ mod fast;
 mod score;
 mod unknown;
 
-pub use fast::Codemy2FastPolicy;
 pub use core::{GridScorer, SearchCore};
+pub use fast::Codemy2FastPolicy;
 pub use unknown::UniformIID;
 
 // Keep these internal unless you actually want them public later.
@@ -76,8 +76,10 @@ impl Policy for CodemyPolicyDynamic {
     }
 }
 
-/// Static (compile-time plies + unknown model) policy.
-/// This is the "Rust templates" fast-path: monomorphized for each (M, PLIES).
+/**
+ * Static (compile-time plies + unknown model) policy.
+ * This is the "Rust templates" fast-path: monomorphized for each (M, PLIES).
+ */
 pub struct CodemyPolicyStatic<M: UnknownModel<CodemyScorer>, const PLIES: u8> {
     core: CodemyCore,
     _m: PhantomData<M>,

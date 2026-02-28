@@ -7,9 +7,11 @@ pub const W: usize = 10;
 pub const HIDDEN_ROWS: usize = 2;
 pub const VISIBLE_H: usize = H - HIDDEN_ROWS;
 
-/// Default number of top rows that must remain empty at episode start (warmup headroom).
-/// - Must be >= HIDDEN_ROWS to guarantee spawn rows are empty.
-/// - Using a small extra margin (e.g. +2) makes starts less "immediately cramped".
+/**
+ * Default number of top rows that must remain empty at episode start (warmup headroom).
+ * - Must be >= HIDDEN_ROWS to guarantee spawn rows are empty.
+ * - Using a small extra margin (e.g. +2) makes starts less "immediately cramped".
+ */
 pub const DEFAULT_SPAWN_BUFFER: usize = HIDDEN_ROWS + 2;
 
 pub const MAX_ROTS: usize = 4;

@@ -2,14 +2,16 @@
 #![forbid(unsafe_code)]
 
 use crate::engine::constants::W;
-use crate::engine::pieces::{rotations, Kind};
+use crate::engine::pieces::{Kind, rotations};
 
-/// Return (min_dx, max_dx) across the 4 blocks of the rotated piece.
-///
-/// NOTE:
-/// - `rot` must be a *distinct* rotation index for this `kind`:
-///   0 <= rot < kind.num_rots()
-/// - Rotation-slot validity is enforced at call sites (mask/kernel/step).
+/**
+ * Return (min_dx, max_dx) across the 4 blocks of the rotated piece.
+ *
+ * NOTE:
+ * - `rot` must be a *distinct* rotation index for this `kind`:
+ *   0 <= rot < kind.num_rots()
+ * - Rotation-slot validity is enforced at call sites (mask/kernel/step).
+ */
 #[inline]
 pub fn dx_range(kind: Kind, rot: usize) -> (i32, i32) {
     debug_assert!(

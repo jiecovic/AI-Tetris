@@ -35,7 +35,15 @@ impl PieceRule {
         Self {
             kind,
             rng: StdRng::seed_from_u64(seed),
-            bag: [Kind::I, Kind::O, Kind::T, Kind::S, Kind::Z, Kind::J, Kind::L],
+            bag: [
+                Kind::I,
+                Kind::O,
+                Kind::T,
+                Kind::S,
+                Kind::Z,
+                Kind::J,
+                Kind::L,
+            ],
             bag_idx: 7, // force refill on first Bag7 draw
         }
     }
@@ -45,7 +53,15 @@ impl PieceRule {
     }
 
     fn refill_bag7(&mut self) {
-        self.bag = [Kind::I, Kind::O, Kind::T, Kind::S, Kind::Z, Kind::J, Kind::L];
+        self.bag = [
+            Kind::I,
+            Kind::O,
+            Kind::T,
+            Kind::S,
+            Kind::Z,
+            Kind::J,
+            Kind::L,
+        ];
         self.bag.shuffle(&mut self.rng);
         self.bag_idx = 0;
     }

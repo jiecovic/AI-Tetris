@@ -60,22 +60,26 @@ impl Kind {
         }
     }
 
-    /// Number of *distinct* rotations for this piece (Classic7 semantics).
-    ///
-    /// Authoritative rule: redundant rotation slots are invalid.
+    /**
+     * Number of *distinct* rotations for this piece (Classic7 semantics).
+     *
+     * Authoritative rule: redundant rotation slots are invalid.
+     */
     #[inline]
     pub fn num_rots(self) -> usize {
         rotations(self).len()
     }
 }
 
-/// Rotations are represented as (dx, dy) offsets.
-/// `rotations(kind)[rot]` returns a slice of 4 blocks.
-///
-/// IMPORTANT:
-/// - This returns ONLY distinct rotations (Classic7), matching the old YAML.
-/// - Fixed action encoding still uses MAX_ROTS=4 "rotation slots"; slots with
-///   rot_u >= kind.num_rots() must be treated as invalid by the engine.
+/**
+ * Rotations are represented as (dx, dy) offsets.
+ * `rotations(kind)[rot]` returns a slice of 4 blocks.
+ *
+ * IMPORTANT:
+ * - This returns ONLY distinct rotations (Classic7), matching the old YAML.
+ * - Fixed action encoding still uses MAX_ROTS=4 "rotation slots"; slots with
+ *   rot_u >= kind.num_rots() must be treated as invalid by the engine.
+ */
 pub fn rotations(kind: Kind) -> &'static [&'static [(i32, i32)]] {
     use Kind::*;
     match kind {
@@ -118,12 +122,14 @@ pub fn rotations(kind: Kind) -> &'static [&'static [(i32, i32)]] {
     }
 }
 
-/// UI helper: rasterize a piece rotation into a 4x4 mask.
-///
-/// - `rot` is clamped to the last distinct rotation for `kind`.
-/// - `fill` is the value written into occupied cells (recommended: `kind.idx()`).
-///
-/// Returns a 4x4 grid in row-major order: m[y][x].
+/**
+ * UI helper: rasterize a piece rotation into a 4x4 mask.
+ *
+ * - `rot` is clamped to the last distinct rotation for `kind`.
+ * - `fill` is the value written into occupied cells (recommended: `kind.idx()`).
+ *
+ * Returns a 4x4 grid in row-major order: m[y][x].
+ */
 pub fn preview_mask_4x4(kind: Kind, rot: usize, fill: u8) -> [[u8; 4]; 4] {
     let mut m = [[0u8; 4]; 4];
 

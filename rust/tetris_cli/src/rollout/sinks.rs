@@ -1,9 +1,11 @@
 // src/rollout/sinks.rs
 #![forbid(unsafe_code)]
 
-/// One periodic row emitted by the runner.
-///
-/// Transport struct: runner/stats compute fields, sinks only format/emit.
+/**
+ * One periodic row emitted by the runner.
+ *
+ * Transport struct: runner/stats compute fields, sinks only format/emit.
+ */
 #[derive(Clone, Debug)]
 pub struct ReportRow {
     pub step: u64,
@@ -49,9 +51,11 @@ impl RolloutSink for NoopSink {
     fn on_report_row(&mut self, _row: &ReportRow, _pb: Option<&indicatif::ProgressBar>) {}
 }
 
-/// Human-readable periodic table sink.
-///
-/// Cadence (every N steps) is handled by Runner. This sink prints whenever called.
+/**
+ * Human-readable periodic table sink.
+ *
+ * Cadence (every N steps) is handled by Runner. This sink prints whenever called.
+ */
 pub struct TableSink {
     header_every: u64,
     rows_printed: u64,

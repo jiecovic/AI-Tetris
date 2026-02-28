@@ -5,10 +5,12 @@ use pyo3::prelude::*;
 
 use tetris_engine::{HoleCount, RowCountDist, WarmupSpec};
 
-/// Python-facing warmup specification.
-///
-/// This wraps the Rust engine's `WarmupSpec` without duplicating engine logic.
-/// Use the static constructors to build commonly used distributions.
+/**
+ * Python-facing warmup specification.
+ *
+ * This wraps the Rust engine's `WarmupSpec` without duplicating engine logic.
+ * Use the static constructors to build commonly used distributions.
+ */
 #[pyclass(name = "WarmupSpec")]
 #[derive(Clone)]
 pub struct PyWarmupSpec {
@@ -17,9 +19,11 @@ pub struct PyWarmupSpec {
 
 #[pymethods]
 impl PyWarmupSpec {
-    /// WarmupSpec.none()
-    ///
-    /// No warmup noise (clean board).
+    /**
+     * WarmupSpec.none()
+     *
+     * No warmup noise (clean board).
+     */
     #[staticmethod]
     fn none() -> Self {
         Self {
@@ -27,9 +31,11 @@ impl PyWarmupSpec {
         }
     }
 
-    /// WarmupSpec.fixed(rows, holes=1)
-    ///
-    /// Fixed number of garbage rows and fixed holes per row.
+    /**
+     * WarmupSpec.fixed(rows, holes=1)
+     *
+     * Fixed number of garbage rows and fixed holes per row.
+     */
     #[staticmethod]
     #[pyo3(signature = (rows, holes=1))]
     fn fixed(rows: u8, holes: u8) -> Self {
@@ -41,9 +47,11 @@ impl PyWarmupSpec {
         Self { inner: s }
     }
 
-    /// WarmupSpec.uniform_rows(min_rows, max_rows, holes=1)
-    ///
-    /// Uniformly sample number of garbage rows from [min_rows, max_rows] (inclusive).
+    /**
+     * WarmupSpec.uniform_rows(min_rows, max_rows, holes=1)
+     *
+     * Uniformly sample number of garbage rows from [min_rows, max_rows] (inclusive).
+     */
     #[staticmethod]
     #[pyo3(signature = (min_rows, max_rows, holes=1))]
     fn uniform_rows(min_rows: u8, max_rows: u8, holes: u8) -> Self {
@@ -58,25 +66,32 @@ impl PyWarmupSpec {
         Self { inner: s }
     }
 
-    /// WarmupSpec.poisson(lambda_, cap, holes=1)
-    ///
-    /// Sample rows ~ Poisson(lambda_) and clamp to cap (then engine also clamps to spawn-safe max).
-    /// NOTE: Poisson is skewed (more mass below lambda_).
+    /**
+     * WarmupSpec.poisson(lambda_, cap, holes=1)
+     *
+     * Sample rows ~ Poisson(lambda_) and clamp to cap (then engine also clamps to spawn-safe max).
+     * NOTE: Poisson is skewed (more mass below lambda_).
+     */
     #[staticmethod]
     #[pyo3(signature = (lambda_, cap, holes=1))]
     fn poisson(lambda_: f64, cap: u8, holes: u8) -> Self {
         let s = WarmupSpec {
-            rows: RowCountDist::Poisson { lambda: lambda_, cap },
+            rows: RowCountDist::Poisson {
+                lambda: lambda_,
+                cap,
+            },
             holes: HoleCount::Fixed(holes),
             ..WarmupSpec::none()
         };
         Self { inner: s }
     }
 
-    /// WarmupSpec.base_plus_poisson(base, lambda_, cap, holes=1)
-    ///
-    /// rows = base + Poisson(lambda_), clamped to cap (then engine also clamps to spawn-safe max).
-    /// Good for "hard baseline + jitter": mostly hard starts, sometimes harder.
+    /**
+     * WarmupSpec.base_plus_poisson(base, lambda_, cap, holes=1)
+     *
+     * rows = base + Poisson(lambda_), clamped to cap (then engine also clamps to spawn-safe max).
+     * Good for "hard baseline + jitter": mostly hard starts, sometimes harder.
+     */
     #[staticmethod]
     #[pyo3(signature = (base, lambda_, cap, holes=1))]
     fn base_plus_poisson(base: u8, lambda_: f64, cap: u8, holes: u8) -> Self {

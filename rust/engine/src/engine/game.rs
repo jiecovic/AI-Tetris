@@ -1,16 +1,16 @@
 // rust/engine/src/engine/game.rs
 #![forbid(unsafe_code)]
 
-use crate::engine::constants::{decode_action_id, encode_action_id, ACTION_DIM, H, HIDDEN_ROWS, W};
+use crate::engine::constants::{ACTION_DIM, H, HIDDEN_ROWS, W, decode_action_id, encode_action_id};
+use crate::engine::features::{GridFeatures, compute_grid_features_visible};
 use crate::engine::geometry::{bbox_left_to_anchor_x, bbox_params};
 use crate::engine::grid::{
     clear_lines_grid, clear_lines_inplace, fits_on_grid, height_metrics as grid_height_metrics,
     lock_on_grid,
 };
-use crate::engine::features::{compute_grid_features_visible, GridFeatures};
 use crate::engine::piece_rule::{PieceRule, PieceRuleKind};
 use crate::engine::pieces::Kind;
-use crate::engine::warmup::{apply_warmup, WarmupSpec};
+use crate::engine::warmup::{WarmupSpec, apply_warmup};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SimPlacement {
@@ -59,11 +59,17 @@ impl Game {
         Self::new_with_rule_and_warmup_spec(seed, rule_kind, WarmupSpec::none())
     }
 
-    /// Primary constructor: piece rule + explicit warmup spec.
-    ///
-    /// Key invariant:
-    /// - Draw `active` and `next` before warmup so piece-stream consumption is independent of warmup.
-    pub fn new_with_rule_and_warmup_spec(seed: u64, rule_kind: PieceRuleKind, warmup: WarmupSpec) -> Self {
+    /**
+     * Primary constructor: piece rule + explicit warmup spec.
+     *
+     * Key invariant:
+     * - Draw `active` and `next` before warmup so piece-stream consumption is independent of warmup.
+     */
+    pub fn new_with_rule_and_warmup_spec(
+        seed: u64,
+        rule_kind: PieceRuleKind,
+        warmup: WarmupSpec,
+    ) -> Self {
         let mut piece_rule = PieceRule::new(seed, rule_kind);
 
         // Draw pieces first (keeps piece stream semantics identical regardless of warmup mode).
@@ -165,12 +171,14 @@ impl Game {
         Self::action_mask_for_grid(&self.grid, self.active)
     }
 
-    /// Returns a fixed-size validity mask over action ids.
-    ///
-    /// Semantics:
-    /// - The action space has `ACTION_DIM = MAX_ROTS * W` "rotation slots".
-    /// - For a given `kind`, only rotations `rot_u < kind.num_rots()` are valid.
-    /// - Slots with `rot_u >= kind.num_rots()` are always invalid (masked out).
+    /**
+     * Returns a fixed-size validity mask over action ids.
+     *
+     * Semantics:
+     * - The action space has `ACTION_DIM = MAX_ROTS * W` "rotation slots".
+     * - For a given `kind`, only rotations `rot_u < kind.num_rots()` are valid.
+     * - Slots with `rot_u >= kind.num_rots()` are always invalid (masked out).
+     */
     pub fn action_mask_for_grid(grid: &[[u8; W]; H], kind: Kind) -> [bool; ACTION_DIM] {
         let mut m = [false; ACTION_DIM];
 
@@ -214,7 +222,11 @@ impl Game {
     // Pure transition kernel
     // -------------------------------------------------------------------------
 
-    pub fn apply_action_id_to_grid(grid_in: &[[u8; W]; H], kind: Kind, action_id: usize) -> SimPlacement {
+    pub fn apply_action_id_to_grid(
+        grid_in: &[[u8; W]; H],
+        kind: Kind,
+        action_id: usize,
+    ) -> SimPlacement {
         let Some((rot, x, y)) = Self::resolve_action_placement(grid_in, kind, action_id) else {
             return SimPlacement {
                 grid_after_lock: *grid_in,
@@ -259,7 +271,11 @@ impl Game {
         Self::apply_action_id_to_grid(&self.grid, self.active, action_id)
     }
 
-    pub fn simulate_action_id_lock_only(&self, kind: Kind, action_id: usize) -> Option<[[u8; W]; H]> {
+    pub fn simulate_action_id_lock_only(
+        &self,
+        kind: Kind,
+        action_id: usize,
+    ) -> Option<[[u8; W]; H]> {
         Self::apply_action_id_to_grid_lock_only(&self.grid, kind, action_id)
     }
 
@@ -271,12 +287,14 @@ impl Game {
     // Mutating step (FAST PATH)
     // -------------------------------------------------------------------------
 
-    /// Applies a placement action id for the current active piece.
-    ///
-    /// Engine semantics:
-    /// - Invalid actions are a no-op and return `invalid_action=true` without terminating.
-    /// - True game over is detected iff the *post-clear* locked grid occupies any spawn row
-    ///   (`r < HIDDEN_ROWS`).
+    /**
+     * Applies a placement action id for the current active piece.
+     *
+     * Engine semantics:
+     * - Invalid actions are a no-op and return `invalid_action=true` without terminating.
+     * - True game over is detected iff the *post-clear* locked grid occupies any spawn row
+     *   (`r < HIDDEN_ROWS`).
+     */
     pub fn step_action_id(&mut self, action_id: usize) -> StepResult {
         self.last_lock_features = None;
         if self.game_over {
@@ -327,9 +345,11 @@ impl Game {
         }
     }
 
-    /// Convenience wrapper around fixed action-id encoding.
-    ///
-    /// Exists to accept (rot, col) and forward to `step_action_id`.
+    /**
+     * Convenience wrapper around fixed action-id encoding.
+     *
+     * Exists to accept (rot, col) and forward to `step_action_id`.
+     */
     pub fn step_rot_col(&mut self, rot: usize, col: i32) -> (bool, u32) {
         if col < 0 || col >= W as i32 {
             return (false, 0);

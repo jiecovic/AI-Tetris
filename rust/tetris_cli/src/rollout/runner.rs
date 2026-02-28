@@ -5,15 +5,17 @@ use std::time::Duration;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use tetris_engine::engine::warmup::{HoleCount, RowCountDist, WarmupSpec};
 use tetris_engine::engine::Game;
+use tetris_engine::engine::warmup::{HoleCount, RowCountDist, WarmupSpec};
 use tetris_engine::policy::Policy;
 
 use super::sinks::{ReportRow, RolloutSink};
 use super::stats::{FinalReport, RolloutStats};
 
-/// Fixed internal cadence for progress-bar live message updates.
-/// (No CLI knob on purpose.)
+/**
+ * Fixed internal cadence for progress-bar live message updates.
+ * (No CLI knob on purpose.)
+ */
 const LIVE_EVERY: u64 = 200;
 
 #[derive(Clone, Debug)]
@@ -29,20 +31,26 @@ pub struct RunnerConfig {
     pub policy_name: String,
 
     // ---------------- warmup ----------------
-    /// Number of bottom rows to fill with warmup garbage on episode reset.
-    /// 0 disables warmup.
+    /**
+     * Number of bottom rows to fill with warmup garbage on episode reset.
+     * 0 disables warmup.
+     */
     pub warmup_rows: u8,
     /// Number of holes per warmed row (clamped in engine).
     pub warmup_holes: u8,
 
     // ---------------- output ----------------
-    /// 0 = final summary only
-    /// 1 = progress bar
-    /// 2 = progress bar + periodic table (via sink)
+    /**
+     * 0 = final summary only
+     * 1 = progress bar
+     * 2 = progress bar + periodic table (via sink)
+     */
     pub verbosity: u8,
 
-    /// Print a table row every N steps (only used when verbosity == 2).
-    /// 0 disables table reporting.
+    /**
+     * Print a table row every N steps (only used when verbosity == 2).
+     * 0 disables table reporting.
+     */
     pub report_every: u64,
 
     // ---------------- rendering ----------------
@@ -165,7 +173,10 @@ impl Runner {
 
             // Rendering (ASCII) every step when enabled.
             if let Some(ms) = cfg.render_ms {
-                println!("step={} action_id={} lines={}", stats.steps_done, aid, game.lines_cleared);
+                println!(
+                    "step={} action_id={} lines={}",
+                    stats.steps_done, aid, game.lines_cleared
+                );
                 print!("{}", game.render_ascii());
                 if ms > 0 {
                     std::thread::sleep(Duration::from_millis(ms));

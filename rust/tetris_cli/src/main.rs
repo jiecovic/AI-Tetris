@@ -5,12 +5,12 @@ mod rollout;
 
 use clap::Parser;
 
+use crate::rollout::{NoopSink, RolloutSink, Runner, RunnerConfig, TableSink};
 use tetris_engine::PieceRuleKind;
 use tetris_engine::policy::{
     BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, CodemyPolicyDynamic, Policy,
     RandomPolicy,
 };
-use crate::rollout::{NoopSink, RolloutSink, Runner, RunnerConfig, TableSink};
 
 #[derive(Parser, Debug)]
 #[command(name = "tetris_cli")]
@@ -28,12 +28,14 @@ struct Args {
     #[arg(long, default_value = "random")]
     policy: String,
 
-    /// For --policy codemy: number of plies (1..N). Defaults to 3.
-    /// Examples:
-    ///   --policy codemy --lookahead 1   (equiv to codemy0)
-    ///   --policy codemy --lookahead 2   (equiv to codemy1)
-    ///   --policy codemy --lookahead 3   (equiv to codemy2)
-    ///   --policy codemy --lookahead 6   (dynamic fallback)
+    /**
+     * For --policy codemy: number of plies (1..N). Defaults to 3.
+     * Examples:
+     *   --policy codemy --lookahead 1   (equiv to codemy0)
+     *   --policy codemy --lookahead 2   (equiv to codemy1)
+     *   --policy codemy --lookahead 3   (equiv to codemy2)
+     *   --policy codemy --lookahead 6   (dynamic fallback)
+     */
     #[arg(long)]
     lookahead: Option<u8>,
 
@@ -41,13 +43,17 @@ struct Args {
     #[arg(long)]
     beam_width: Option<usize>,
 
-    /// Start pruning from this decision depth onward (0=current, 1=next, 2=deeper...).
-    /// Only used if --beam-width is provided.
+    /**
+     * Start pruning from this decision depth onward (0=current, 1=next, 2=deeper...).
+     * Only used if --beam-width is provided.
+     */
     #[arg(long, default_value_t = 0)]
     beam_from_depth: u8,
 
-    /// Tail weight for --policy codemy2fast.
-    /// 0.0 => behaves like codemy1 (ignoring the tail); higher values weigh the tail more.
+    /**
+     * Tail weight for --policy codemy2fast.
+     * 0.0 => behaves like codemy1 (ignoring the tail); higher values weigh the tail more.
+     */
     #[arg(long, default_value_t = 0.5)]
     tail_weight: f64,
 
@@ -65,10 +71,12 @@ struct Args {
     warmup_holes: u8,
 
     // ---------------- visualization ----------------
-    /// Render board as ASCII every step; value is sleep in ms (e.g. 30). Omit to disable rendering.
-    /// Examples:
-    ///   --render 0    (render as fast as possible)
-    ///   --render 30   (sleep 30ms between frames)
+    /**
+     * Render board as ASCII every step; value is sleep in ms (e.g. 30). Omit to disable rendering.
+     * Examples:
+     *   --render 0    (render as fast as possible)
+     *   --render 30   (sleep 30ms between frames)
+     */
     #[arg(long, value_name = "ms")]
     render: Option<u64>,
 

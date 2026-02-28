@@ -50,8 +50,10 @@ pub fn clear_lines_grid(grid: &[[u8; W]; H]) -> ([[u8; W]; H], u32) {
     (new_grid, cleared)
 }
 
-/// Clear any full lines in-place.
-/// Returns (cleared_lines, spawn_rows_occupied).
+/**
+ * Clear any full lines in-place.
+ * Returns (cleared_lines, spawn_rows_occupied).
+ */
 pub fn clear_lines_inplace(grid: &mut [[u8; W]; H]) -> (u32, bool) {
     let mut cleared = 0u32;
     let mut write_row: i32 = (H as i32) - 1;
@@ -86,12 +88,14 @@ pub fn clear_lines_inplace(grid: &mut [[u8; W]; H]) -> (u32, bool) {
     (cleared, spawn_occupied)
 }
 
-/// Fill the bottom `rows` with "garbage": each row is filled except for `holes` empty cells.
-/// Uses a derived RNG from `seed` so warmup does not perturb the piece stream.
-///
-/// Preconditions (enforced with debug_assert):
-/// - rows <= H
-/// - 1 <= holes <= W-1
+/**
+ * Fill the bottom `rows` with "garbage": each row is filled except for `holes` empty cells.
+ * Uses a derived RNG from `seed` so warmup does not perturb the piece stream.
+ *
+ * Preconditions (enforced with debug_assert):
+ * - rows <= H
+ * - 1 <= holes <= W-1
+ */
 pub fn apply_warmup_garbage(grid: &mut [[u8; W]; H], seed: u64, rows: u8, holes: u8) {
     debug_assert!((rows as usize) <= H);
     debug_assert!(holes >= 1);
@@ -119,11 +123,13 @@ pub fn apply_warmup_garbage(grid: &mut [[u8; W]; H], seed: u64, rows: u8, holes:
     }
 }
 
-/// Column height: number of filled cells from bottom (0..H).
-///
-/// NOTE: With `H=22` and `HIDDEN_ROWS=2`, this currently counts occupancy in the hidden spawn
-/// rows as part of the height. That is intentional for now (simple + consistent), but if you
-/// want "visible-only" metrics you should start scanning from `HIDDEN_ROWS` instead of `0`.
+/**
+ * Column height: number of filled cells from bottom (0..H).
+ *
+ * NOTE: With `H=22` and `HIDDEN_ROWS=2`, this currently counts occupancy in the hidden spawn
+ * rows as part of the height. That is intentional for now (simple + consistent), but if you
+ * want "visible-only" metrics you should start scanning from `HIDDEN_ROWS` instead of `0`.
+ */
 #[inline]
 pub fn col_height(grid: &[[u8; W]; H], c: usize) -> u32 {
     for (r, row) in grid.iter().enumerate() {

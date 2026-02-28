@@ -13,8 +13,8 @@ pub mod warmup;
 // Re-exports (engine public API)
 pub use constants::*;
 pub use features::{
-    compute_grid_features, compute_grid_features_visible, compute_step_features, GridDelta, GridFeatures,
-    StepFeatures,
+    GridDelta, GridFeatures, StepFeatures, compute_grid_features, compute_grid_features_visible,
+    compute_step_features,
 };
 pub use game::*;
 pub use piece_rule::*;

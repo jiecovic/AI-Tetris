@@ -4,11 +4,11 @@
 
 use pyo3::prelude::*;
 
+use tetris_engine::Game;
 use tetris_engine::policy::{
     BeamConfig, Codemy0, Codemy1, Codemy2, Codemy2FastPolicy, HeuristicFeature, HeuristicPolicy,
     Policy,
 };
-use tetris_engine::Game;
 
 use crate::engine::TetrisEngine;
 
@@ -99,17 +99,20 @@ impl ExpertPolicy {
             feats.push(f);
         }
         let beam = beam_width.map(|w| BeamConfig::new(beam_from_depth, w));
-        let policy = HeuristicPolicy::new(feats, weights, plies, beam, after_clear).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(format!("heuristic policy: {e}"))
-        })?;
+        let policy =
+            HeuristicPolicy::new(feats, weights, plies, beam, after_clear).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("heuristic policy: {e}"))
+            })?;
         Ok(Self {
             inner: ExpertPolicyInner::Heuristic(policy),
         })
     }
 
-    /// Compute an expert action id for the current state of `engine`.
-    ///
-    /// NOTE: This borrows the engine state (no copies).
+    /**
+     * Compute an expert action id for the current state of `engine`.
+     *
+     * NOTE: This borrows the engine state (no copies).
+     */
     fn action_id(&mut self, engine: &TetrisEngine) -> Option<usize> {
         self.inner.action_id(&engine.g)
     }

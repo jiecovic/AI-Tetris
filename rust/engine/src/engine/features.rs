@@ -25,14 +25,16 @@ pub struct StepFeatures {
     pub delta: GridDelta,
 }
 
-/// Compute classic Tetris grid features on a *locked* grid.
-/// Complexity: O(H*W), no allocations.
-///
-/// NOTE (hidden spawn rows):
-/// With `H=22` (and a conceptual hidden top area), this implementation currently computes
-/// heights/holes over the FULL 22-row grid (i.e., hidden rows are included).
-/// If you later want "visible-only" features, adjust the scans in `column_heights` and
-/// `count_holes` to start from `HIDDEN_ROWS` instead of `0`.
+/**
+ * Compute classic Tetris grid features on a *locked* grid.
+ * Complexity: O(H*W), no allocations.
+ *
+ * NOTE (hidden spawn rows):
+ * With `H=22` (and a conceptual hidden top area), this implementation currently computes
+ * heights/holes over the FULL 22-row grid (i.e., hidden rows are included).
+ * If you later want "visible-only" features, adjust the scans in `column_heights` and
+ * `count_holes` to start from `HIDDEN_ROWS` instead of `0`.
+ */
 pub fn compute_grid_features(grid: &[[u8; W]; H]) -> GridFeatures {
     let heights = column_heights(grid);
 
@@ -54,8 +56,10 @@ pub fn compute_grid_features(grid: &[[u8; W]; H]) -> GridFeatures {
     }
 }
 
-/// Compute classic Tetris grid features on the VISIBLE grid only
-/// (hidden spawn rows are zeroed before feature extraction).
+/**
+ * Compute classic Tetris grid features on the VISIBLE grid only
+ * (hidden spawn rows are zeroed before feature extraction).
+ */
 pub fn compute_grid_features_visible(grid: &[[u8; W]; H]) -> GridFeatures {
     let mut g = *grid;
     for row in g.iter_mut().take(HIDDEN_ROWS) {
@@ -64,8 +68,10 @@ pub fn compute_grid_features_visible(grid: &[[u8; W]; H]) -> GridFeatures {
     compute_grid_features(&g)
 }
 
-/// Convenience: compute current features and delta vs previous features.
-/// If `prev` is None, deltas are reported as 0.
+/**
+ * Convenience: compute current features and delta vs previous features.
+ * If `prev` is None, deltas are reported as 0.
+ */
 pub fn compute_step_features(grid: &[[u8; W]; H], prev: Option<GridFeatures>) -> StepFeatures {
     let cur = compute_grid_features(grid);
 

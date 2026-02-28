@@ -1,7 +1,7 @@
 // src/policy/codemy/unknown.rs
 #![forbid(unsafe_code)]
 
-use crate::engine::{Kind, H, W};
+use crate::engine::{H, Kind, W};
 
 use super::core::{GridScorer, SearchCore};
 

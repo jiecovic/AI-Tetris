@@ -1,7 +1,7 @@
 // src/policy/codemy/score.rs
 #![forbid(unsafe_code)]
 
-use crate::engine::{compute_grid_features, H, HIDDEN_ROWS, W};
+use crate::engine::{H, HIDDEN_ROWS, W, compute_grid_features};
 
 #[inline]
 pub(crate) fn complete_lines_visible_only(grid: &[[u8; W]; H]) -> u32 {
@@ -22,8 +22,7 @@ pub(crate) fn score_grid(grid_after_lock: &[[u8; W]; H]) -> f64 {
     let complete_lines = complete_lines_visible_only(grid_after_lock);
 
     // CodemyRoad GA weights
-    -0.510066 * (f.agg_h as f64)
-        + 0.760666 * (complete_lines as f64)
+    -0.510066 * (f.agg_h as f64) + 0.760666 * (complete_lines as f64)
         - 0.35663 * (f.holes as f64)
         - 0.184483 * (f.bump as f64)
 }

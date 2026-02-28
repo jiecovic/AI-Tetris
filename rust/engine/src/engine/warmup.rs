@@ -48,20 +48,37 @@ use crate::engine::grid::apply_warmup_garbage;
 pub enum RowCountDist {
     Fixed(u8),
     /// Inclusive bounds.
-    Uniform { min: u8, max: u8 },
-    /// Sample rows ~ Poisson(lambda), then clamp to cap.
-    /// NOTE: This is a *skewed* distribution (more mass below lambda).
-    Poisson { lambda: f64, cap: u8 },
-    /// rows = base + Poisson(lambda), then clamp to cap.
-    /// Good for "mostly hard starts, sometimes harder".
-    BasePlusPoisson { base: u8, lambda: f64, cap: u8 },
+    Uniform {
+        min: u8,
+        max: u8,
+    },
+    /**
+     * Sample rows ~ Poisson(lambda), then clamp to cap.
+     * NOTE: This is a *skewed* distribution (more mass below lambda).
+     */
+    Poisson {
+        lambda: f64,
+        cap: u8,
+    },
+    /**
+     * rows = base + Poisson(lambda), then clamp to cap.
+     * Good for "mostly hard starts, sometimes harder".
+     */
+    BasePlusPoisson {
+        base: u8,
+        lambda: f64,
+        cap: u8,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum HoleCount {
     Fixed(u8),
     /// Inclusive bounds.
-    Uniform { min: u8, max: u8 },
+    Uniform {
+        min: u8,
+        max: u8,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -93,8 +110,10 @@ impl Default for WarmupSpec {
     }
 }
 
-/// Apply warmup to the provided grid.
-/// Deterministic w.r.t. (seed, spec), but does not consume piece RNG.
+/**
+ * Apply warmup to the provided grid.
+ * Deterministic w.r.t. (seed, spec), but does not consume piece RNG.
+ */
 pub fn apply_warmup(grid: &mut [[u8; W]; H], episode_seed: u64, spec: &WarmupSpec) {
     let max_rows = max_warmup_rows();
 
@@ -185,8 +204,10 @@ fn sample_rows(rng: &mut StdRng, dist: RowCountDist) -> u8 {
     }
 }
 
-/// Poisson sampler (Knuth).
-/// Good for small/moderate lambdas; no extra dependency (`rand_distr`) required.
+/**
+ * Poisson sampler (Knuth).
+ * Good for small/moderate lambdas; no extra dependency (`rand_distr`) required.
+ */
 fn poisson_knuth(rng: &mut StdRng, lambda: f64) -> u32 {
     if lambda <= 0.0 {
         return 0;

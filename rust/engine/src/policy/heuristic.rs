@@ -149,7 +149,11 @@ impl HeuristicScorer {
                 }
             }
         }
-        let mean_h = if need_heights { agg_h / (W as f64) } else { 0.0 };
+        let mean_h = if need_heights {
+            agg_h / (W as f64)
+        } else {
+            0.0
+        };
         let var_h = if need_heights {
             let v = (sumsq_h / (W as f64)) - (mean_h * mean_h);
             if v < 0.0 { 0.0 } else { v }
@@ -224,10 +228,34 @@ impl HeuristicScorer {
                 HeuristicFeature::HolesStdRow => holes_std_row,
                 HeuristicFeature::Bumpiness => bump,
                 HeuristicFeature::CompleteLines => complete_lines,
-                HeuristicFeature::AggHeightNorm => if max_cells > 0.0 { agg_h / max_cells } else { 0.0 },
-                HeuristicFeature::HolesNorm => if max_cells > 0.0 { holes_total / max_cells } else { 0.0 },
-                HeuristicFeature::BumpinessNorm => if max_bump > 0.0 { bump / max_bump } else { 0.0 },
-                HeuristicFeature::CompleteLinesNorm => if max_lines > 0.0 { complete_lines / max_lines } else { 0.0 },
+                HeuristicFeature::AggHeightNorm => {
+                    if max_cells > 0.0 {
+                        agg_h / max_cells
+                    } else {
+                        0.0
+                    }
+                }
+                HeuristicFeature::HolesNorm => {
+                    if max_cells > 0.0 {
+                        holes_total / max_cells
+                    } else {
+                        0.0
+                    }
+                }
+                HeuristicFeature::BumpinessNorm => {
+                    if max_bump > 0.0 {
+                        bump / max_bump
+                    } else {
+                        0.0
+                    }
+                }
+                HeuristicFeature::CompleteLinesNorm => {
+                    if max_lines > 0.0 {
+                        complete_lines / max_lines
+                    } else {
+                        0.0
+                    }
+                }
             };
             score += w * v;
         }
@@ -321,7 +349,11 @@ pub fn compute_feature_values(grid: &[[u8; W]; H], features: &[HeuristicFeature]
             }
         }
     }
-    let mean_h = if need_heights { agg_h / (W as f64) } else { 0.0 };
+    let mean_h = if need_heights {
+        agg_h / (W as f64)
+    } else {
+        0.0
+    };
     let var_h = if need_heights {
         let v = (sumsq_h / (W as f64)) - (mean_h * mean_h);
         if v < 0.0 { 0.0 } else { v }
@@ -396,10 +428,34 @@ pub fn compute_feature_values(grid: &[[u8; W]; H], features: &[HeuristicFeature]
             HeuristicFeature::HolesStdRow => holes_std_row,
             HeuristicFeature::Bumpiness => bump,
             HeuristicFeature::CompleteLines => complete_lines,
-            HeuristicFeature::AggHeightNorm => if max_cells > 0.0 { agg_h / max_cells } else { 0.0 },
-            HeuristicFeature::HolesNorm => if max_cells > 0.0 { holes_total / max_cells } else { 0.0 },
-            HeuristicFeature::BumpinessNorm => if max_bump > 0.0 { bump / max_bump } else { 0.0 },
-            HeuristicFeature::CompleteLinesNorm => if max_lines > 0.0 { complete_lines / max_lines } else { 0.0 },
+            HeuristicFeature::AggHeightNorm => {
+                if max_cells > 0.0 {
+                    agg_h / max_cells
+                } else {
+                    0.0
+                }
+            }
+            HeuristicFeature::HolesNorm => {
+                if max_cells > 0.0 {
+                    holes_total / max_cells
+                } else {
+                    0.0
+                }
+            }
+            HeuristicFeature::BumpinessNorm => {
+                if max_bump > 0.0 {
+                    bump / max_bump
+                } else {
+                    0.0
+                }
+            }
+            HeuristicFeature::CompleteLinesNorm => {
+                if max_lines > 0.0 {
+                    complete_lines / max_lines
+                } else {
+                    0.0
+                }
+            }
         };
         out.push(v);
     }
@@ -464,7 +520,12 @@ impl Policy for HeuristicPolicy {
                 if sim1.invalid {
                     continue;
                 }
-                self.core.value_known_piece::<UniformIID>(&sim1.grid_after_clear, g.next, self.plies - 1, 1)
+                self.core.value_known_piece::<UniformIID>(
+                    &sim1.grid_after_clear,
+                    g.next,
+                    self.plies - 1,
+                    1,
+                )
             };
 
             match best {

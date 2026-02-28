@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::engine::{ACTION_DIM, Game, H, Kind, W};
-use crate::policy::beam::{prune_top_n_scores, prune_top_n_scores_inplace, BeamConfig};
+use crate::policy::beam::{BeamConfig, prune_top_n_scores, prune_top_n_scores_inplace};
 
 use super::empty_cache::{empty_valid_action_ids, kind_idx0_u8};
 use super::score::score_grid;
@@ -23,8 +23,10 @@ impl GridScorer for CodemyScorer {
     }
 }
 
-/// Core implementation shared by dynamic + static policy wrappers.
-/// Holds all knobs (currently only beam pruning) and a scoring function.
+/**
+ * Core implementation shared by dynamic + static policy wrappers.
+ * Holds all knobs (currently only beam pruning) and a scoring function.
+ */
 #[derive(Clone, Debug)]
 pub struct SearchCore<S: GridScorer> {
     scorer: S,
@@ -56,8 +58,10 @@ impl<S: GridScorer> SearchCore<S> {
         }
     }
 
-    /// Fast path: maximize score(grid_after_lock) for a known piece on a grid.
-    /// Single simulation per candidate aid. No allocations.
+    /**
+     * Fast path: maximize score(grid_after_lock) for a known piece on a grid.
+     * Single simulation per candidate aid. No allocations.
+     */
     fn best_leaf_score_for_known_piece(&self, grid: &[[u8; W]; H], kind: Kind) -> f64 {
         let mut best = f64::NEG_INFINITY;
 
@@ -74,7 +78,8 @@ impl<S: GridScorer> SearchCore<S> {
             }
         } else {
             for &aid in empty_valid_action_ids(kind) {
-                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
+                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid)
+                else {
                     continue; // collisions / out-of-bounds on this grid
                 };
                 let s = self.scorer.score(&grid_lock);
@@ -87,8 +92,10 @@ impl<S: GridScorer> SearchCore<S> {
         best
     }
 
-    /// Leaf with beam pruning:
-    /// compute scores for all candidate actions, select top-N, then return the max score among them.
+    /**
+     * Leaf with beam pruning:
+     * compute scores for all candidate actions, select top-N, then return the max score among them.
+     */
     fn best_leaf_score_for_known_piece_beam(
         &self,
         grid: &[[u8; W]; H],
@@ -109,7 +116,8 @@ impl<S: GridScorer> SearchCore<S> {
             }
         } else {
             for &aid in empty_valid_action_ids(kind) {
-                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
+                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid)
+                else {
                     continue;
                 };
                 scores[len] = (aid, self.scorer.score(&grid_lock));
@@ -183,7 +191,8 @@ impl<S: GridScorer> SearchCore<S> {
             }
         } else {
             for &aid in empty_valid_action_ids(kind) {
-                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid) else {
+                let Some(grid_lock) = Game::apply_action_id_to_grid_lock_only(grid, kind, aid)
+                else {
                     continue;
                 };
                 proxies[len] = (aid, self.scorer.score(&grid_lock));
@@ -223,8 +232,10 @@ impl<S: GridScorer> SearchCore<S> {
         M::expected_value(self, grid, plies_left, depth)
     }
 
-    /// Build aid0 candidates for the active piece with a cheap proxy to rank for pruning.
-    /// (Uses Game::action_mask() for the current grid.)
+    /**
+     * Build aid0 candidates for the active piece with a cheap proxy to rank for pruning.
+     * (Uses Game::action_mask() for the current grid.)
+     */
     pub(crate) fn aid0_candidates_with_proxy(&self, g: &Game) -> Vec<(usize, f64)> {
         let mask = g.action_mask();
         let mut out: Vec<(usize, f64)> = Vec::with_capacity(ACTION_DIM);
@@ -271,8 +282,10 @@ impl<S: GridScorer> SearchCore<S> {
         h
     }
 
-    /// Same as "best response for known piece", but cached:
-    /// (grid_hash, kind) -> (best_aid, best_score, best_grid_after_clear)
+    /**
+     * Same as "best response for known piece", but cached:
+     * (grid_hash, kind) -> (best_aid, best_score, best_grid_after_clear)
+     */
     pub(crate) fn best_response_for_known_piece_cached(
         &self,
         grid: &[[u8; W]; H],
