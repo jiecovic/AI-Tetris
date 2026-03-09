@@ -36,16 +36,37 @@ def load_yaml(path: Path) -> dict[str, Any]:
     return _strip_hydra_key(cast(dict[Any, Any], data))
 
 
-def load_experiment_config(path: Path) -> ExperimentConfig:
-    return ExperimentConfig.model_validate(load_yaml(path))
+def _normalize_legacy_policy_selector_fields(data: dict[str, Any]) -> dict[str, Any]:
+    # Persisted run configs may still carry removed bootstrap fields under learn.
+    # Keep authored-config validation strict elsewhere and normalize only at load time.
+    out = dict(data)
+    learn_obj = out.get("learn", None)
+    if not isinstance(learn_obj, dict):
+        return out
+    learn = dict(learn_obj)
+    learn.pop("policy_init", None)
+    learn.pop("resume", None)
+    out["learn"] = learn
+    out.pop("policy_init", None)
+    return out
+
+
+def load_experiment_config(path: Path, *, allow_legacy_policy_selector: bool = False) -> ExperimentConfig:
+    data = load_yaml(path)
+    if allow_legacy_policy_selector:
+        data = _normalize_legacy_policy_selector_fields(data)
+    return ExperimentConfig.model_validate(data)
 
 
 def load_datagen_config(path: Path) -> DataGenConfig:
     return DataGenConfig.model_validate(load_yaml(path))
 
 
-def load_imitation_config(path: Path) -> ImitationExperimentConfig:
-    return ImitationExperimentConfig.model_validate(load_yaml(path))
+def load_imitation_config(path: Path, *, allow_legacy_policy_selector: bool = False) -> ImitationExperimentConfig:
+    data = load_yaml(path)
+    if allow_legacy_policy_selector:
+        data = _normalize_legacy_policy_selector_fields(data)
+    return ImitationExperimentConfig.model_validate(data)
 
 
 __all__ = [

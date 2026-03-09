@@ -68,7 +68,7 @@ def load_run_spec(run_name: str | Path) -> RunSpec:
     ga_search: HeuristicSearch | None = None
 
     if algo_type == "imitation":
-        exp_cfg = load_imitation_config(cfg_path)
+        exp_cfg = load_imitation_config(cfg_path, allow_legacy_policy_selector=True)
         cfg_plain = to_plain_dict(exp_cfg)
         env_train_cfg = exp_cfg.env_train
         env_eval_cfg = exp_cfg.env_eval
@@ -90,7 +90,7 @@ def load_run_spec(run_name: str | Path) -> RunSpec:
         if not isinstance(env_eval_cfg, dict):
             raise TypeError("env_eval must be a mapping for planning runs")
     elif algo_type in {"ppo", "maskable_ppo"}:
-        exp_cfg = load_experiment_config(cfg_path)
+        exp_cfg = load_experiment_config(cfg_path, allow_legacy_policy_selector=True)
         cfg_plain = to_plain_dict(exp_cfg)
         env_train_cfg = exp_cfg.env_train
         env_eval_cfg = exp_cfg.env_eval
